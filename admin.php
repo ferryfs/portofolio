@@ -15,6 +15,7 @@ if (isset($_POST['simpan'])) {
     $desc  = $_POST['description'];
     $tech  = $_POST['tech_stack'];
     $link  = $_POST['link_demo'];
+    $case  = $_POST['link_case']; // <--- INI BARU
     
     // Logic Upload Gambar
     $nama_file = $_FILES['image']['name'];
@@ -24,15 +25,9 @@ if (isset($_POST['simpan'])) {
     // Pindahkan gambar dari sementara ke folder aset
     move_uploaded_file($source, $folder . $nama_file);
 
-    // Masukkan ke Database
+   // Tambahkan '$case' di urutan terakhir query
     $insert = mysqli_query($conn, "INSERT INTO projects VALUES (
-        NULL, 
-        '$title', 
-        '$desc', 
-        '$nama_file', 
-        '$tech', 
-        '$link', 
-        '#'
+        NULL, '$title', '$desc', '$nama_file', '$tech', '$link', '$case'
     )");
 
     if ($insert) {
@@ -94,6 +89,10 @@ if (isset($_GET['hapus'])) {
                             <label>Link Demo (Folder Apps)</label>
                             <input type="text" name="link_demo" class="form-control" placeholder="Contoh: apps/kasir/">
                         </div>
+                        <div class="col-md-6 mb-3">
+                        <label>Link Studi Kasus (PDF/Doc)</label>
+                        <input type="text" name="link_case" class="form-control" placeholder="Contoh: Link Google Drive / #">
+                    </div>
                     </div>
                     <button type="submit" name="simpan" class="btn btn-success w-100 fw-bold">
                         <i class="bi bi-save"></i> SIMPAN PROYEK

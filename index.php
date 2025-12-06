@@ -240,9 +240,16 @@ include 'koneksi.php';
                                 <span class="badge bg-dark border border-secondary"><?php echo $row['tech_stack']; ?></span>
                             </div>
                             
-                            <?php if($row['link_demo']) { ?>
-                                <a href="javascript:void(0);" onclick="window.open('<?php echo $row['link_demo']; ?>', '_blank')" class="btn btn-primary-custom w-100">Lihat Project</a>
-                            <?php } ?>
+                            <?php if(!empty($row['link_demo']) && $row['link_demo'] != '#') { ?>
+    <a href="#ViewDemo" onclick="window.open('<?php echo $row['link_demo']; ?>', '_blank')" class="btn btn-primary-custom w-100 mb-2" data-lang="btn_demo">
+        Coba Demo Aplikasi
+    </a>
+                          <?php } ?>
+                          <?php if(!empty($row['link_case']) && $row['link_case'] != '#') { ?>
+                              <a href="#ViewCase" onclick="window.open('<?php echo $row['link_case']; ?>', '_blank')" class="btn btn-outline-light w-100" data-lang="btn_case">
+                                  Lihat Studi Kasus
+                              </a>
+                          <?php } ?>
                         </div>
                     </div>
                 </div>
@@ -333,8 +340,8 @@ include 'koneksi.php';
                 hero_desc: "Saya menjembatani kebutuhan bisnis dengan solusi teknis untuk menciptakan produk digital yang efisien, user-friendly, dan berdampak nyata.",
                 btn_work: "Lihat Karya Saya", btn_cv: "Unduh CV",
                 proj_title: "Proyek Unggulan", proj_subtitle: "Beberapa aplikasi dan sistem yang telah saya kembangkan.",
-                p1_title: "Sistem Manajemen Stok", p1_desc: "Aplikasi berbasis web untuk memantau arus keluar-masuk barang secara real-time. Mengurangi selisih stok hingga 40%.",
-                p2_title: "Integrasi Pembatalan Order (ERP)", p2_desc: "Merancang alur sistem (BRD) untuk sinkronisasi status pembatalan order antara NAV ERP dan e-commerce portal.",
+                p1_title: "Persyaratan Motif Fitur", p1_desc: "Penambahan parameter motif pada modul pembuatan promo untuk memastikan promo hanya berlaku pada item dengan motif tertentu, sehingga perhitungan kelayakan promo pada order menjadi otomatis dan akurat.",
+                p2_title: "Implementasi Capping Promo", p2_desc: "Project ini bertujuan untuk menambahkan mekanisme capping pada sistem promo di Sales Brief agar jumlah benefit promo yang diterima distributor dapat dibatasi sesuai ketentuan program.",
                 btn_demo: "Coba Demo Aplikasi", btn_case: "Lihat Studi Kasus",
                 about_head: "TENTANG SAYA", about_title: "Lebih dari sekadar Analyst dan Product Development.",
                 about_lead: "Saya memiliki latar belakang teknis yang kuat, memungkinkan saya untuk berkomunikasi secara efektif dengan developer.",
@@ -350,8 +357,8 @@ include 'koneksi.php';
                 hero_desc: "Bridging business needs with technical solutions to create efficient, user-friendly, and impactful digital products.",
                 btn_work: "View My Work", btn_cv: "Download CV",
                 proj_title: "Featured Projects", proj_subtitle: "Some applications and systems I have developed.",
-                p1_title: "Inventory Management System", p1_desc: "Web-based application to monitor stock flow in real-time. Reduced stock discrepancies by 40%.",
-                p2_title: "Order Cancellation Integration (ERP)", p2_desc: "Designing system flow (BRD) to synchronize order cancellation status between NAV ERP and e-commerce portal.",
+                p1_title: "Feature Motif Requirement for Promo", p1_desc: "Addition of motif filter in the Sales Brief promo engine to enable motif-based eligibility, ensuring promotions are automatically applied only when distributors order items with the defined motifs.",
+                p2_title: "Implementaion Capping Promo", p2_desc: "Introducing a capping mechanism to the Sales Brief promo engine to limit promotion benefits based on predefined quota or value thresholds, ensuring better budget control and preventing over-redemption.",
                 btn_demo: "Try App Demo", btn_case: "View Case Study",
                 about_head: "ABOUT ME", about_title: "More than just Analyst & Product Development.",
                 about_lead: "I have a strong technical background, allowing me to communicate effectively with developers and understand system complexity.",

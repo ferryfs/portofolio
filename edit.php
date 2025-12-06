@@ -27,29 +27,31 @@ if (isset($_POST['update'])) {
     $desc  = $_POST['description'];
     $tech  = $_POST['tech_stack'];
     $link  = $_POST['link_demo'];
+    $case  = $_POST['link_case']; // <--- INI BARU
     
-    // Cek apakah user ganti gambar?
     $nama_file = $_FILES['image']['name'];
     
     if ($nama_file != "") {
-        // KALO GANTI GAMBAR
         $source = $_FILES['image']['tmp_name'];
         move_uploaded_file($source, './assets/img/' . $nama_file);
         
+        // Update dengan Gambar Baru & Link Case
         $update = mysqli_query($conn, "UPDATE projects SET 
             title='$title', 
             description='$desc', 
             image='$nama_file', 
             tech_stack='$tech', 
-            link_demo='$link' 
+            link_demo='$link',
+            link_case='$case'
             WHERE id='$id'");
     } else {
-        // KALO GAK GANTI GAMBAR (Pake gambar lama)
+        // Update Tanpa Ganti Gambar
         $update = mysqli_query($conn, "UPDATE projects SET 
             title='$title', 
             description='$desc', 
             tech_stack='$tech', 
-            link_demo='$link' 
+            link_demo='$link',
+            link_case='$case' 
             WHERE id='$id'");
     }
 
@@ -103,6 +105,10 @@ if (isset($_POST['update'])) {
                     <div class="mb-3">
                         <label>Link Demo</label>
                         <input type="text" name="link_demo" class="form-control" value="<?= $data['link_demo'] ?>">
+                    </div>
+                    <div class="mb-3">
+                        <label>Link Studi Kasus</label>
+                        <input type="text" name="link_case" class="form-control" value="<?= $data['link_case'] ?>">
                     </div>
 
                     <div class="d-flex gap-2">
