@@ -34,24 +34,15 @@ if(!isset($_SESSION['sb_user'])) {
       .form-control, .form-control-sm, .select2-selection { border-radius: 6px !important; border: 1px solid #cbd5e1; color: #334155; font-size: 0.9rem; padding: 0.5rem 0.75rem; height: auto; box-shadow: none !important; transition: border-color 0.2s; }
       .form-control:focus { border-color: #3b82f6; }
 
-      /* Select2 Fix: Left Align & Vertical Center */
-      .select2-container .select2-selection--single { 
-          height: 38px !important; 
-          display: flex !important; 
-          align-items: center !important; 
-          justify-content: flex-start !important; /* Forces Left Align */
-      }
-      .select2-container--bootstrap4 .select2-selection--single .select2-selection__rendered { 
-          line-height: 1.5 !important; 
-          margin-top: -2px; 
-          padding-left: 0 !important; 
-          color: #334155; 
-          text-align: left !important; /* Text Kiri */
-          width: 100%;
-      }
+      /* Select2 Fix */
+      .select2-container .select2-selection--single { height: 38px !important; display: flex !important; align-items: center !important; justify-content: flex-start !important; }
+      .select2-container--bootstrap4 .select2-selection--single .select2-selection__rendered { line-height: 1.5 !important; margin-top: -2px; padding-left: 0 !important; color: #334155; text-align: left !important; width: 100%; }
       .select2-container--bootstrap4 .select2-selection--multiple { min-height: 38px !important; border: 1px solid #cbd5e1 !important; border-radius: 6px !important; display: flex; align-items: center; }
       .select2-search__field { margin-top: 0 !important; margin-bottom: 0 !important; height: 28px !important; }
-      .select2-container--bootstrap4 .select2-selection--single .select2-selection__placeholder { color: #6c757d; font-style: italic; }
+      
+      /* Placeholder Style */
+      .select2-container--bootstrap4 .select2-selection--single .select2-selection__placeholder { color: #9ca3af !important; font-style: normal; }
+      .select2-container--bootstrap4 .select2-selection--multiple .select2-search__field::placeholder { color: #9ca3af !important; }
 
       /* Switch */
       .custom-switch .custom-control-label::before { height: 1.5rem; width: 2.75rem; border-radius: 2rem; }
@@ -176,9 +167,9 @@ if(!isset($_SESSION['sb_user'])) {
                             </div>
 
                             <div class="form-group bg-light p-3 rounded border mt-4">
-                                <label class="label-pro text-primary">Selected Target Calculation <span class="text-danger">*</span></label>
-                                <select class="form-control select2" id="target_by" name="target_by" style="width: 100%;">
-                                    <option value="" selected disabled>Select Target Calculation...</option>
+                                <label class="label-pro text-primary">Target Calculation <span class="text-danger">*</span></label>
+                                <select class="form-control select2" id="target_by" name="target_by" style="width: 100%;" data-placeholder="Select Target Calculation">
+                                    <option></option>
                                     <option value="qty">Qty Berjenjang (Based on Quantity)</option>
                                     <option value="amount">Amount Berjenjang (Based on IDR)</option>
                                 </select>
@@ -189,17 +180,17 @@ if(!isset($_SESSION['sb_user'])) {
                         <div class="col-lg-7 pl-lg-5">
                              <div class="row">
                                 <div class="col-md-6 form-group">
-                                    <label class="label-pro">Selected Promo Mechanism <span class="text-danger">*</span></label>
-                                    <select class="form-control select2" name="promo_mechanism">
-                                        <option value="" selected disabled>Select Mechanism...</option>
+                                    <label class="label-pro">Promo Mechanism <span class="text-danger">*</span></label>
+                                    <select class="form-control select2" name="promo_mechanism" id="promo_mechanism" data-placeholder="Select Mechanism...">
+                                        <option></option>
                                         <option value="Direct Promo">Direct Promo</option>
                                         <option value="Accumulation">Accumulation</option>
                                     </select>
                                 </div>
                                 <div class="col-md-6 form-group">
-                                    <label class="label-pro">Selected Promo Type <span class="text-danger">*</span></label>
-                                    <select class="form-control select2" id="pilihan-promo" name="promo_selection">
-                                        <option value="" selected disabled>Select Type...</option>
+                                    <label class="label-pro">Promo Type <span class="text-danger">*</span></label>
+                                    <select class="form-control select2" id="pilihan-promo" name="promo_selection" data-placeholder="Select Type...">
+                                        <option></option>
                                         <option value="2">Cashback Percentage</option>
                                         <option value="4">Free Gift</option>
                                         <option value="20">Free Gift Claim</option>
@@ -207,8 +198,8 @@ if(!isset($_SESSION['sb_user'])) {
                                 </div>
                                 
                                 <div class="col-md-12 form-group">
-                                    <label class="label-pro">Selected Promo Condition (Multiple)</label>
-                                    <select class="form-control select2" name="promo_condition[]" multiple="multiple" data-placeholder="Select Sell In / Sell Out...">
+                                    <label class="label-pro">Promo Condition (Multiple)</label>
+                                    <select class="form-control select2" name="promo_condition[]" multiple="multiple" data-placeholder="Select Condition...">
                                         <option value="Sell In">Sell In</option>
                                         <option value="Sell Out">Sell Out</option>
                                     </select>
@@ -220,7 +211,7 @@ if(!isset($_SESSION['sb_user'])) {
                                             
                                             <div class="form-group">
                                                 <label class="label-pro text-primary">1. Product Type (Jenis Barang)</label>
-                                                <select class="form-control select2" id="product_type" name="product_type[]" multiple="multiple" data-placeholder="Select Product Type...">
+                                                <select class="form-control select2" id="product_type" name="product_type[]" multiple="multiple" data-placeholder="Select Product Type">
                                                     <option value="Laminates">Laminates</option>
                                                     <option value="Flooring">Flooring</option>
                                                 </select>
@@ -229,7 +220,7 @@ if(!isset($_SESSION['sb_user'])) {
                                             <div class="hierarchy-box" id="box-category">
                                                 <div class="form-group">
                                                     <label class="label-pro text-primary">2. Item Category</label>
-                                                    <select class="form-control select2" id="item_category" name="item_category[]" multiple="multiple" data-placeholder="Select Category...">
+                                                    <select class="form-control select2" id="item_category" name="item_category[]" multiple="multiple" data-placeholder="Select Item Category">
                                                         <option value="HPL">HPL</option>
                                                         <option value="Edging">Edging</option>
                                                         <option value="Vinyl">Vinyl</option>
@@ -241,7 +232,7 @@ if(!isset($_SESSION['sb_user'])) {
                                             <div class="hierarchy-box" id="box-group">
                                                 <div class="form-group">
                                                     <label class="label-pro text-primary">3. Product Group</label>
-                                                    <select class="form-control select2" id="product_group" name="product_group[]" multiple="multiple" data-placeholder="Select Group...">
+                                                    <select class="form-control select2" id="product_group" name="product_group[]" multiple="multiple" data-placeholder="Select Product Group">
                                                         <option value="Wood">Wood Series</option>
                                                         <option value="Stone">Stone Series</option>
                                                         <option value="Solid">Solid Series</option>
@@ -252,7 +243,7 @@ if(!isset($_SESSION['sb_user'])) {
                                             <div class="hierarchy-box" id="box-item">
                                                 <div class="form-group">
                                                     <label class="label-pro text-primary">4. Selected Items</label>
-                                                    <select class="form-control select2" name="selected_items[]" multiple="multiple" data-placeholder="Select specific items...">
+                                                    <select class="form-control select2" name="selected_items[]" multiple="multiple" data-placeholder="Select Items">
                                                         <option value="TH-001">TH-001 AA (Wood)</option>
                                                         <option value="TH-002">TH-002 G (Gloss)</option>
                                                         <option value="TV-200">TV-200 (Vinyl 2mm)</option>
@@ -262,7 +253,7 @@ if(!isset($_SESSION['sb_user'])) {
                                                 
                                                 <div class="form-group mt-3" id="mandatory-wrapper">
                                                     <label class="label-pro text-danger" id="label-mandatory">Have / Must Buy (Mandatory Item) <span class="asterisk">*</span></label>
-                                                    <select class="form-control select2" id="mandatory_items" name="mandatory_items[]" multiple="multiple" data-placeholder="Select mandatory items...">
+                                                    <select class="form-control select2" id="mandatory_items" name="mandatory_items[]" multiple="multiple" data-placeholder="Select Item">
                                                         <option value="TH-001">TH-001 AA (Wood)</option>
                                                         <option value="TV-200">TV-200 (Vinyl 2mm)</option>
                                                     </select>
@@ -274,7 +265,8 @@ if(!isset($_SESSION['sb_user'])) {
                                 </div>
                                 <div class="col-md-6 form-group mt-2">
                                     <label class="label-pro">UOM</label>
-                                    <select class="form-control select2" name="uom">
+                                    <select class="form-control select2" name="uom" id="uom" data-placeholder="Select UOM">
+                                        <option></option>
                                         <option value="PCS">PCS</option>
                                         <option value="BOX">BOX</option>
                                     </select>
@@ -284,7 +276,7 @@ if(!isset($_SESSION['sb_user'])) {
                                     <label class="label-pro">Budget Allocation (IDR)</label>
                                     <div class="input-group">
                                         <div class="input-group-prepend"><span class="input-group-text bg-white border-right-0">Rp</span></div>
-                                        <input type="text" class="form-control border-left-0 text-right font-weight-bold" name="budget_amount" value="0">
+                                        <input type="text" class="form-control border-left-0 text-right font-weight-bold format-currency" name="budget_amount" value="0">
                                     </div>
                                 </div>
                             
@@ -350,24 +342,15 @@ if(!isset($_SESSION['sb_user'])) {
                                 <?php for($i=1; $i<=5; $i++) { ?>
                                 <tr>
                                     <td class="text-center text-muted font-weight-bold"><?php echo $i; ?></td>
-                                    
-                                    <td>
-                                        <input type="number" class="form-control form-control-sm input-table" name="jml_min_motif[]" value="0">
-                                    </td>
-                                    
-                                    <td>
-                                        <input type="number" class="form-control form-control-sm input-table input-qty" name="jml_min_qty[]" value="0">
-                                    </td>
-                                    
+                                    <td><input type="number" class="form-control form-control-sm input-table" name="jml_min_motif[]" value="0"></td>
+                                    <td><input type="number" class="form-control form-control-sm input-table input-qty" name="jml_min_qty[]" value="0"></td>
                                     <td>
                                         <div class="input-group input-group-sm">
                                             <div class="input-group-prepend"><span class="input-group-text border-0 bg-transparent" style="font-size:10px;">Rp</span></div>
-                                            <input type="text" class="form-control form-control-sm input-table input-amt" name="jml_min_amount[]" value="0">
+                                            <input type="text" class="form-control form-control-sm input-table input-amt format-currency" name="jml_min_amount[]" value="0">
                                         </div>
                                     </td>
-                                    
                                     <td class="text-center text-muted">=</td>
-
                                     <td class="col-discount">
                                         <div class="input-group input-group-sm">
                                             <input type="number" step="0.01" class="form-control input-table" name="discount_percent[]" value="0">
@@ -411,10 +394,10 @@ if(!isset($_SESSION['sb_user'])) {
                                         <input type="text" id="input_cust_name" class="form-control form-control-sm" placeholder="Customer Name">
                                     </div>
                                     <div class="col-md-2 mb-2">
-                                        <input type="number" id="input_target_qty" class="form-control form-control-sm text-right" placeholder="Target Qty">
+                                        <input type="number" id="input_target_qty" class="form-control form-control-sm text-right input-disabled" placeholder="Target Qty" disabled>
                                     </div>
                                     <div class="col-md-2 mb-2">
-                                        <input type="text" id="input_target_amt" class="form-control form-control-sm text-right" placeholder="Target Amount">
+                                        <input type="text" id="input_target_amt" class="form-control form-control-sm text-right format-currency input-disabled" value="0" placeholder="Target Amount" disabled>
                                     </div>
                                     <div class="col-md-1 mb-2">
                                         <button type="button" class="btn btn-primary btn-sm btn-block" onclick="addCustomerRow()"><i class="fas fa-plus"></i></button>
@@ -427,15 +410,13 @@ if(!isset($_SESSION['sb_user'])) {
                             <div class="bg-white p-4 rounded border mb-4 text-center" style="border-style: dashed !important; border-width: 2px !important;">
                                 <i class="fas fa-file-excel text-success fa-3x mb-3"></i>
                                 <h6 class="font-weight-bold">Import Data</h6>
-                                
                                 <div class="d-flex justify-content-center mt-3">
-                                    <a href="https://trademarketing.taco.co.id/sales_brief/document/template_upload.xlsx" target="_blank" class="btn btn-outline-secondary btn-sm mr-2"><i class="fas fa-download mr-1"></i> Download Template</a>
-                                    
+                                    <a href="#" class="btn btn-outline-secondary btn-sm mr-2"><i class="fas fa-download mr-1"></i> Download Template</a>
                                     <div class="custom-file text-left" style="max-width: 250px;">
                                         <input type="file" class="custom-file-input" id="uploadExcel">
                                         <label class="custom-file-label" for="uploadExcel">Choose file</label>
                                     </div>
-                                    <button type="button" class="btn btn-success btn-sm ml-2" onclick="alert('File Uploaded!')">Upload</button>
+                                    <button type="button" class="btn btn-success btn-sm ml-2">Upload</button>
                                 </div>
                             </div>
                         </div>
@@ -443,14 +424,21 @@ if(!isset($_SESSION['sb_user'])) {
 
                     <div class="table-responsive">
                         <table id="table-customer" class="table table-bordered table-hover table-sm w-100 table-pro">
-                            <thead>
+                            <thead class="bg-light text-dark">
                                 <tr>
-                                    <th width="5%">#</th>
-                                    <th>Code</th>
-                                    <th>Customer Name</th>
-                                    <th class="text-right">Target Qty</th>
-                                    <th class="text-right">Target Amount</th>
-                                    <th class="text-center">Action</th>
+                                    <th width="5%" rowspan="2" style="vertical-align: middle;">No</th>
+                                    <th width="15%" rowspan="2" style="vertical-align: middle;">Code</th>
+                                    <th width="25%" rowspan="2" style="vertical-align: middle;">Customer Name</th>
+                                    <th width="20%" colspan="2" class="text-center" style="border-bottom: 1px solid #dee2e6;">Target Minimal</th>
+                                    <th width="20%" colspan="2" class="text-center" style="border-bottom: 1px solid #dee2e6;">Remain Capping</th>
+                                    <th width="5%" rowspan="2" style="vertical-align: middle;">UOM</th>
+                                    <th width="10%" rowspan="2" style="vertical-align: middle;">Action</th>
+                                </tr>
+                                <tr>
+                                    <th>Qty Min</th>
+                                    <th>Amount Min</th>
+                                    <th>Target Qty</th>
+                                    <th>Target Amount</th>
                                 </tr>
                             </thead>
                             <tbody></tbody>
@@ -482,100 +470,117 @@ if(!isset($_SESSION['sb_user'])) {
 
 <script>
     $(document).ready(function() {
-        // 1. INIT PLUGINS
-        $('.select2').select2({ theme: 'bootstrap4' });
+        $('.select2').select2({ theme: 'bootstrap4', allowClear: true });
         $('.summernote').summernote({ height: 100, toolbar: [['style', ['bold', 'italic', 'ul']]] });
         bsCustomFileInput.init();
+
+        // 1. CURRENCY FORMATTER
+        $(document).on('input', '.format-currency', function() {
+            var val = $(this).val().replace(/\D/g, ''); 
+            if (val !== '') { val = parseInt(val, 10).toLocaleString('id-ID'); }
+            $(this).val(val);
+        });
+        $(document).on('focus', '.format-currency', function() { if ($(this).val() === '0') $(this).val(''); });
+        $(document).on('blur', '.format-currency', function() { if ($(this).val() === '') $(this).val('0'); });
         
-        // 2. LOGIC HIERARCHY (WATERFALL VISIBILITY)
-        // Kalau Product Type kosong -> Sembunyikan SEMUA bawahnya
+        // 2. CONSIGNMENT LOGIC
+        $('#is-consigment').change(function() {
+            var isConsign = $(this).is(':checked');
+            if(isConsign) {
+                $('#capping-promo').prop('checked', false).prop('disabled', true).trigger('change');
+                $('#berlaku-kelipatan').prop('checked', false).prop('disabled', true);
+                
+                $('#is-mix-item').prop('checked', true).prop('disabled', true).trigger('change');
+                $('select[name="promo_mechanism"]').val('Direct Promo').trigger('change').prop('disabled', true);
+                $('#pilihan-promo').val('2').trigger('change').prop('disabled', true);
+                $('#target_by').val('qty').trigger('change').prop('disabled', true);
+            } else {
+                $('#capping-promo').prop('disabled', false);
+                $('#berlaku-kelipatan').prop('disabled', false);
+                
+                $('#is-mix-item').prop('checked', false).prop('disabled', false).trigger('change');
+                $('select[name="promo_mechanism"]').val(null).trigger('change').prop('disabled', false);
+                $('#pilihan-promo').val(null).trigger('change').prop('disabled', false);
+                $('#target_by').val(null).trigger('change').prop('disabled', false);
+            }
+        });
+
+        // 3. LOGIC CAPPING
+        function updateCappingLogic() {
+            var isCapping = $('#capping-promo').is(':checked');
+            var targetBy = $('#target_by').val();
+
+            if(isCapping) {
+                $('#is-consigment').prop('disabled', true).prop('checked', false);
+            } else {
+                if(!$('#is-consigment').is(':checked')) { $('#is-consigment').prop('disabled', false); }
+            }
+
+            $('#input_target_qty').prop('disabled', true).addClass('input-disabled');
+            $('#input_target_amt').prop('disabled', true).addClass('input-disabled');
+
+            if(isCapping) {
+                if(targetBy === 'qty') {
+                    $('#input_target_qty').prop('disabled', false).removeClass('input-disabled');
+                } else if(targetBy === 'amount') {
+                    $('#input_target_amt').prop('disabled', false).removeClass('input-disabled');
+                }
+            }
+        }
+        $('#capping-promo, #target_by').change(updateCappingLogic);
+
+        // 4. HIERARCHY LOGIC
         $('#product_type').change(function() {
             var val = $(this).val();
-            if(val.length > 0) { 
-                $('#box-category').slideDown(); 
-            } else { 
-                $('#box-category').slideUp();
-                $('#box-group').slideUp();
-                $('#box-item').slideUp();
-                // Reset child
+            if(val && val.length > 0) { $('#box-category').slideDown(); } 
+            else { 
+                $('#box-category, #box-group, #box-item').slideUp();
                 $('#item_category').val(null).trigger('change');
             }
         });
-        
         $('#item_category').change(function() {
-            var val = $(this).val();
-            if(val.length > 0) { 
-                $('#box-group').slideDown(); 
-            } else { 
-                $('#box-group').slideUp();
-                $('#box-item').slideUp();
-                $('#product_group').val(null).trigger('change');
-            }
+            if($(this).val() && $(this).val().length > 0) { $('#box-group').slideDown(); } 
+            else { $('#box-group, #box-item').slideUp(); $('#product_group').val(null).trigger('change'); }
         });
-
         $('#product_group').change(function() {
-            var val = $(this).val();
-            if(val.length > 0) { 
-                $('#box-item').slideDown(); 
-            } else { 
-                $('#box-item').slideUp();
-            }
+            if($(this).val() && $(this).val().length > 0) { $('#box-item').slideDown(); } 
+            else { $('#box-item').slideUp(); }
         });
 
-        // 3. LOGIC MIX ITEM & MANDATORY
+        // 5. MIX ITEM LOGIC
         $('#is-mix-item').change(function() {
-            var wrapper = $('#mandatory-wrapper');
             var label = $('#label-mandatory');
-            var asterisk = '<span class="asterisk text-danger">*</span>';
-
-            if($(this).is(':checked')) {
-                // Mix Item ON -> Have/Must Buy Optional (sesuai request)
-                label.html('Have / Must Buy (Optional)');
-                // wrapper.css('opacity', '1'); // Tetap terlihat
-            } else {
-                // Mix Item OFF -> Have/Must Buy Mandatory
-                label.html('Have / Must Buy (Mandatory Item) ' + asterisk);
-            }
+            if($(this).is(':checked')) { label.html('Have / Must Buy (Optional)'); } 
+            else { label.html('Have / Must Buy (Mandatory Item) <span class="asterisk">*</span>'); }
         });
 
-        // 4. LOGIC PROMO TYPE (Hide Discount Col if FreeGift)
+        // 6. PROMO TYPE LOGIC
         $('#pilihan-promo').change(function() {
             var val = $(this).val();
-            if(val == '4' || val == '20') { // 4=FreeGift
-                $('.col-discount').hide(); 
-                $('#div-kelipatan').fadeIn(); 
+            if(val == '4' || val == '20') { 
+                $('.col-discount').hide(); $('#div-kelipatan').fadeIn(); 
             } else {
-                $('.col-discount').show();
-                $('#div-kelipatan').hide();
+                $('.col-discount').show(); $('#div-kelipatan').hide();
             }
         });
 
-        // 5. LOGIC TARGET BY (Strict: Qty -> Amount Disabled)
-        function toggleTargetFields() {
+        // 7. TARGET TABLE LOGIC
+        function toggleTableTarget() {
             var targetBy = $('#target_by').val();
-            
-            // If nothing selected (initial state) -> do nothing or disable all? 
-            // Lets assume default state or wait user input.
             if(!targetBy) return;
-
             if(targetBy === 'qty') {
-                // Qty Berjenjang: User isi QTY, kolom AMOUNT DISABLE
                 $('.input-qty').prop('readonly', false).removeClass('input-disabled');
                 $('.input-amt').prop('readonly', true).addClass('input-disabled').val(0);
             } else {
-                // Amount Berjenjang: User isi AMOUNT, kolom QTY DISABLE
                 $('.input-qty').prop('readonly', true).addClass('input-disabled').val(0);
                 $('.input-amt').prop('readonly', false).removeClass('input-disabled');
             }
         }
-        toggleTargetFields();
-        $('#target_by').change(toggleTargetFields);
+        $('#target_by').change(toggleTableTarget);
 
-        // 6. CUSTOMER TABLE
+        // 8. CUSTOMER TABLE LOGIC
         var t = $('#table-customer').DataTable({
-            "paging": false,
-            "info": false,
-            "searching": false,
+            "paging": false, "info": false, "searching": false,
             "language": { "emptyTable": "No customers added yet." }
         });
 
@@ -584,24 +589,32 @@ if(!isset($_SESSION['sb_user'])) {
             var name = $('#input_cust_name').val();
             var qty  = $('#input_target_qty').val();
             var amt  = $('#input_target_amt').val();
+            var isCapping = $('#capping-promo').is(':checked');
+            
+            // Get data from Management Target (First Row)
+            var minQty = $('input[name="jml_min_qty[]"]').eq(0).val() || 0;
+            var minAmt = $('input[name="jml_min_amount[]"]').eq(0).val() || 0;
+            var uom    = $('#uom').val() || '-';
 
-            if(code === "" || name === "") {
-                alert("Please fill Code and Name!");
-                return;
+            if(code === "" || name === "") { alert("Please fill Code and Name!"); return; }
+            if(isCapping) {
+                var targetBy = $('#target_by').val();
+                if(targetBy === 'qty' && (!qty || qty == 0)) { alert("Target Qty is required when Capping is ON"); return; }
+                if(targetBy === 'amount' && (!amt || amt == '0')) { alert("Target Amount is required when Capping is ON"); return; }
             }
 
             t.row.add([
-                1, 
-                code,
-                name,
+                1, code, name,
+                '<div class="text-right">' + minQty + '</div>',
+                '<div class="text-right">' + minAmt + '</div>',
                 '<div class="text-right">' + qty + '</div>',
                 '<div class="text-right">' + amt + '</div>',
+                '<div class="text-center">' + uom + '</div>',
                 '<div class="text-center"><button type="button" class="btn btn-xs btn-danger text-white remove-row"><i class="fas fa-trash"></i></button></div>'
             ]).draw(false);
 
-            $('#input_cust_code').val('');
-            $('#input_cust_name').val('');
-            
+            $('#input_cust_code').val(''); $('#input_cust_name').val('');
+            $('#input_target_qty').val(''); $('#input_target_amt').val('0');
             updateRowNumbers();
         };
 
@@ -617,6 +630,8 @@ if(!isset($_SESSION['sb_user'])) {
                 });
             }).draw();
         }
+        
+        updateCappingLogic();
     });
 </script>
 
