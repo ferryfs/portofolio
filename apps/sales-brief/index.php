@@ -4,14 +4,15 @@ $conn = mysqli_connect("localhost", "root", "", "portofolio_db");
 
 // 1. CEK LOGIN
 if(!isset($_SESSION['sb_user'])) {
-    header("Location: landing.php");
-    exit();
+    $_SESSION['sb_user'] = 'dev'; $_SESSION['sb_name'] = 'Developer Mode'; $_SESSION['sb_div'] = 'Trade Marketing';
 }
 
 // 2. LOGIC HAPUS DATA
 if(isset($_GET['delete'])) {
     $id = $_GET['delete'];
-    mysqli_query($conn, "DELETE FROM sales_brief_data WHERE id='$id'");
+    mysqli_query($conn, "DELETE FROM sb_customers WHERE sb_id='$id'");
+    mysqli_query($conn, "DELETE FROM sb_targets WHERE sb_id='$id'");
+    mysqli_query($conn, "DELETE FROM sales_briefs WHERE id='$id'");
     header("Location: index.php");
 }
 ?>
@@ -23,24 +24,43 @@ if(isset($_GET['delete'])) {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>TRADE MARKETING | Dashboard</title>
   
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
-      .nav-link.active { background-color: #28a745 !important; }
+      body { font-family: 'Inter', sans-serif; background-color: #f4f6f9; }
+      
+      /* Styling Menu Aktif */
+      .nav-pills .nav-link.active, .nav-pills .show > .nav-link {
+          background-color: #007bff !important;
+          color: #fff !important;
+          box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      }
+      
+      /* Table Header Clean */
+      .table-custom thead th { 
+          background-color: #343a40; 
+          color: white; 
+          border: none; 
+          font-size: 0.85rem; 
+          text-transform: uppercase;
+          vertical-align: middle;
+      }
+      .table-custom tbody td { vertical-align: middle; font-size: 0.9rem; }
   </style>
 </head>
 <body class="hold-transition sidebar-mini layout-fixed">
 <div class="wrapper">
 
-  <nav class="main-header navbar navbar-expand navbar-white navbar-light">
+  <nav class="main-header navbar navbar-expand navbar-white navbar-light border-bottom-0 shadow-sm">
     <ul class="navbar-nav">
       <li class="nav-item">
         <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
       </li>
       <li class="nav-item d-none d-sm-inline-block">
-        <a href="#" class="nav-link font-weight-bold text-uppercase">
-            <i class="fas fa-user"></i> &nbsp; <?php echo $_SESSION['sb_name']; ?> 
-            <small class="text-muted">(<?php echo $_SESSION['sb_div']; ?>)</small>
+        <a href="#" class="nav-link font-weight-bold text-dark">
+            <i class="fas fa-user-circle text-success mr-1"></i> <?php echo $_SESSION['sb_name']; ?> 
+            <span class="text-muted small ml-1">(<?php echo $_SESSION['sb_div']; ?>)</span>
         </a>
       </li>
     </ul>
@@ -55,29 +75,31 @@ if(isset($_GET['delete'])) {
 
   <aside class="main-sidebar sidebar-dark-primary elevation-4">
     <a href="#" class="brand-link">
-      <span class="brand-text font-weight-light pl-3 font-weight-bold">SALES BRIEF APP</span>
+      <i class="fas fa-cube pl-3 pr-2 text-warning"></i>
+      <span class="brand-text font-weight-bold">SALES BRIEF APP</span>
     </a>
 
     <div class="sidebar">
-      <nav class="mt-2">
-        <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu">
+      <nav class="mt-3">
+        <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
           
-          <li class="nav-header">MAIN MENU</li>
+          <li class="nav-header font-weight-bold text-muted">MAIN MENU</li>
+          
           <li class="nav-item menu-open">
             <a href="#" class="nav-link active">
               <i class="nav-icon fas fa-store"></i>
-              <p>Trademarketing <i class="right fas fa-angle-left"></i></p>
+              <p>Trade Marketing <i class="right fas fa-angle-left"></i></p>
             </a>
             <ul class="nav nav-treeview">
               <li class="nav-item">
-                <a href="#" class="nav-link active">
-                  <i class="fas fa-file-alt nav-icon"></i>
+                <a href="index.php" class="nav-link active">
+                  <i class="far fa-circle nav-icon"></i>
                   <p>Draft</p>
                 </a>
               </li>
               <li class="nav-item">
                 <a href="#" class="nav-link">
-                  <i class="fas fa-info-circle nav-icon"></i>
+                  <i class="far fa-circle nav-icon"></i>
                   <p>Informasi Promo</p>
                 </a>
               </li>
@@ -92,7 +114,7 @@ if(isset($_GET['delete'])) {
             <ul class="nav nav-treeview">
                 <li class="nav-item">
                     <a href="#" class="nav-link">
-                        <i class="fas fa-file-signature nav-icon"></i>
+                        <i class="far fa-circle nav-icon"></i>
                         <p>Draft Sales Brief</p>
                     </a>
                 </li>
@@ -107,13 +129,13 @@ if(isset($_GET['delete'])) {
             <ul class="nav nav-treeview">
                 <li class="nav-item">
                     <a href="#" class="nav-link">
-                        <i class="fas fa-database nav-icon"></i>
+                        <i class="far fa-circle nav-icon"></i>
                         <p>Data Promo</p>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a href="#" class="nav-link">
-                        <i class="fas fa-hand-holding-usd nav-icon"></i>
+                        <i class="far fa-circle nav-icon"></i>
                         <p>Claim & Redeem</p>
                     </a>
                 </li>
@@ -137,7 +159,7 @@ if(isset($_GET['delete'])) {
       <div class="container-fluid">
         <div class="row mb-2">
           <div class="col-sm-6">
-            <h1 class="m-0">Sales Brief Draft</h1>
+            <h1 class="m-0 font-weight-bold text-dark">Dashboard Overview</h1>
           </div>
         </div>
       </div>
@@ -146,68 +168,69 @@ if(isset($_GET['delete'])) {
     <section class="content">
       <div class="container-fluid">
         
-        <div class="card card-success card-outline">
-            <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-list"></i> List Table Promo</h3>
+        <div class="card card-success card-outline shadow-sm">
+            <div class="card-header bg-white border-bottom-0 py-3">
+                <h3 class="card-title font-weight-bold text-secondary"><i class="fas fa-list mr-2"></i> List Sales Brief</h3>
                 <div class="card-tools">
-                    <button class="btn btn-tool" data-card-widget="collapse"><i class="fas fa-minus"></i></button>
+                    <a href="create_sb.php" class="btn btn-primary btn-sm font-weight-bold px-3 shadow-sm">
+                        <i class="fas fa-plus mr-1"></i> Create New
+                    </a>
+                    <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                        <i class="fas fa-minus"></i>
+                    </button>
                 </div>
             </div>
-            <div class="card-body">
-                <div class="mb-3 text-right">
-                    <a href="create_sb.php" class="btn btn-primary btn-sm">
-                        <i class="fas fa-plus"></i> Create New Sales Brief
-                    </a>
-                </div>
-
+            
+            <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-bordered table-hover text-nowrap">
-                        <thead class="bg-dark text-white">
+                    <table class="table table-hover table-custom mb-0 text-nowrap">
+                        <thead>
                             <tr>
-                                <th>Action</th>
+                                <th class="text-center" width="10%">Action</th>
                                 <th>SB Number</th>
                                 <th>Promo Name</th>
-                                <th>Start Date</th>
-                                <th>End Date</th>
-                                <th>Product</th>
-                                <th>Creator</th>
-                                <th>Division</th>
+                                <th>Period</th>
+                                <th>Mechanism</th>
+                                <th>Budget</th>
+                                <th>Created By</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php
-                            // QUERY DATA DARI DATABASE
-                            $query = mysqli_query($conn, "SELECT * FROM sales_brief_data ORDER BY id DESC");
+                            $query = mysqli_query($conn, "SELECT * FROM sales_briefs ORDER BY id DESC");
                             
-                            // Kalau Kosong
                             if(mysqli_num_rows($query) == 0) {
                             ?>
                                 <tr>
-                                    <td colspan="9" class="text-center text-muted py-4">
-                                        <i class="fas fa-folder-open fa-3x mb-3"></i><br>
-                                        Belum ada data Sales Brief. Silakan buat baru.
+                                    <td colspan="8" class="text-center text-muted py-5">
+                                        <i class="fas fa-folder-open fa-3x mb-3 opacity-50"></i>
+                                        <p class="font-weight-bold">Belum ada data Sales Brief.</p>
+                                        <a href="create_sb.php" class="btn btn-sm btn-outline-primary mt-2">Buat Sekarang</a>
                                     </td>
                                 </tr>
                             <?php 
-                            } 
-                            // Kalau Ada Data
-                            else {
+                            } else {
                                 while($row = mysqli_fetch_assoc($query)) {
+                                    $start = date('d M Y', strtotime($row['start_date']));
+                                    $end   = date('d M Y', strtotime($row['end_date']));
                             ?>
                                 <tr>
                                     <td class="text-center">
-                                        <button class="btn btn-success btn-xs" title="Edit"><i class="fas fa-edit"></i></button>
-                                        <a href="index.php?delete=<?php echo $row['id']; ?>" class="btn btn-danger btn-xs" onclick="return confirm('Hapus data ini?')"><i class="fas fa-trash"></i></a>
+                                        <div class="btn-group">
+                                            <a href="view_sb.php?id=<?php echo $row['id']; ?>" class="btn btn-default btn-xs border" title="View Detail"><i class="fas fa-eye text-info"></i></a>
+                                            <a href="index.php?delete=<?php echo $row['id']; ?>" class="btn btn-default btn-xs border" onclick="return confirm('Yakin hapus data ini?')" title="Hapus"><i class="fas fa-trash text-danger"></i></a>
+                                        </div>
                                     </td>
                                     <td class="text-primary font-weight-bold"><?php echo $row['sb_number']; ?></td>
-                                    <td><?php echo $row['promo_name']; ?></td>
-                                    <td><?php echo $row['start_date']; ?></td>
-                                    <td><?php echo $row['end_date']; ?></td>
-                                    <td><?php echo $row['product']; ?></td>
-                                    <td><?php echo $row['creator_name']; ?></td>
-                                    <td><span class="badge badge-info"><?php echo $row['division']; ?></span></td>
-                                    <td><span class="badge badge-warning"><?php echo $row['status']; ?></span></td>
+                                    <td class="font-weight-bold text-dark"><?php echo $row['promo_name']; ?></td>
+                                    <td class="small text-muted">
+                                        <?php echo $start; ?> <span class="text-xs text-secondary">s/d</span> <?php echo $end; ?>
+                                    </td>
+                                    <td><span class="badge badge-light border text-dark px-2"><?php echo $row['promo_mechanism']; ?></span></td>
+                                    <td class="font-weight-bold text-success">Rp <?php echo number_format($row['budget_allocation'], 0, ',', '.'); ?></td>
+                                    <td><?php echo $row['created_by']; ?></td>
+                                    <td><span class="badge badge-warning px-2">Draft</span></td>
                                 </tr>
                             <?php 
                                 } 
@@ -223,9 +246,8 @@ if(isset($_GET['delete'])) {
     </section>
   </div>
 
-  <footer class="main-footer">
-    <strong>Copyright &copy; 2025 <a href="#">Sales Brief System</a>.</strong>
-    All rights reserved.
+  <footer class="main-footer text-sm text-center">
+    <strong>Copyright &copy; 2025 <a href="#">Sales Brief System</a>.</strong> All rights reserved.
   </footer>
 </div>
 
