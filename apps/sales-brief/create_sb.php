@@ -95,12 +95,7 @@ $sb_number_auto = "SB-$tahun_ini/$bulan_ini/$seq_str";
     </ul>
   </nav>
 
-  <aside class="main-sidebar sidebar-light-primary elevation-1" style="background: #fff; border-right: 1px solid #eee;">
-    <a href="#" class="brand-link border-0 text-center p-3">
-      <i class="fas fa-layer-group text-primary fa-lg"></i> 
-    </a>
-    <div class="sidebar"></div>
-  </aside>
+  <?php include 'sidebar.php'; ?>
 
   <div class="content-wrapper">
     <div class="content-header pb-0">
