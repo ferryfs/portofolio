@@ -25,7 +25,8 @@ if (isset($_POST['update'])) {
     $desc  = mysqli_real_escape_string($conn, $_POST['description']);
     $tech  = mysqli_real_escape_string($conn, $_POST['tech_stack']);
     $link  = mysqli_real_escape_string($conn, $_POST['link_demo']);
-    $creds = mysqli_real_escape_string($conn, $_POST['credentials']); // NEW
+    $creds = mysqli_real_escape_string($conn, $_POST['credentials']);
+    $cat   = $_POST['category']; // Tambahan kategori
 
     // --- A. LOGIC GAMBAR ---
     $img_db = $data['image']; // Default pake gambar lama
@@ -73,7 +74,17 @@ if (isset($_POST['update'])) {
     }
 
     // --- C. UPDATE DATABASE ---
-    mysqli_query($conn, "UPDATE projects SET title='$title', description='$desc', image='$img_db', tech_stack='$tech', link_demo='$link', link_case='$case_db', credentials='$creds' WHERE id='$id'");
+    // Pastikan kolom 'category' ada di tabel projects
+    mysqli_query($conn, "UPDATE projects SET 
+        title='$title', 
+        description='$desc', 
+        image='$img_db', 
+        tech_stack='$tech', 
+        link_demo='$link', 
+        link_case='$case_db', 
+        credentials='$creds',
+        category='$cat' 
+        WHERE id='$id'");
     
     echo "<script>alert('Data Berhasil Diupdate!'); window.location='admin.php';</script>";
 }
@@ -100,6 +111,14 @@ if (isset($_POST['update'])) {
                 <div class="mb-3">
                     <label class="fw-bold">Judul Proyek</label>
                     <input type="text" name="title" class="form-control" value="<?=$data['title']?>" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="fw-bold">Kategori</label>
+                    <select name="category" class="form-select">
+                        <option value="work" <?= ($data['category'] == 'work') ? 'selected' : '' ?>>🏢 Work Project (Kantor)</option>
+                        <option value="personal" <?= ($data['category'] == 'personal') ? 'selected' : '' ?>>🚀 Personal Project</option>
+                    </select>
                 </div>
 
                 <div class="mb-3">
