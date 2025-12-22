@@ -1,48 +1,46 @@
 <?php
 include '../../koneksi.php';
-// Ambil data WT terakhir (Simulasi aja, biasanya by ID)
-$q = mysqli_query($conn, "SELECT t.*, p.product_code, p.description FROM wms_warehouse_tasks t JOIN wms_products p ON t.product_uuid = p.product_uuid ORDER BY t.tanum DESC LIMIT 1");
+
+// Logic: Ambil HU dari URL kalau ada (pilihan user), kalau ga ada ambil last task
+if(isset($_GET['hu_id'])) {
+    $hu_id = $_GET['hu_id'];
+    $q = mysqli_query($conn, "SELECT q.*, p.product_code, p.description FROM wms_quants q JOIN wms_products p ON q.product_uuid = p.product_uuid WHERE q.hu_id = '$hu_id' LIMIT 1");
+} else {
+    // Default: Last Task
+    $q = mysqli_query($conn, "SELECT t.*, p.product_code, p.description FROM wms_warehouse_tasks t JOIN wms_products p ON t.product_uuid = p.product_uuid ORDER BY t.tanum DESC LIMIT 1");
+}
 $d = mysqli_fetch_assoc($q);
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Print HU Label</title>
+    <meta charset="UTF-8"> <title>Label</title>
     <style>
-        body { font-family: Arial, sans-serif; background: #eee; }
-        .label-container { 
-            width: 400px; height: 250px; background: white; border: 1px solid #000; 
-            padding: 20px; margin: 50px auto; box-shadow: 5px 5px 15px rgba(0,0,0,0.2);
-        }
-        .header { font-size: 24px; font-weight: bold; border-bottom: 2px solid black; padding-bottom: 10px; margin-bottom: 10px; }
-        .barcode { height: 50px; background: repeating-linear-gradient(to right, black 0, black 2px, white 2px, white 4px); margin: 10px 0; width: 80%; }
-        .details { font-size: 14px; line-height: 1.5; }
-        .big-qty { font-size: 40px; font-weight: bold; float: right; border: 2px solid black; padding: 5px 15px; }
+        body { font-family: Arial, sans-serif; text-align: center; }
+        .label-container { border: 2px solid #000; width: 350px; margin: 20px auto; padding: 15px; text-align: left; }
+        .barcode { height: 40px; background: repeating-linear-gradient(to right, black 0, black 2px, white 2px, white 5px); margin: 10px 0; }
+        @media print { .no-print { display: none; } }
+        .btn-back { display:inline-block; margin-top:20px; text-decoration:none; padding:10px; border:1px solid #333; color:#333; }
     </style>
 </head>
 <body onload="window.print()">
-
+    <?php if($d): ?>
     <div class="label-container">
-        <div class="header">HANDLING UNIT (HU)</div>
-        <div class="details">
-            <strong>Product:</strong> <?= $d['product_code'] ?><br>
-            <span><?= $d['description'] ?></span><br>
-            <br>
-            <strong>Batch:</strong> BATCH-<?= date('ymd') ?><br>
-            <strong>Bin:</strong> <?= $d['dest_bin'] ?>
-        </div>
-        
-        <span class="big-qty"><?= number_format($d['qty'],0) ?></span>
-        
-        <div style="clear:both;"></div>
-        <br>
+        <h3>HANDLING UNIT (SAP EWM)</h3>
+        <strong>Material:</strong> <?= $d['product_code'] ?><br>
+        <small><?= $d['description'] ?></small><br><br>
+        <strong>HU ID:</strong> <?= $d['hu_id'] ?><br>
+        <strong>Batch:</strong> <?= $d['batch'] ?><br>
+        <strong>Bin:</strong> <?= isset($d['dest_bin']) ? $d['dest_bin'] : $d['lgpla'] ?><br>
+        <h1 style="text-align: right; margin: 0;"><?= (float)$d['qty'] ?></h1>
         <div class="barcode"></div>
-        <small style="font-family: monospace;">HU-<?= rand(100000,999999) ?></small>
     </div>
-
-    <div style="text-align: center; margin-top: 20px;">
-        <a href="index.php" style="color: blue; text-decoration: none;">&laquo; Back to Monitor</a>
+    <?php else: ?>
+        <p>Data Not Found</p>
+    <?php endif; ?>
+    
+    <div class="no-print">
+        <a href="index.php" class="btn-back">&laquo; Back to Monitor</a>
     </div>
-
 </body>
 </html>

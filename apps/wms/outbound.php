@@ -1,75 +1,64 @@
 <?php
 include '../../koneksi.php';
 
-if(isset($_POST['post_gi'])) {
-    $prod_uuid = $_POST['product_uuid'];
-    $req_qty   = $_POST['qty']; // Qty yang diminta
+// LOGIC GENERATE PICKING TASK
+if(isset($_POST['create_picking'])) {
+    $so_num = $_POST['so_number'];
+    
+    // Loop Item yang dikirim dari form
+    $products = $_POST['product_uuid']; // Array
+    $qtys     = $_POST['qty_to_pick'];  // Array
 
-    // 1. STRATEGI PICKING (FIFO - First In First Out)
-    // Cari stok barang ini, urutkan dari GR Date terlama (ASC)
-    $cari_stok = mysqli_query($conn, "
-        SELECT * FROM wms_quants 
-        WHERE product_uuid = '$prod_uuid' 
-        ORDER BY gr_date ASC
-    ");
+    $task_count = 0;
+    $error_count = 0;
 
-    $sisa_butuh = $req_qty;
-    $log_pesan = [];
-    $sukses = true;
-
-    // Loop stok yang ada
-    while($row = mysqli_fetch_assoc($cari_stok)) {
-        if($sisa_butuh <= 0) break; // Kalau kebutuhan udah terpenuhi, stop.
-
-        $qty_di_bin = $row['qty'];
-        $bin_lokasi = $row['lgpla'];
-        $quant_id   = $row['quant_id'];
-
-        if($qty_di_bin >= $sisa_butuh) {
-            // Skenario A: Stok di bin ini CUKUP buat menuhin sisa kebutuhan
-            $qty_ambil = $sisa_butuh;
+    foreach($products as $i => $prod_uuid) {
+        $qty_need = $qtys[$i];
+        
+        if($qty_need > 0) {
+            // STRATEGI FIFO: Cari stok F1, urutkan GR Date terlama
+            $cari_stok = mysqli_query($conn, "SELECT * FROM wms_quants WHERE product_uuid='$prod_uuid' AND stock_type='F1' ORDER BY gr_date ASC");
             
-            // Kurangi stok
-            $qty_sisa_db = $qty_di_bin - $qty_ambil;
-            if($qty_sisa_db == 0) {
-                // Kalau habis, hapus record quant
-                mysqli_query($conn, "DELETE FROM wms_quants WHERE quant_id='$quant_id'");
-            } else {
-                // Update sisa stok
-                mysqli_query($conn, "UPDATE wms_quants SET qty='$qty_sisa_db' WHERE quant_id='$quant_id'");
+            $sisa_butuh = $qty_need;
+
+            while($row = mysqli_fetch_assoc($cari_stok)) {
+                if($sisa_butuh <= 0) break;
+
+                $qty_bin = $row['qty'];
+                $bin_loc = $row['lgpla'];
+                $hu_id   = $row['hu_id'];
+                $batch   = $row['batch'];
+
+                // Tentukan qty yang diambil dari bin ini
+                $qty_ambil = ($qty_bin >= $sisa_butuh) ? $sisa_butuh : $qty_bin;
+
+                // CREATE TASK (Picking)
+                // Source: Bin Asal, Dest: GI-ZONE (Zona Pengiriman)
+                $sql_task = "INSERT INTO wms_warehouse_tasks 
+                (process_type, product_uuid, batch, hu_id, source_bin, dest_bin, qty, status, status_task)
+                VALUES ('PICKING', '$prod_uuid', '$batch', '$hu_id', '$bin_loc', 'GI-ZONE', '$qty_ambil', 'CONFIRMED', 'OPEN')";
+                
+                // Note: Status 'CONFIRMED' di database lama lo artinya 'LOG'. 
+                // Tapi Status Task 'OPEN' artinya belum dikerjakan operator. 
+                // Nanti kita update logic confirm-nya.
+                
+                if(mysqli_query($conn, $sql_task)) {
+                    $task_count++;
+                    $sisa_butuh -= $qty_ambil;
+                }
             }
 
-            // 👉 UPDATE: CATAT KE WAREHOUSE TASK (LOG HISTORY)
-            mysqli_query($conn, "INSERT INTO wms_warehouse_tasks 
-            (process_type, product_uuid, source_bin, dest_bin, qty, status)
-            VALUES ('PICKING', '$prod_uuid', '$bin_lokasi', 'GI-ZONE', '$qty_ambil', 'CONFIRMED')");
-
-            $log_pesan[] = "✅ Diambil $qty_ambil Pcs dari Bin <b>$bin_lokasi</b> (Batch: {$row['batch']})";
-            $sisa_butuh = 0; // Selesai
-
-        } else {
-            // Skenario B: Stok di bin ini KURANG (Ambil semua yang ada, lalu cari di bin lain)
-            $qty_ambil = $qty_di_bin;
-            
-            // Hapus record karena diambil semua
-            mysqli_query($conn, "DELETE FROM wms_quants WHERE quant_id='$quant_id'");
-            
-            // 👉 UPDATE: CATAT KE WAREHOUSE TASK (LOG HISTORY)
-            mysqli_query($conn, "INSERT INTO wms_warehouse_tasks 
-            (process_type, product_uuid, source_bin, dest_bin, qty, status)
-            VALUES ('PICKING', '$prod_uuid', '$bin_lokasi', 'GI-ZONE', '$qty_ambil', 'CONFIRMED')");
-            
-            $log_pesan[] = "⚠️ Diambil $qty_ambil Pcs dari Bin <b>$bin_lokasi</b> (Stok Habis, lanjut cari...)";
-            $sisa_butuh -= $qty_ambil; // Masih butuh sisa
+            if($sisa_butuh > 0) $error_count++; // Ada yang ga cukup stoknya
         }
     }
 
-    if($sisa_butuh > 0) {
-        $msg_type = "warning";
-        $msg = "⚠️ Stok tidak cukup! Hanya berhasil mengambil sebagian. Kurang: $sisa_butuh Pcs.";
-    } else {
+    if($task_count > 0) {
+        $msg = "✅ <b>Success!</b> $task_count Picking Tasks Created. Silakan cek Monitor.";
+        if($error_count > 0) $msg .= "<br>⚠️ Beberapa item stoknya kurang (Partial Picking).";
         $msg_type = "success";
-        $msg = "<b>Picking Selesai (FIFO Strategy):</b><br>" . implode("<br>", $log_pesan);
+    } else {
+        $msg = "❌ Gagal membuat task. Cek stok availability.";
+        $msg_type = "danger";
     }
 }
 ?>
@@ -77,56 +66,127 @@ if(isset($_POST['post_gi'])) {
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <title>Outbound Picking</title>
+    <title>Outbound Process</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body class="bg-light">
 
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-6">
-            <div class="card shadow border-success">
-                <div class="card-header bg-success text-white">
-                    <h5 class="mb-0">Outbound Delivery (Picking)</h5>
-                </div>
-                <div class="card-body">
-                    
-                    <?php if(isset($msg)) echo "<div class='alert alert-$msg_type'>$msg</div>"; ?>
+<div class="container mt-4">
+    <div class="d-flex justify-content-between mb-3">
+        <h4><i class="bi bi-box-arrow-up"></i> Outbound Delivery Order</h4>
+        <a href="index.php" class="btn btn-secondary">Back to Dashboard</a>
+    </div>
 
-                    <form method="POST">
-                        <div class="mb-3">
-                            <label>Product to Pick</label>
-                            <select name="product_uuid" class="form-select" required>
-                                <?php 
-                                // Hanya tampilkan produk yang ADA stoknya
-                                $p = mysqli_query($conn, "
-                                    SELECT DISTINCT p.product_uuid, p.product_code, p.description 
-                                    FROM wms_products p
-                                    JOIN wms_quants q ON p.product_uuid = q.product_uuid
-                                ");
-                                while($row = mysqli_fetch_assoc($p)) {
-                                    echo "<option value='".$row['product_uuid']."'>".$row['product_code']." - ".$row['description']."</option>";
-                                }
-                                ?>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label>Quantity Needed</label>
-                            <input type="number" name="qty" class="form-control" required>
-                        </div>
-                        
-                        <div class="alert alert-light border small text-muted">
-                            <strong>Strategi FIFO:</strong> Sistem akan otomatis mengambil barang dari Batch terlama (GR Date paling tua).
-                        </div>
+    <?php if(isset($msg)) echo "<div class='alert alert-$msg_type'>$msg</div>"; ?>
 
-                        <button type="submit" name="post_gi" class="btn btn-success w-100">Create Warehouse Task (Picking)</button>
-                        <a href="index.php" class="btn btn-outline-secondary w-100 mt-2">Back to Monitor</a>
-                    </form>
+    <div class="card shadow border-success">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0">1. Sales Order Reference</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST">
+                
+                <div class="mb-4">
+                    <label class="fw-bold">Select Sales Order (SO)</label>
+                    <select name="so_number" id="soSelect" class="form-select form-select-lg" required>
+                        <option value="">-- Choose Order to Pick --</option>
+                        <?php 
+                        $q_so = mysqli_query($conn, "SELECT * FROM wms_so_header WHERE status='OPEN'");
+                        while($row = mysqli_fetch_assoc($q_so)) {
+                            echo "<option value='".$row['so_number']."'>".$row['so_number']." - ".$row['customer_name']." (Due: ".$row['delivery_date'].")</option>";
+                        }
+                        ?>
+                    </select>
                 </div>
-            </div>
+
+                <h6 class="border-bottom pb-2 fw-bold text-secondary">Picking Strategy (FIFO Allocation)</h6>
+                <div class="table-responsive">
+                    <table class="table table-bordered align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Product</th>
+                                <th class="text-center">Ordered Qty</th>
+                                <th class="text-center">Avail. Stock (F1)</th>
+                                <th class="text-center" width="150">Qty to Pick</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="soItemsBody">
+                            <tr><td colspan="5" class="text-center text-muted py-3">Please select Sales Order...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="d-grid mt-3">
+                    <button type="submit" name="create_picking" class="btn btn-success fw-bold p-2">
+                        <i class="bi bi-list-check"></i> GENERATE PICKING TASKS
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
+
+<script>
+$(document).ready(function() {
+    $('#soSelect').change(function() {
+        var soNum = $(this).val();
+        if(soNum) {
+            $.ajax({
+                url: 'get_so_items.php',
+                type: 'GET',
+                data: { so: soNum },
+                dataType: 'json',
+                success: function(data) {
+                    var rows = '';
+                    $.each(data, function(key, val) {
+                        // Logic Status Stok
+                        var needed = parseFloat(val.qty_ordered);
+                        var avail  = parseFloat(val.stock_available);
+                        var status = '';
+                        var inputClass = '';
+
+                        if(avail >= needed) {
+                            status = '<span class="badge bg-success">Full Stock</span>';
+                            inputClass = 'border-success';
+                        } else if (avail > 0) {
+                            status = '<span class="badge bg-warning text-dark">Partial ('+avail+')</span>';
+                            inputClass = 'border-warning';
+                        } else {
+                            status = '<span class="badge bg-danger">Out of Stock</span>';
+                            inputClass = 'border-danger';
+                        }
+
+                        // Auto-fill picking qty max sesuai avail
+                        var pickQty = (avail >= needed) ? needed : avail;
+
+                        rows += `
+                        <tr>
+                            <td>
+                                <strong>${val.product_code}</strong><br><small>${val.description}</small>
+                                <input type="hidden" name="product_uuid[]" value="${val.product_uuid}">
+                            </td>
+                            <td class="text-center fw-bold">${needed} ${val.base_uom}</td>
+                            <td class="text-center">${avail} ${val.base_uom}</td>
+                            <td>
+                                <input type="number" name="qty_to_pick[]" class="form-control text-center fw-bold ${inputClass}" 
+                                       value="${pickQty}" max="${avail}" min="0">
+                            </td>
+                            <td class="text-center">${status}</td>
+                        </tr>
+                        `;
+                    });
+                    $('#soItemsBody').html(rows);
+                }
+            });
+        } else {
+            $('#soItemsBody').html('<tr><td colspan="5" class="text-center text-muted">Select SO...</td></tr>');
+        }
+    });
+});
+</script>
 
 </body>
 </html>
