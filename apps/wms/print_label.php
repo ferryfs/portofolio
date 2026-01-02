@@ -33,7 +33,9 @@ $d = mysqli_fetch_assoc($q);
         <strong>Batch:</strong> <?= $d['batch'] ?><br>
         <strong>Bin:</strong> <?= isset($d['dest_bin']) ? $d['dest_bin'] : $d['lgpla'] ?><br>
         <h1 style="text-align: right; margin: 0;"><?= (float)$d['qty'] ?></h1>
-        <div class="barcode"></div>
+        <div style="text-align: center; margin: 15px 0;">
+        <img src="https://barcode.tec-it.com/barcode.ashx?data=<?= $d['hu_id'] ?>&code=Code128&dpi=96&dataseparator=" alt="Barcode" style="width: 250px;">
+    </div>
     </div>
     <?php else: ?>
         <p>Data Not Found</p>

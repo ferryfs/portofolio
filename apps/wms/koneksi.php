@@ -3,7 +3,7 @@
 $host = "localhost";
 $user = "root";
 $pass = "";
-$db   = "db_wms_sap"; // Ganti nama database lo kalo beda
+$db   = "portofolio_db"; // Ganti nama database lo kalo beda
 
 $conn = mysqli_connect($host, $user, $pass, $db);
 

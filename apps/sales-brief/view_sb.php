@@ -134,7 +134,9 @@ function formatJson($json) {
       <div class="container-fluid pb-5">
         
         <div class="card card-view">
-            <div class="card-header"><h3 class="card-title text-primary"><i class="fas fa-info-circle mr-2"></i> General Information</h3></div>
+                    <a href="print_memo.php?id=<?php echo $d['id']; ?>" target="_blank" class="btn btn-default shadow-sm ml-2 border font-weight-bold">
+                <i class="fas fa-file-pdf mr-1 text-danger"></i> Official Memo (PDF)
+            </a>
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-3 mb-3"><span class="label-view">Ref Number</span><div class="value-view"><?php echo $d['ref_number'] ?: '-'; ?></div></div>
