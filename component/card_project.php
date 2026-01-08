@@ -1,72 +1,78 @@
-<?php $modalID = "proj".$row['id']; ?>
-
-<div class="project-col">
-    <div class="project-card">
-        <div style="height: 180px; overflow: hidden; cursor: pointer;" data-bs-toggle="modal" data-bs-target="#<?php echo $modalID; ?>">
-            <img src="assets/img/<?php echo $row['image']; ?>" class="w-100 h-100 object-fit-cover" alt="<?php echo $row['title']; ?>">
-        </div>
+<div class="project-col" data-aos="fade-up">
+    <div class="project-card h-100 d-flex flex-column">
         
-        <div class="p-4 d-flex flex-column h-100">
-            <h5 class="fw-bold mb-2 text-truncate" style="color: var(--text-main);"><?php echo $row['title']; ?></h5>
+        <div class="project-img-box" style="height: 200px; overflow: hidden; position: relative;">
+            <img src="assets/img/<?php echo $row['image']; ?>" alt="Project Image" 
+                 style="width: 100%; height: 100%; object-fit: cover;">
             
-            <div class="mb-3" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+            <div style="position: absolute; top: 10px; right: 10px;">
+                <?php if($row['category'] == 'work'): ?>
+                    <span class="badge bg-primary shadow">🏢 Work</span>
+                <?php else: ?>
+                    <span class="badge bg-success shadow">🚀 Personal</span>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <div class="p-4 d-flex flex-column flex-grow-1">
+            
+            <h5 class="fw-bold text-white mb-2" style="font-size: 1.1rem;">
+                <?php echo $row['title']; ?>
+            </h5>
+            
+            <div class="mb-3">
                 <?php 
-                $stacks = explode(',', $row['tech_stack']);
-                $limit = 0;
-                foreach($stacks as $s){
-                    if($limit<3){ echo '<span class="tech-pill">'.trim($s).'</span>'; $limit++; }
+                $techs = explode(',', $row['tech_stack']);
+                foreach($techs as $t) {
+                    // Pakai style inline biar warnanya PASTI keluar
+                    echo '<span class="badge bg-dark border border-secondary me-1 mb-1 fw-normal" 
+                          style="font-size: 0.7rem; color: #cbd5e1;">'.trim($t).'</span>';
                 }
-                if(count($stacks)>3) echo '<small style="color:var(--text-sub)">+'.(count($stacks)-3).'</small>';
                 ?>
             </div>
-
-            <p class="small mb-4 flex-grow-1" style="color: var(--text-sub); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">
-                <?php echo strip_tags($row['description']); ?>
+            
+            <p class="text-muted small mb-4 flex-grow-1" style="line-height: 1.5; color: #94a3b8 !important;">
+                <?php 
+                // Potong teks kalau kepanjangan
+                $desc = $row['description'];
+                echo (strlen($desc) > 90) ? substr($desc, 0, 90) . '...' : $desc; 
+                ?>
             </p>
+            
+            <div class="d-flex gap-2 mt-auto pt-3 border-top border-secondary">
+                
+                <?php if(!empty($row['link_demo']) && $row['link_demo'] != '#'): ?>
+                    <a href="<?php echo $row['link_demo']; ?>" target="_blank" 
+                       class="btn btn-sm w-100 fw-bold text-white shadow-sm"
+                       style="background: var(--accent); border: none; padding: 8px 0;">
+                        <i class="bi bi-play-circle-fill me-1"></i> Demo
+                    </a>
+                <?php else: ?>
+                    <button class="btn btn-sm w-100 text-muted border-secondary" disabled 
+                            style="background: rgba(255,255,255,0.05); cursor: not-allowed;">
+                        <i class="bi bi-lock-fill me-1"></i> Private
+                    </button>
+                <?php endif; ?>
 
-            <button class="btn btn-sm btn-outline-custom w-100 mt-auto" data-bs-toggle="modal" data-bs-target="#<?php echo $modalID; ?>">
-                Detail Project
-            </button>
-        </div>
-    </div>
-</div>
+                <?php 
+                // Cek apakah ada file/link case study
+                $has_case = ($row['link_case'] != '#' && !empty($row['link_case']));
+                
+                if($has_case): 
+                    // Cek apakah itu Link URL atau File Upload
+                    $case_url = (strpos($row['link_case'], 'http') !== false) 
+                                ? $row['link_case'] 
+                                : 'assets/docs/'.$row['link_case'];
+                ?>
+                    <a href="<?php echo $case_url; ?>" target="_blank" 
+                       class="btn btn-sm w-100 fw-bold"
+                       style="background: transparent; border: 1px solid var(--accent); color: var(--accent); padding: 8px 0;">
+                        <i class="bi bi-file-earmark-richtext me-1"></i> Detail
+                    </a>
+                <?php endif; ?>
 
-<div class="modal fade" id="<?php echo $modalID; ?>" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content">
-            <div class="modal-header border-bottom border-secondary border-opacity-10">
-                <h5 class="modal-title fw-bold"><?php echo $row['title']; ?></h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body p-4">
-                <div class="row">
-                    <div class="col-md-6 mb-3 mb-md-0">
-                        <img src="assets/img/<?php echo $row['image']; ?>" class="img-fluid rounded border w-100">
-                    </div>
-                    <div class="col-md-6">
-                        <p style="color: var(--text-sub); white-space: pre-line;"><?php echo $row['description']; ?></p>
-                        
-                        <?php if(!empty($row['credentials'])): ?>
-                        <div class="alert alert-secondary border-0 small mb-3">
-                            <i class="bi bi-key-fill me-2"></i><strong>Credentials:</strong><br>
-                            <?php echo nl2br($row['credentials']); ?>
-                        </div>
-                        <?php endif; ?>
 
-                        <div class="d-flex gap-2">
-                            <?php if(!empty($row['link_case']) && $row['link_case']!='#'){
-                                $is_url = (strpos($row['link_case'],'http')!==false);
-                                $lk = $is_url ? $row['link_case'] : 'assets/docs/'.$row['link_case'];
-                                echo '<a href="'.$lk.'" target="_blank" class="btn btn-outline-custom flex-fill"><i class="bi bi-file-earmark-text me-2"></i>Studi Kasus</a>';
-                            } ?>
-                            
-                            <?php if(!empty($row['link_demo']) && $row['link_demo']!='#'){
-                                echo '<a href="'.$row['link_demo'].'" target="_blank" class="btn btn-primary-custom flex-fill"><i class="bi bi-box-arrow-up-right me-2"></i>Live Demo</a>';
-                            } ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 </div>
