@@ -9,14 +9,19 @@ function clean($str) {
 // 👉 LOGIC LINK DOWNLOAD CV (FIXED)
 $cv_url = "#";
 if (!empty($p['cv_link'])) {
-    // Kalau isinya link http (Google Drive, dll) biarin aja
     if (strpos($p['cv_link'], 'http') !== false) {
         $cv_url = $p['cv_link'];
-    } 
-    // Kalau isinya nama file lokal, tambahin path folder assets/doc/
-    else {
+    } else {
         $cv_url = "assets/doc/" . $p['cv_link']; 
     }
+}
+
+// 👉 LOGIC FOTO PROFILE (BIAR GAK ERROR KALAU KOSONG)
+$foto_profile = "assets/img/" . $p['profile_pic'];
+// Kalau di database kosong, pake placeholder biar gak broken image
+if(empty($p['profile_pic']) || !file_exists($foto_profile)) {
+    // Opsional: Ganti ini sama gambar default kalau mau
+    // $foto_profile = "assets/img/default.jpg"; 
 }
 ?>
 
@@ -291,10 +296,10 @@ if (!empty($p['cv_link'])) {
                     </div>
                 </div>
                 
-                <div class="col-lg-5 text-center d-none d-lg-block" data-aos="fade-left" data-aos-delay="200">
+                <div class="col-lg-5 text-center" data-aos="fade-left" data-aos-delay="200">
                     <div class="profile-wrapper">
-                        <img src="assets/img/<?php echo $p['profile_pic']; ?>" class="profile-img" alt="Profile">
-                    </div>
+                        <img src="<?php echo $foto_profile; ?>" class="profile-img" alt="Profile"
+                             onerror="this.src='assets/img/default.jpg';"> </div>
                 </div>
             </div>
         </div>
@@ -480,6 +485,141 @@ if (!empty($p['cv_link'])) {
         </div>
     </footer>
 
+    <div id="chat-widget">
+        <button id="chat-toggle" onclick="toggleChat()">
+            <i class="fa fa-robot fa-lg"></i>
+        </button>
+
+        <div id="chat-box" class="d-none">
+            <div class="chat-header">
+                <div>
+                    <i class="fa fa-robot me-2"></i> <b>Tech Assistant</b>
+                </div>
+                <button onclick="toggleChat()" class="btn-close btn-close-white"></button>
+            </div>
+            
+            <div id="chat-messages">
+                <div class="msg-bot">Halo! Gue AI Assistant di sini. Tanya gue apa aja soal Coding atau Teknologi! 🤖</div>
+            </div>
+
+            <div class="chat-input-area">
+                <input type="text" id="user-input" placeholder="Tanya soal tech..." onkeypress="handleEnter(event)">
+                <button onclick="sendMessage()"><i class="fa fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        /* Floating Button */
+        #chat-toggle {
+            position: fixed; bottom: 30px; right: 30px;
+            width: 60px; height: 60px; border-radius: 50%;
+            background: #f59e0b; color: white; border: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            z-index: 9999; transition: 0.3s;
+            display: flex; align-items: center; justify-content: center;
+        }
+        #chat-toggle:hover { transform: scale(1.1); }
+
+        /* Chat Box */
+        #chat-box {
+            position: fixed; bottom: 100px; right: 30px;
+            width: 350px; height: 500px;
+            background: white; border-radius: 15px;
+            box-shadow: 0 5px 25px rgba(0,0,0,0.2);
+            z-index: 9999; display: flex; flex-direction: column;
+            overflow: hidden; animation: slideIn 0.3s;
+        }
+        
+        .chat-header {
+            background: #0f172a; color: white; padding: 15px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        
+        #chat-messages {
+            flex: 1; padding: 15px; overflow-y: auto; background: #f8fafc;
+            display: flex; flex-direction: column; gap: 10px;
+        }
+
+        /* Bubble Styles */
+        .msg-bot { align-self: flex-start; background: #e2e8f0; color: #334155; padding: 10px 15px; border-radius: 15px 15px 15px 0; max-width: 80%; font-size: 0.9rem; }
+        .msg-user { align-self: flex-end; background: #f59e0b; color: white; padding: 10px 15px; border-radius: 15px 15px 0 15px; max-width: 80%; font-size: 0.9rem; }
+        .msg-loading { align-self: flex-start; font-style: italic; color: #94a3b8; font-size: 0.8rem; }
+
+        /* Input Area */
+        .chat-input-area {
+            padding: 10px; border-top: 1px solid #eee; display: flex; gap: 10px; background: white;
+        }
+        .chat-input-area input {
+            flex: 1; border: 1px solid #ddd; padding: 8px 15px; border-radius: 20px; outline: none;
+        }
+        .chat-input-area button {
+            background: #0f172a; color: white; border: none; width: 40px; height: 40px; border-radius: 50%;
+        }
+
+        /* Animation & Utility */
+        .d-none { display: none !important; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+
+    <script>
+        function toggleChat() {
+            document.getElementById('chat-box').classList.toggle('d-none');
+        }
+
+        function handleEnter(e) {
+            if (e.key === 'Enter') sendMessage();
+        }
+
+        function sendMessage() {
+            let input = document.getElementById('user-input');
+            let msg = input.value.trim();
+            if (!msg) return;
+
+            // 1. Tampilkan Pesan User
+            appendMessage(msg, 'user');
+            input.value = '';
+
+            // 2. Tampilkan Loading
+            let loadingDiv = document.createElement('div');
+            loadingDiv.className = 'msg-loading';
+            loadingDiv.innerHTML = '<i class="fa fa-circle-notch fa-spin"></i> Mikir bentar...';
+            loadingDiv.id = 'loading-bubble';
+            document.getElementById('chat-messages').appendChild(loadingDiv);
+
+            // 3. Kirim ke PHP Backend (AJAX)
+            fetch('apps/api/chat_brain.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: msg })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Hapus loading
+                document.getElementById('loading-bubble').remove();
+                
+                // Format teks (Ganti * jadi bold, \n jadi enter) biar rapi
+                let formattedReply = data.reply
+                    .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>') // Bold
+                    .replace(/\n/g, '<br>'); // Enter
+
+                appendMessage(formattedReply, 'bot');
+            })
+            .catch(error => {
+                document.getElementById('loading-bubble').remove();
+                appendMessage("Maaf bro, error koneksi nih.", 'bot');
+            });
+        }
+
+        function appendMessage(text, sender) {
+            let div = document.createElement('div');
+            div.className = sender === 'user' ? 'msg-user' : 'msg-bot';
+            div.innerHTML = text;
+            let container = document.getElementById('chat-messages');
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight; // Auto scroll ke bawah
+        }
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
     

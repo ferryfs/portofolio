@@ -70,6 +70,7 @@ while($row = mysqli_fetch_assoc($q_loc)) {
             <a href="drivers.php" class="nav-link"><i class="fa fa-users-gear"></i> Drivers</a>
             <div class="mt-4 px-3 text-uppercase small fw-bold text-muted" style="font-size: 0.7rem;">Settings</div>
             <a href="billing.php" class="nav-link"><i class="fa fa-file-invoice-dollar"></i> Billing & Cost</a>
+            <a href="help.php" class="nav-link"><i class="fa fa-circle-question"></i> User Guide</a>
             <a href="logout.php" class="nav-link text-danger"><i class="fa fa-power-off"></i> Logout</a>
         </nav>
     </div>
