@@ -8,6 +8,11 @@ function clean($str) { return addslashes(str_replace(array("\r", "\n"), "", $str
 $cv_url = (!empty($p['cv_link']) && strpos($p['cv_link'], 'http') !== false) ? $p['cv_link'] : "assets/doc/" . $p['cv_link'];
 $foto_profile = "assets/img/" . $p['profile_pic'];
 
+// MAPPING DATA
+$judul_besar = $p['about_title']; 
+$subtitle_id = $p['about_text']; // Ini yang warna BIRU
+$subtitle_en = $p['about_text_en']; 
+
 // Default Images
 $about_img1 = !empty($p['about_img_1']) ? "assets/img/".$p['about_img_1'] : "assets/img/default.jpg";
 $about_img2 = !empty($p['about_img_2']) ? "assets/img/".$p['about_img_2'] : "assets/img/default.jpg";
@@ -32,7 +37,7 @@ $about_img3 = !empty($p['about_img_3']) ? "assets/img/".$p['about_img_3'] : "ass
         :root {
             --bg-darker: #020617; 
             --text-main: #f8fafc;
-            --text-muted: #cbd5e1; /* LEBIH TERANG BIAR KEBACA */
+            --text-muted: #cbd5e1;
             --accent: #38bdf8; 
             --accent-glow: rgba(56, 189, 248, 0.4);
             --gold: #fbbf24;
@@ -60,7 +65,6 @@ $about_img3 = !empty($p['about_img_3']) ? "assets/img/".$p['about_img_3'] : "ass
         .nav-link.active { color: var(--accent) !important; font-weight: 700; text-shadow: 0 0 10px var(--accent-glow); }
         .nav-link.active::after { content: ''; position: absolute; bottom: -5px; left: 0; width: 100%; height: 2px; background: var(--accent); }
 
-        /* LANG SWITCHER */
         .lang-toggle { cursor: pointer; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; color: #64748b; transition: 0.3s; }
         .lang-toggle.active { background: var(--accent); color: #000; box-shadow: 0 0 10px var(--accent-glow); }
 
@@ -76,41 +80,66 @@ $about_img3 = !empty($p['about_img_3']) ? "assets/img/".$p['about_img_3'] : "ass
         .profile-img-desktop { width: 100%; max-width: 380px; aspect-ratio: 4/5; object-fit: cover; border-radius: 30px; border: 1px solid var(--glass-border); box-shadow: 0 0 40px rgba(56, 189, 248, 0.15); }
         .profile-wrapper-desktop { animation: float 6s ease-in-out infinite; }
 
-        /* BUTTONS */
         .btn-gradient { background: var(--gradient-text); color: white; padding: 12px 35px; border-radius: 50px; font-weight: 600; border: none; box-shadow: 0 0 20px var(--accent-glow); transition: 0.3s; }
         .btn-gradient:hover { transform: translateY(-3px); box-shadow: 0 0 40px var(--accent-glow); color: white; }
         .btn-glass { background: rgba(255,255,255,0.05); color: white; border: 1px solid var(--glass-border); padding: 12px 35px; border-radius: 50px; transition: 0.3s; }
         .btn-glass:hover { border-color: var(--accent); color: var(--accent); background: rgba(56, 189, 248, 0.1); }
 
-        /* --- ABOUT & JOURNEY UPDATED --- */
+        /* --- ABOUT & JOURNEY LAYOUT FIX --- */
+        .about-section { padding-top: 100px; padding-bottom: 100px; }
+        
+        .sticky-sidebar { position: -webkit-sticky; position: sticky; top: 120px; z-index: 10; }
+
         .gallery-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
-        .gallery-item { 
-            width: 100%; height: 100%; object-fit: cover; /* Biar tajem */
-            border-radius: 12px; border: 1px solid var(--glass-border); cursor: pointer; transition: 0.3s; 
-        }
+        .gallery-item { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; border: 1px solid var(--glass-border); cursor: pointer; transition: 0.3s; }
         .gallery-item:hover { transform: scale(1.02); border-color: var(--accent); }
         .gallery-tall { height: 320px; grid-row: span 2; }
         .gallery-short { height: 150px; }
 
+        /* STYLE KHUSUS SUBTITLE BIRU */
+        .about-subtitle {
+            font-size: 1.15rem; 
+            color: #38bdf8 !important; /* Warna Biru */
+            font-weight: 600; 
+            line-height: 1.6;
+            margin-top: 5px; /* Sedikit margin biar gak nempel banget atasnya */
+            margin-bottom: 20px;
+            display: block;
+        }
+
+        /* Timeline Box */
         .timeline-box { position: relative; border-left: 2px dashed rgba(56, 189, 248, 0.3); margin-left: 15px; padding-left: 35px; padding-bottom: 20px; }
-        /* Group Perusahaan */
+        
         .company-group { margin-bottom: 40px; position: relative; }
-        /* Dot Perusahaan */
-        .company-dot { 
-            position: absolute; left: -44px; top: 0; width: 20px; height: 20px; 
-            background: var(--bg-darker); border: 2px solid var(--accent); border-radius: 50%; z-index: 2;
+        .company-dot { position: absolute; left: -44px; top: 0; width: 20px; height: 20px; background: var(--bg-darker); border: 2px solid var(--accent); border-radius: 50%; z-index: 2; }
+        .company-name { font-size: 1.4rem; font-weight: 700; color: white; margin: 0 0 15px 0; }
+
+        .role-item { margin-bottom: 25px; position: relative; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 20px; }
+        .role-item:last-child { border-bottom: none; }
+        
+        .role-title-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px; }
+        .role-title { font-size: 1.1rem; font-weight: 700; color: #f8fafc; margin: 0; }
+        .role-year { font-size: 0.85rem; font-weight: 600; background: rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 20px; color: var(--accent); white-space: nowrap; }
+        
+        .role-summary { font-size: 0.85rem; color: #38bdf8; font-weight: 600; margin-bottom: 8px; display: inline-block; }
+        
+        .toggle-role-btn {
+            background: none; border: none; color: var(--accent); font-size: 0.85rem; font-weight: 600;
+            cursor: pointer; padding: 0; display: flex; align-items: center; gap: 5px; transition: 0.3s; margin-top: 5px;
         }
-        .role-item { margin-bottom: 25px; position: relative; }
-        /* Deskripsi Job */
+        .toggle-role-btn:hover { text-decoration: underline; color: white; }
+
         .role-desc { 
-            color: var(--text-muted); font-size: 0.95rem; line-height: 1.6; 
-            text-align: justify; /* Rata Kanan Kiri */
-            margin-top: 8px;
+            display: none; 
+            margin-top: 15px; padding-top: 15px; 
+            border-top: 1px dashed rgba(255,255,255,0.1); 
+            color: var(--text-muted); font-size: 0.95rem; line-height: 1.7; text-align: justify;
+            animation: slideDown 0.4s ease;
         }
-        .role-desc ul { padding-left: 20px; margin-bottom: 0; } /* Support bullet points */
-        .role-summary {
-            font-size: 0.8rem; color: var(--accent); font-weight: 600; margin-top: 2px; display: block;
-        }
+        .role-desc ul { padding-left: 18px; margin-bottom: 0; } 
+        .role-desc li { margin-bottom: 5px; }
+        
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
 
         /* CARD PROJECT */
         .project-card { background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 20px; overflow: hidden; height: 100%; display: flex; flex-direction: column; transition: 0.3s; }
@@ -137,6 +166,15 @@ $about_img3 = !empty($p['about_img_3']) ? "assets/img/".$p['about_img_3'] : "ass
             .hero-title { font-size: 2.5rem; }
             .container { padding-left: 25px; padding-right: 25px; }
             .navbar-collapse { background: var(--bg-darker); padding: 20px; border-radius: 15px; margin-top: 10px; border: 1px solid var(--glass-border); }
+            
+            .sticky-sidebar { position: relative; top: 0; margin-bottom: 40px; } 
+            .timeline-box { margin-left: 0; padding-left: 25px; border-left: 2px dashed rgba(255,255,255,0.1); }
+            .company-dot { left: -34px; width: 18px; height: 18px; }
+            .role-title-row { flex-direction: column; gap: 5px; }
+            .role-year { align-self: flex-start; font-size: 0.8rem; }
+            
+            /* Pada Mobile, Subtitle mepet ke Karir, tapi dikasih jarak dikit sama Judul */
+            .about-subtitle { margin-bottom: 30px; }
         }
         @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-15px); } 100% { transform: translateY(0px); } }
     </style>
@@ -195,73 +233,92 @@ $about_img3 = !empty($p['about_img_3']) ? "assets/img/".$p['about_img_3'] : "ass
         </div>
     </section>
 
-    <section id="about" class="py-5" style="margin-top: 50px;"> <div class="container">
+    <section id="about" class="about-section"> 
+        <div class="container">
             <div class="row gx-lg-5">
-                <div class="col-lg-5 mb-5" data-aos="fade-right">
-                    <span class="text-info fw-bold small border-bottom border-info pb-1 mb-3 d-inline-block" data-lang="about_head">TENTANG SAYA</span>
-                    <h2 class="text-white fw-bold mb-4 display-6" data-lang="about_title">Analyst & Leader.</h2>
-                    
-                    <div class="gallery-grid mb-4">
-                        <div class="gallery-tall">
-                            <a href="assets/img/<?php echo $p['about_img_1']; ?>" class="glightbox">
-                                <img src="assets/img/<?php echo $p['about_img_1']; ?>" class="gallery-item" onerror="this.src='assets/img/default.jpg'">
-                            </a>
-                        </div>
-                        <div class="gallery-short">
-                            <a href="assets/img/<?php echo $p['about_img_2']; ?>" class="glightbox">
-                                <img src="assets/img/<?php echo $p['about_img_2']; ?>" class="gallery-item" onerror="this.src='assets/img/default.jpg'">
-                            </a>
-                        </div>
-                        <div class="gallery-short">
-                            <a href="assets/img/<?php echo $p['about_img_3']; ?>" class="glightbox">
-                                <img src="assets/img/<?php echo $p['about_img_3']; ?>" class="gallery-item" onerror="this.src='assets/img/default.jpg'">
-                            </a>
-                        </div>
+                
+                <div class="col-lg-5 mb-5 mb-lg-0">
+                    <div data-aos="fade-right">
+                        <span class="text-info fw-bold small border-bottom border-info pb-1 mb-3 d-inline-block" data-lang="about_head">TENTANG SAYA</span>
+                        <h2 class="text-white fw-bold display-6 mb-5" data-lang="about_title"><?php echo $judul_besar; ?></h2>
                     </div>
 
-                    <div class="p-4 rounded-4 border border-secondary bg-dark bg-opacity-25">
-                        <h6 class="text-white fw-bold mb-3"><i class="bi bi-star-fill text-warning me-2"></i>Core Competencies</h6>
-                        <div class="row g-2">
-                            <?php $qc = mysqli_query($conn, "SELECT * FROM competencies"); while($c = mysqli_fetch_assoc($qc)): ?>
-                            <div class="col-6 text-muted small"><i class="<?php echo $c['icon']; ?> text-info me-2"></i><?php echo $c['title']; ?></div>
-                            <?php endwhile; ?>
+                    <div class="sticky-sidebar">
+                        <div class="gallery-grid mb-4">
+                            <div class="gallery-tall">
+                                <a href="assets/img/<?php echo $p['about_img_1']; ?>" class="glightbox">
+                                    <img src="assets/img/<?php echo $p['about_img_1']; ?>" class="gallery-item" onerror="this.src='assets/img/default.jpg'">
+                                </a>
+                            </div>
+                            <div class="gallery-short">
+                                <a href="assets/img/<?php echo $p['about_img_2']; ?>" class="glightbox">
+                                    <img src="assets/img/<?php echo $p['about_img_2']; ?>" class="gallery-item" onerror="this.src='assets/img/default.jpg'">
+                                </a>
+                            </div>
+                            <div class="gallery-short">
+                                <a href="assets/img/<?php echo $p['about_img_3']; ?>" class="glightbox">
+                                    <img src="assets/img/<?php echo $p['about_img_3']; ?>" class="gallery-item" onerror="this.src='assets/img/default.jpg'">
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="p-4 rounded-4 border border-secondary" style="background: rgba(15, 23, 42, 0.6);">
+                            <h6 class="text-white fw-bold mb-3"><i class="bi bi-star-fill text-warning me-2"></i>Core Competencies</h6>
+                            <div class="row g-2">
+                                <?php $qc = mysqli_query($conn, "SELECT * FROM competencies"); while($c = mysqli_fetch_assoc($qc)): ?>
+                                <div class="col-6 text-muted small d-flex align-items-center"><i class="<?php echo $c['icon']; ?> text-info me-2"></i><?php echo $c['title']; ?></div>
+                                <?php endwhile; ?>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <div class="col-lg-7" data-aos="fade-left">
-                    <p class="text-muted fs-5 mb-5" style="line-height: 1.8; text-align: justify;" data-lang="about_desc"><?php echo $p['about_text']; ?></p>
-                    
+                    <div class="mb-5" style="min-height: 100px; display:flex; align-items:flex-end;"> 
+                        <span class="about-subtitle" data-lang="about_subtitle">
+                            <?php echo $subtitle_id; ?>
+                        </span>
+                    </div>
+
                     <h4 class="text-white fw-bold mb-4 border-bottom border-secondary pb-2" data-lang="career_head">Career Journey</h4>
                     
                     <div class="timeline-box">
                         <?php 
+                        // Logic Grouping
                         $q_time = mysqli_query($conn, "SELECT * FROM timeline ORDER BY id DESC"); 
-                        $current_company = "";
-                        while($t = mysqli_fetch_assoc($q_time)): 
-                            // LOGIC GROUPING PERUSAHAAN (BIAR GAK PISAH KALO SAMA)
-                            if($current_company != $t['company']) {
-                                if($current_company != "") echo '</div>'; // Tutup div company sebelumnya
-                                $current_company = $t['company'];
-                                echo '<div class="company-group">';
-                                echo '<div class="company-dot"></div>'; // Dot Timeline
-                                echo '<div class="mb-3 d-flex align-items-center"><h5 class="text-white fw-bold m-0 fs-4">'.$current_company.'</h5></div>';
-                            }
+                        $timeline_data = [];
+                        while($row = mysqli_fetch_assoc($q_time)){
+                            $timeline_data[$row['company']][] = $row; 
+                        }
+
+                        foreach($timeline_data as $company => $roles): 
                         ?>
-                        <div class="role-item border-start border-secondary ps-4 ms-2">
-                            <div class="d-flex justify-content-between align-items-start mb-1">
-                                <div>
-                                    <h6 class="text-info fw-bold mb-0 fs-5"><?php echo $t['role']; ?></h6>
-                                    <span class="role-summary">Fulltime Role</span> 
+                        
+                        <div class="company-group">
+                            <div class="company-dot"></div>
+                            <h3 class="company-name"><?php echo $company; ?></h3>
+
+                            <?php foreach($roles as $role): ?>
+                            <div class="role-item">
+                                <div class="role-title-row">
+                                    <h5 class="role-title"><?php echo $role['role']; ?></h5>
+                                    <span class="role-year"><?php echo $role['year']; ?></span>
                                 </div>
-                                <span class="badge bg-secondary rounded-pill"><?php echo $t['year']; ?></span>
+                                
+                                <span class="role-summary">Full-time Role</span>
+                                
+                                <button class="toggle-role-btn" onclick="toggleRole(this)" data-lang="btn_readmore">
+                                    Lihat Detail <i class="bi bi-chevron-down"></i>
+                                </button>
+
+                                <div class="role-desc">
+                                    <?php echo $role['description']; ?>
+                                </div>
                             </div>
-                            
-                            <div class="role-desc">
-                                <?php echo $t['description']; ?>
-                            </div>
+                            <?php endforeach; ?>
                         </div>
-                        <?php endwhile; echo '</div>'; // Tutup div terakhir ?>
+                        
+                        <?php endforeach; ?>
                     </div>
                 </div>
             </div>
@@ -537,19 +594,38 @@ $about_img3 = !empty($p['about_img_3']) ? "assets/img/".$p['about_img_3'] : "ass
             });
         });
 
-        // Read More Function & Lang Switch
+        // Read More Function (Hero)
         function toggleReadMore() {
             var desc = document.getElementById("desc-container");
             var btn = document.getElementById("btn-read-more");
-            var currentLang = localStorage.getItem('ferry_lang') || 'id'; // Cek bahasa saat ini
+            var currentLang = localStorage.getItem('ferry_lang') || 'id'; 
             
             if (desc.classList.contains("desc-truncate")) {
                 desc.classList.remove("desc-truncate");
-                // Ganti teks tombol berdasarkan bahasa
                 btn.innerHTML = translations[currentLang]['btn_close'] + ' <i class="bi bi-chevron-up"></i>';
             } else {
                 desc.classList.add("desc-truncate");
-                // Ganti teks tombol berdasarkan bahasa
+                btn.innerHTML = translations[currentLang]['btn_readmore'] + ' <i class="bi bi-chevron-down"></i>';
+            }
+        }
+
+        // --- INTERACTIVE ACCORDION FOR CAREER JOURNEY ---
+        function toggleRole(btn) {
+            const card = btn.closest('.role-item');
+            const desc = card.querySelector('.role-desc');
+            const isHidden = getComputedStyle(desc).display === 'none';
+            var currentLang = localStorage.getItem('ferry_lang') || 'id';
+
+            document.querySelectorAll('.role-desc').forEach(d => d.style.display = 'none');
+            document.querySelectorAll('.toggle-role-btn').forEach(b => {
+                b.innerHTML = translations[currentLang]['btn_readmore'] + ' <i class="bi bi-chevron-down"></i>';
+            });
+
+            if (isHidden) {
+                desc.style.display = 'block';
+                btn.innerHTML = translations[currentLang]['btn_close'] + ' <i class="bi bi-chevron-up"></i>';
+            } else {
+                desc.style.display = 'none';
                 btn.innerHTML = translations[currentLang]['btn_readmore'] + ' <i class="bi bi-chevron-down"></i>';
             }
         }
@@ -631,15 +707,17 @@ $about_img3 = !empty($p['about_img_3']) ? "assets/img/".$p['about_img_3'] : "ass
                 nav_home:"Beranda", nav_projects:"Proyek", nav_cert:"Sertifikat", nav_about:"Tentang", 
                 hero_greeting:`👋 Halo, saya <?php echo clean($p['hero_greeting']); ?>`, hero_title:`<?php echo clean($p['hero_title']); ?>`, hero_desc:`<?php echo clean($p['hero_desc']); ?>`,
                 btn_work:"Lihat Karya", btn_cv:"Unduh CV", btn_readmore:"Lihat Selengkapnya", btn_close:"Tutup",
-                about_head:"TENTANG SAYA", about_title:"Analyst & Leader.", about_desc:`<?php echo clean($p['about_text']); ?>`,
-                career_head:"Perjalanan Karir", contact_title:"Siap Memberikan Dampak?", cert_title:"Bukti Kompetensi."
+                about_head:"TENTANG SAYA", about_title:"Analyst & Leader.", 
+                career_head:"Perjalanan Karir", contact_title:"Siap Memberikan Dampak?", cert_title:"Bukti Kompetensi.",
+                about_title:"<?php echo clean($judul_besar); ?>", about_subtitle:`<?php echo clean($subtitle_id); ?>`
             },
             en: {
                 nav_home:"Home", nav_projects:"Projects", nav_cert:"Certifications", nav_about:"About", 
                 hero_greeting:`👋 Hello, I'm <?php echo clean($p['hero_greeting_en']); ?>`, hero_title:`<?php echo clean($p['hero_title_en']); ?>`, hero_desc:`<?php echo clean($p['hero_desc_en']); ?>`,
                 btn_work:"View Work", btn_cv:"Download CV", btn_readmore:"Read More", btn_close:"Close",
-                about_head:"ABOUT ME", about_title:"Analyst & Leader.", about_desc:`<?php echo clean($p['about_text_en']); ?>`,
-                career_head:"Career Journey", contact_title:"Ready to Make Impact?", cert_title:"Competency Proof."
+                about_head:"ABOUT ME", about_title:"Analyst & Leader.", 
+                career_head:"Career Journey", contact_title:"Ready to Make Impact?", cert_title:"Competency Proof.",
+                about_title:"<?php echo clean($judul_besar); ?>", about_subtitle:`<?php echo clean($subtitle_en); ?>`
             }
         };
         function setLanguage(lang) {
@@ -653,8 +731,14 @@ $about_img3 = !empty($p['about_img_3']) ? "assets/img/".$p['about_img_3'] : "ass
             localStorage.setItem('ferry_lang', lang);
             
             // FIX: Reset Read More Button Text saat ganti bahasa
-            document.getElementById("desc-container").classList.add("desc-truncate"); // Reset ke closed
+            document.getElementById("desc-container").classList.add("desc-truncate"); 
             document.getElementById("btn-read-more").innerHTML = translations[lang]['btn_readmore'] + ' <i class="bi bi-chevron-down"></i>';
+
+            // FIX: Reset semua Read More di Journey Section saat ganti bahasa
+            document.querySelectorAll('.role-desc').forEach(d => d.style.display = 'none'); // Tutup semua
+            document.querySelectorAll('.toggle-role-btn').forEach(b => {
+                b.innerHTML = translations[lang]['btn_readmore'] + ' <i class="bi bi-chevron-down"></i>';
+            });
         }
         window.onload = () => { const savedLang = localStorage.getItem('ferry_lang')||'id'; setLanguage(savedLang); };
     </script>
