@@ -1,746 +1,436 @@
 <?php 
-include 'koneksi.php'; 
-$p = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM profile WHERE id=1"));
+// ==========================================
+// 1. BACKEND LOGIC (SERVER SIDE)
+// ==========================================
 
-function clean($str) { return addslashes(str_replace(array("\r", "\n"), "", $str)); }
+// Error Reporting (Matikan saat production)
+error_reporting(E_ALL); 
+ini_set('display_errors', 0);
 
-// Logic URL CV & Foto
-$cv_url = (!empty($p['cv_link']) && strpos($p['cv_link'], 'http') !== false) ? $p['cv_link'] : "assets/doc/" . $p['cv_link'];
-$foto_profile = "assets/img/" . $p['profile_pic'];
+// Koneksi Database
+require_once 'koneksi.php'; 
 
-// MAPPING DATA
-$judul_besar = $p['about_title']; 
-$subtitle_id = $p['about_text']; // Ini yang warna BIRU
-$subtitle_en = $p['about_text_en']; 
+// Helper: XSS Protection (Wajib biar ga di-hack lewat input CMS)
+function clean($str) { 
+    return htmlspecialchars($str ?? '', ENT_QUOTES, 'UTF-8'); 
+}
 
-// Default Images
-$about_img1 = !empty($p['about_img_1']) ? "assets/img/".$p['about_img_1'] : "assets/img/default.jpg";
-$about_img2 = !empty($p['about_img_2']) ? "assets/img/".$p['about_img_2'] : "assets/img/default.jpg";
-$about_img3 = !empty($p['about_img_3']) ? "assets/img/".$p['about_img_3'] : "assets/img/default.jpg";
+// Ambil Data Utama Profile
+$query = mysqli_query($conn, "SELECT * FROM profile WHERE id=1");
+
+// Error Handling: Kalau data kosong/DB error, pake data dummy biar web tetep jalan
+if ($query && mysqli_num_rows($query) > 0) {
+    $p = mysqli_fetch_assoc($query);
+} else {
+    // Fallback Data (Jaga-jaga)
+    $p = [
+        'hero_title' => 'System Analyst & Developer',
+        'hero_desc' => 'Database connection issue. Please check CMS.',
+        'about_title' => 'Analyst & Leader.',
+        'about_text' => 'IT Supervisor & Functional Analyst',
+        'profile_pic' => '',
+        'email' => '#',
+        'whatsapp' => '#',
+        'linkedin' => '#'
+    ];
+}
+
+// Variable Mapping (Biar kodingan HTML di bawah bersih)
+$judul_besar    = $p['about_title']; 
+$subtitle_biru  = $p['about_text']; 
+$deskripsi_hero = $p['hero_desc'];  
+
+// Asset Logic
+$foto_profile = !empty($p['profile_pic']) && file_exists("assets/img/".$p['profile_pic']) 
+                ? "assets/img/".$p['profile_pic'] 
+                : "https://via.placeholder.com/600x750?text=Profile+Image";
+
+$cv_url = (!empty($p['cv_link']) && strpos($p['cv_link'], 'http') !== false) 
+          ? $p['cv_link'] 
+          : "assets/doc/" . ($p['cv_link'] ?? '#');
 ?>
 
 <!DOCTYPE html>
-<html lang="id"> 
+<html lang="id" class="scroll-smooth">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ferry Fernando | Functional Analyst</title>
+    <meta name="description" content="<?php echo clean(substr($deskripsi_hero, 0, 150)); ?>">
+    <meta name="author" content="Ferry Fernando">
     
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Ferry Fernando | Tech Architect & Analyst</title>
+    
+    <link rel="icon" type="image/png" href="assets/img/logo.png">
+
+    <link href="https://api.fontshare.com/v2/css?f[]=satoshi@900,700,500,400&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Satoshi', 'sans-serif'] },
+                    colors: {
+                        bg: '#F3F4F6',       /* Warm Grey Background */
+                        primary: '#111827',  /* Hitam Premium */
+                        secondary: '#4B5563',/* Abu Text */
+                        accent: '#4F46E5',   /* Indigo Premium */
+                        paper: '#FFFFFF',
+                    },
+                    boxShadow: {
+                        'island': '0 0 0 1px rgba(0,0,0,0.03), 0 2px 8px rgba(0,0,0,0.04), 0 12px 24px rgba(0,0,0,0.04)',
+                        'float': '0 20px 40px -10px rgba(0,0,0,0.15)',
+                    }
+                }
+            }
+        }
+    </script>
+
     <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css" />
-    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+
     <style>
-        :root {
-            --bg-darker: #020617; 
-            --text-main: #f8fafc;
-            --text-muted: #cbd5e1;
-            --accent: #38bdf8; 
-            --accent-glow: rgba(56, 189, 248, 0.4);
-            --gold: #fbbf24;
-            --glass-border: rgba(255, 255, 255, 0.1);
-            --glass-bg: rgba(15, 23, 42, 0.8); 
-            --gradient-text: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+        body { background-color: #F3F4F6; color: #111827; overflow-x: hidden; }
+        
+        /* Island Bubble Box */
+        .island-box {
+            background: white; border-radius: 2rem; padding: 3rem 2rem;
+            box-shadow: var(--shadow-island); border: 1px solid rgba(255,255,255,0.8);
         }
 
-        body { 
-            font-family: 'Outfit', sans-serif; background-color: var(--bg-darker); 
-            color: var(--text-main); overflow-x: hidden; position: relative;
-            background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
-            background-size: 40px 40px;
+        /* Glass Navbar */
+        .nav-pill {
+            background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.5); box-shadow: 0 4px 20px rgba(0,0,0,0.05);
         }
 
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: var(--bg-darker); }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 5px; }
-
-        /* NAVBAR */
-        .navbar { background: rgba(2, 6, 23, 0.95); backdrop-filter: blur(20px); border-bottom: 1px solid var(--glass-border); padding: 15px 0; transition: 0.3s; }
-        .nav-link { color: #94a3b8 !important; font-weight: 500; margin: 0 10px; transition: 0.3s; position: relative; }
-        .nav-link:hover { color: var(--accent) !important; }
-        .nav-link.active { color: var(--accent) !important; font-weight: 700; text-shadow: 0 0 10px var(--accent-glow); }
-        .nav-link.active::after { content: ''; position: absolute; bottom: -5px; left: 0; width: 100%; height: 2px; background: var(--accent); }
-
-        .lang-toggle { cursor: pointer; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; color: #64748b; transition: 0.3s; }
-        .lang-toggle.active { background: var(--accent); color: #000; box-shadow: 0 0 10px var(--accent-glow); }
-
-        /* HERO SECTION */
-        .hero-section { padding-top: 180px; min-height: 100vh; display: flex; align-items: center; }
-        .hero-greeting { color: #38bdf8; font-size: 1.3rem; font-weight: 700; margin-bottom: 10px; display: block; letter-spacing: 1px; }
-        .hero-title { font-size: 4rem; font-weight: 800; line-height: 1.1; margin-bottom: 20px; background: linear-gradient(to right, #fff, #94a3b8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .hero-desc { color: #cbd5e1; font-size: 1.1rem; line-height: 1.8; text-align: justify; margin-bottom: 10px; }
-        .desc-truncate { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-        .read-more-btn { background: none; border: none; color: #38bdf8; font-size: 0.95rem; font-weight: 600; cursor: pointer; padding: 0; margin-bottom: 30px; display: inline-block; text-decoration: none; }
-        .read-more-btn:hover { text-decoration: underline; }
-        .mobile-hero-img { width: 180px; height: 180px; object-fit: cover; object-position: top; border-radius: 20px; border: 2px solid var(--accent); box-shadow: 0 0 20px rgba(56, 189, 248, 0.3); margin: 15px auto 25px auto; display: block; }
-        .profile-img-desktop { width: 100%; max-width: 380px; aspect-ratio: 4/5; object-fit: cover; border-radius: 30px; border: 1px solid var(--glass-border); box-shadow: 0 0 40px rgba(56, 189, 248, 0.15); }
-        .profile-wrapper-desktop { animation: float 6s ease-in-out infinite; }
-
-        .btn-gradient { background: var(--gradient-text); color: white; padding: 12px 35px; border-radius: 50px; font-weight: 600; border: none; box-shadow: 0 0 20px var(--accent-glow); transition: 0.3s; }
-        .btn-gradient:hover { transform: translateY(-3px); box-shadow: 0 0 40px var(--accent-glow); color: white; }
-        .btn-glass { background: rgba(255,255,255,0.05); color: white; border: 1px solid var(--glass-border); padding: 12px 35px; border-radius: 50px; transition: 0.3s; }
-        .btn-glass:hover { border-color: var(--accent); color: var(--accent); background: rgba(56, 189, 248, 0.1); }
-
-        /* --- ABOUT & JOURNEY LAYOUT FIX --- */
-        .about-section { padding-top: 100px; padding-bottom: 100px; }
-        
-        .sticky-sidebar { position: -webkit-sticky; position: sticky; top: 120px; z-index: 10; }
-
-        .gallery-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
-        .gallery-item { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; border: 1px solid var(--glass-border); cursor: pointer; transition: 0.3s; }
-        .gallery-item:hover { transform: scale(1.02); border-color: var(--accent); }
-        .gallery-tall { height: 320px; grid-row: span 2; }
-        .gallery-short { height: 150px; }
-
-        /* STYLE KHUSUS SUBTITLE BIRU */
-        .about-subtitle {
-            font-size: 1.15rem; 
-            color: #38bdf8 !important; /* Warna Biru */
-            font-weight: 600; 
-            line-height: 1.6;
-            margin-top: 5px; /* Sedikit margin biar gak nempel banget atasnya */
-            margin-bottom: 20px;
-            display: block;
+        /* Timeline Line */
+        .timeline-container { border-left: 2px solid #E5E7EB; margin-left: 8px; padding-left: 28px; }
+        .timeline-item { position: relative; padding-bottom: 35px; }
+        .timeline-dot {
+            position: absolute; left: -35px; top: 6px; width: 12px; height: 12px;
+            background: #4F46E5; border-radius: 50%; box-shadow: 0 0 0 4px #E0E7FF;
         }
-
-        /* Timeline Box */
-        .timeline-box { position: relative; border-left: 2px dashed rgba(56, 189, 248, 0.3); margin-left: 15px; padding-left: 35px; padding-bottom: 20px; }
-        
-        .company-group { margin-bottom: 40px; position: relative; }
-        .company-dot { position: absolute; left: -44px; top: 0; width: 20px; height: 20px; background: var(--bg-darker); border: 2px solid var(--accent); border-radius: 50%; z-index: 2; }
-        .company-name { font-size: 1.4rem; font-weight: 700; color: white; margin: 0 0 15px 0; }
-
-        .role-item { margin-bottom: 25px; position: relative; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 20px; }
-        .role-item:last-child { border-bottom: none; }
-        
-        .role-title-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px; }
-        .role-title { font-size: 1.1rem; font-weight: 700; color: #f8fafc; margin: 0; }
-        .role-year { font-size: 0.85rem; font-weight: 600; background: rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 20px; color: var(--accent); white-space: nowrap; }
-        
-        .role-summary { font-size: 0.85rem; color: #38bdf8; font-weight: 600; margin-bottom: 8px; display: inline-block; }
-        
-        .toggle-role-btn {
-            background: none; border: none; color: var(--accent); font-size: 0.85rem; font-weight: 600;
-            cursor: pointer; padding: 0; display: flex; align-items: center; gap: 5px; transition: 0.3s; margin-top: 5px;
-        }
-        .toggle-role-btn:hover { text-decoration: underline; color: white; }
-
-        .role-desc { 
-            display: none; 
-            margin-top: 15px; padding-top: 15px; 
-            border-top: 1px dashed rgba(255,255,255,0.1); 
-            color: var(--text-muted); font-size: 0.95rem; line-height: 1.7; text-align: justify;
-            animation: slideDown 0.4s ease;
-        }
-        .role-desc ul { padding-left: 18px; margin-bottom: 0; } 
-        .role-desc li { margin-bottom: 5px; }
-        
-        @keyframes slideDown { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
-
-        /* CARD PROJECT */
-        .project-card { background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 20px; overflow: hidden; height: 100%; display: flex; flex-direction: column; transition: 0.3s; }
-        .project-card:hover { transform: translateY(-10px); border-color: var(--accent); box-shadow: 0 15px 30px rgba(0,0,0,0.3); }
-        .project-img-box { height: 200px; width: 100%; position: relative; overflow: hidden; }
-        .project-img-box img { width: 100%; height: 100%; object-fit: cover; transition: 0.5s; }
-        .project-card:hover .project-img-box img { transform: scale(1.1); }
-        .btn-card-action { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: var(--accent); padding: 10px; border-radius: 10px; font-weight: 600; transition: 0.3s; text-align: center; margin-top: auto; cursor: pointer; }
-        .btn-card-action:hover { background: var(--accent); color: #000; }
-
-        /* CERTIFICATES */
-        .cert-card { background: linear-gradient(145deg, rgba(20, 20, 35, 0.9), rgba(10, 10, 20, 1)); border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 15px; padding: 25px; height: 100%; transition: 0.3s; position: relative; overflow: hidden; }
-        .cert-card::before { content:''; position: absolute; top:0; left:0; width:4px; height:100%; background: var(--gold); }
-        .cert-card:hover { transform: translateY(-5px); box-shadow: 0 10px 30px rgba(251, 191, 36, 0.15); }
-
-        /* CONTACT */
-        .contact-card { background: var(--glass-bg); border: 1px solid var(--glass-border); padding: 30px; border-radius: 20px; text-align: center; transition: 0.3s; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        .contact-card:hover { border-color: var(--accent); transform: translateY(-5px); }
-
-        /* MOBILE */
-        @media (max-width: 991px) {
-            .hero-section { padding-top: 140px; text-align: left; padding-bottom: 50px; }
-            .hero-desc { text-align: left; font-size: 1rem; }
-            .hero-title { font-size: 2.5rem; }
-            .container { padding-left: 25px; padding-right: 25px; }
-            .navbar-collapse { background: var(--bg-darker); padding: 20px; border-radius: 15px; margin-top: 10px; border: 1px solid var(--glass-border); }
-            
-            .sticky-sidebar { position: relative; top: 0; margin-bottom: 40px; } 
-            .timeline-box { margin-left: 0; padding-left: 25px; border-left: 2px dashed rgba(255,255,255,0.1); }
-            .company-dot { left: -34px; width: 18px; height: 18px; }
-            .role-title-row { flex-direction: column; gap: 5px; }
-            .role-year { align-self: flex-start; font-size: 0.8rem; }
-            
-            /* Pada Mobile, Subtitle mepet ke Karir, tapi dikasih jarak dikit sama Judul */
-            .about-subtitle { margin-bottom: 30px; }
-        }
-        @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-15px); } 100% { transform: translateY(0px); } }
     </style>
 </head>
 
-<body data-bs-spy="scroll" data-bs-target="#navbar-main" data-bs-offset="100">
+<body class="antialiased">
 
-    <nav class="navbar navbar-expand-lg fixed-top" id="navbar-main">
-        <div class="container">
-            <a class="navbar-brand" href="#home">
-                <img src="assets/img/logo.png" alt="Logo" style="height: 45px;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                <span class="fw-bold text-white fs-4" style="display:none;">FF.</span>
-            </a>
-            <button class="navbar-toggler border-0 text-white" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"><i class="bi bi-list fs-1"></i></button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav mx-auto">
-                    <li class="nav-item"><a class="nav-link" href="#home" data-lang="nav_home">Beranda</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#about" data-lang="nav_about">Tentang</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#skills" data-lang="nav_skills">Keahlian</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#projects" data-lang="nav_projects">Proyek</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#certifications" data-lang="nav_cert">Sertifikat</a></li>
-                </ul>
-                <div class="d-flex align-items-center gap-4 mt-3 mt-lg-0 justify-content-center">
-                    <div class="d-flex bg-dark border border-secondary rounded-pill p-1">
-                        <span class="lang-toggle active" onclick="setLanguage('id')" id="btn-id">ID</span>
-                        <span class="lang-toggle" onclick="setLanguage('en')" id="btn-en">EN</span>
-                    </div>
-                    <a href="#contact" class="btn btn-sm btn-outline-info rounded-pill px-4 fw-bold">Hire Me</a>
-                </div>
-            </div>
-        </div>
-    </nav>
+    <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-md">
+        <nav class="nav-pill px-6 py-3 rounded-full flex justify-between items-center shadow-2xl">
+            <a href="#home" class="text-sm font-bold text-gray-500 hover:text-accent transition"><i class="bi bi-house-door-fill text-xl"></i></a>
+            <a href="#about" class="text-sm font-bold text-gray-500 hover:text-accent transition">About</a>
+            <a href="#skills" class="text-sm font-bold text-gray-500 hover:text-accent transition">Expertise</a>
+            <a href="#projects" class="text-sm font-bold text-gray-500 hover:text-accent transition">Work</a>
+            <a href="#contact" class="bg-primary text-white p-2.5 rounded-full hover:bg-accent transition shadow-lg"><i class="bi bi-envelope-fill"></i></a>
+        </nav>
+    </div>
 
-    <section id="home" class="hero-section">
-        <div class="container">
-            <div class="row align-items-center">
-                <div class="col-lg-7" data-aos="fade-right">
-                    <span class="hero-greeting" data-lang="hero_greeting">👋 Halo, saya <?php echo $p['hero_greeting']; ?></span>
-                    <div class="d-lg-none text-center">
-                        <img src="<?php echo $foto_profile; ?>" class="mobile-hero-img" alt="Profile" onerror="this.src='assets/img/default.jpg';">
+    <section id="home" class="min-h-screen flex items-center relative py-20 overflow-hidden">
+        <div class="absolute top-0 right-0 w-[600px] h-[600px] bg-indigo-200/20 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
+
+        <div class="max-w-7xl mx-auto px-6 w-full relative z-10">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+                
+                <div data-aos="fade-up" data-aos-duration="1000">
+                    <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-gray-200 shadow-sm text-secondary text-xs font-bold uppercase tracking-wider mb-8">
+                        <span class="relative flex h-2 w-2">
+                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                          <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                        </span>
+                        Available for Projects
                     </div>
-                    <h1 class="hero-title" data-lang="hero_title"><?php echo $p['hero_title']; ?></h1>
-                    <div id="desc-container" class="hero-desc desc-truncate" data-lang="hero_desc"><?php echo $p['hero_desc']; ?></div>
-                    <button onclick="toggleReadMore()" id="btn-read-more" class="read-more-btn">Lihat Selengkapnya <i class="bi bi-chevron-down"></i></button>
-                    <div class="d-flex gap-3 flex-wrap">
-                        <a href="#projects" class="btn btn-gradient" data-lang="btn_work">Lihat Karya Saya <i class="bi bi-arrow-right ms-2"></i></a>
-                        <a href="<?php echo $cv_url; ?>" target="_blank" class="btn btn-glass" data-lang="btn_cv">Download CV <i class="bi bi-download ms-2"></i></a>
+                    
+                    <h1 class="text-6xl md:text-8xl font-black leading-[0.95] mb-8 text-primary tracking-tighter">
+                        <?php echo $p['hero_title']; ?>
+                    </h1>
+                    
+                    <p class="text-xl text-secondary mb-10 leading-relaxed max-w-lg font-medium">
+                        <?php echo $deskripsi_hero; ?>
+                    </p>
+                    
+                    <div class="flex flex-wrap gap-4">
+                        <a href="#projects" class="bg-primary text-white px-8 py-4 rounded-full font-bold hover:bg-accent transition shadow-lg hover:-translate-y-1">
+                            Lihat Portfolio
+                        </a>
+                        <a href="<?php echo $cv_url; ?>" target="_blank" class="bg-white text-primary border border-gray-200 px-8 py-4 rounded-full font-bold hover:bg-gray-50 transition shadow-sm">
+                            Unduh CV
+                        </a>
                     </div>
                 </div>
-                <div class="col-lg-5 text-center d-none d-lg-block" data-aos="zoom-in">
-                    <div class="profile-wrapper-desktop">
-                        <img src="<?php echo $foto_profile; ?>" class="profile-img-desktop" alt="Profile" onerror="this.src='assets/img/default.jpg';"> 
+
+                <div class="relative group lg:pl-10" data-aos="fade-left" data-aos-delay="200" data-aos-duration="1000">
+                    <div class="relative z-10 rounded-[3rem] overflow-hidden shadow-float rotate-2 group-hover:rotate-0 transition duration-700 ease-out border-[6px] border-white bg-white">
+                        <img src="<?php echo $foto_profile; ?>" alt="Profile Picture" class="w-full h-auto object-cover aspect-[4/5] scale-105 group-hover:scale-100 transition duration-700">
+                    </div>
+                    
+                    <div class="absolute -bottom-6 -left-6 bg-white p-5 rounded-2xl shadow-xl z-20 animate-bounce hidden md:block" style="animation-duration: 3s;">
+                        <div class="flex items-center gap-3">
+                            <div class="bg-green-100 p-2 rounded-full text-green-600"><i class="bi bi-check-lg text-xl"></i></div>
+                            <div>
+                                <span class="block text-2xl font-black text-primary leading-none">15+</span>
+                                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Projects Done</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
+
             </div>
         </div>
     </section>
 
-    <section id="about" class="about-section"> 
-        <div class="container">
-            <div class="row gx-lg-5">
+    <section id="skills" class="py-10 max-w-7xl mx-auto px-4" data-aos="fade-up">
+        <div class="island-box">
+            <div class="text-center mb-16">
+                <span class="text-accent font-bold tracking-widest text-xs uppercase mb-2 block">Kompetensi Utama</span>
+                <h2 class="text-4xl md:text-5xl font-black text-primary">Technical Arsenal</h2>
+            </div>
+
+            <?php
+            // FETCH SKILL ICONS
+            $skills = ['Analysis' => [], 'Enterprise' => [], 'Development' => []];
+            $q_skill = mysqli_query($conn, "SELECT * FROM tech_stacks");
+            if(mysqli_num_rows($q_skill) > 0) {
+                while($s = mysqli_fetch_assoc($q_skill)) {
+                    $cat_db = trim($s['category']); 
+                    // Mapping Categories
+                    if(in_array($cat_db, ['Analysis', 'Jira', 'Design'])) { $skills['Analysis'][] = $s; } 
+                    else if(in_array($cat_db, ['Enterprise', 'System', 'SAP'])) { $skills['Enterprise'][] = $s; } 
+                    else { $skills['Development'][] = $s; }
+                }
+            }
+            ?>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                 
-                <div class="col-lg-5 mb-5 mb-lg-0">
-                    <div data-aos="fade-right">
-                        <span class="text-info fw-bold small border-bottom border-info pb-1 mb-3 d-inline-block" data-lang="about_head">TENTANG SAYA</span>
-                        <h2 class="text-white fw-bold display-6 mb-5" data-lang="about_title"><?php echo $judul_besar; ?></h2>
+                <div class="group p-8 rounded-3xl bg-gray-50 hover:bg-primary hover:text-white transition duration-500 cursor-default h-full flex flex-col">
+                    <div class="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-2xl text-accent mb-6 shadow-sm group-hover:scale-110 transition">
+                        <i class="bi bi-diagram-3"></i>
                     </div>
-
-                    <div class="sticky-sidebar">
-                        <div class="gallery-grid mb-4">
-                            <div class="gallery-tall">
-                                <a href="assets/img/<?php echo $p['about_img_1']; ?>" class="glightbox">
-                                    <img src="assets/img/<?php echo $p['about_img_1']; ?>" class="gallery-item" onerror="this.src='assets/img/default.jpg'">
-                                </a>
-                            </div>
-                            <div class="gallery-short">
-                                <a href="assets/img/<?php echo $p['about_img_2']; ?>" class="glightbox">
-                                    <img src="assets/img/<?php echo $p['about_img_2']; ?>" class="gallery-item" onerror="this.src='assets/img/default.jpg'">
-                                </a>
-                            </div>
-                            <div class="gallery-short">
-                                <a href="assets/img/<?php echo $p['about_img_3']; ?>" class="glightbox">
-                                    <img src="assets/img/<?php echo $p['about_img_3']; ?>" class="gallery-item" onerror="this.src='assets/img/default.jpg'">
-                                </a>
-                            </div>
-                        </div>
-
-                        <div class="p-4 rounded-4 border border-secondary" style="background: rgba(15, 23, 42, 0.6);">
-                            <h6 class="text-white fw-bold mb-3"><i class="bi bi-star-fill text-warning me-2"></i>Core Competencies</h6>
-                            <div class="row g-2">
-                                <?php $qc = mysqli_query($conn, "SELECT * FROM competencies"); while($c = mysqli_fetch_assoc($qc)): ?>
-                                <div class="col-6 text-muted small d-flex align-items-center"><i class="<?php echo $c['icon']; ?> text-info me-2"></i><?php echo $c['title']; ?></div>
-                                <?php endwhile; ?>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-lg-7" data-aos="fade-left">
-                    <div class="mb-5" style="min-height: 100px; display:flex; align-items:flex-end;"> 
-                        <span class="about-subtitle" data-lang="about_subtitle">
-                            <?php echo $subtitle_id; ?>
+                    <h3 class="text-xl font-bold mb-3"><?php echo $p['bento_title_1']; ?></h3>
+                    <p class="text-sm text-gray-500 group-hover:text-gray-400 mb-6 leading-relaxed flex-grow">
+                        <?php echo $p['bento_desc_1']; ?>
+                    </p>
+                    <div class="flex flex-wrap gap-2 mt-auto">
+                        <?php foreach($skills['Analysis'] as $item): ?>
+                        <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-bold text-gray-700 shadow-sm group-hover:bg-white/10 group-hover:text-white group-hover:border-white/30 transition-all">
+                            <i class="<?php echo $item['icon']; ?>"></i> <?php echo $item['name']; ?>
                         </span>
-                    </div>
-
-                    <h4 class="text-white fw-bold mb-4 border-bottom border-secondary pb-2" data-lang="career_head">Career Journey</h4>
-                    
-                    <div class="timeline-box">
-                        <?php 
-                        // Logic Grouping
-                        $q_time = mysqli_query($conn, "SELECT * FROM timeline ORDER BY id DESC"); 
-                        $timeline_data = [];
-                        while($row = mysqli_fetch_assoc($q_time)){
-                            $timeline_data[$row['company']][] = $row; 
-                        }
-
-                        foreach($timeline_data as $company => $roles): 
-                        ?>
-                        
-                        <div class="company-group">
-                            <div class="company-dot"></div>
-                            <h3 class="company-name"><?php echo $company; ?></h3>
-
-                            <?php foreach($roles as $role): ?>
-                            <div class="role-item">
-                                <div class="role-title-row">
-                                    <h5 class="role-title"><?php echo $role['role']; ?></h5>
-                                    <span class="role-year"><?php echo $role['year']; ?></span>
-                                </div>
-                                
-                                <span class="role-summary">Full-time Role</span>
-                                
-                                <button class="toggle-role-btn" onclick="toggleRole(this)" data-lang="btn_readmore">
-                                    Lihat Detail <i class="bi bi-chevron-down"></i>
-                                </button>
-
-                                <div class="role-desc">
-                                    <?php echo $role['description']; ?>
-                                </div>
-                            </div>
-                            <?php endforeach; ?>
-                        </div>
-                        
                         <?php endforeach; ?>
                     </div>
                 </div>
+
+                <div class="group p-8 rounded-3xl bg-gray-50 hover:bg-primary hover:text-white transition duration-500 cursor-default h-full flex flex-col">
+                    <div class="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-2xl text-green-500 mb-6 shadow-sm group-hover:scale-110 transition">
+                        <i class="bi bi-kanban"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3"><?php echo $p['bento_title_2']; ?></h3>
+                    <p class="text-sm text-gray-500 group-hover:text-gray-400 mb-6 leading-relaxed flex-grow">
+                        <?php echo $p['bento_desc_2']; ?>
+                    </p>
+                    <div class="flex flex-wrap gap-2 mt-auto">
+                        <?php foreach($skills['Enterprise'] as $item): ?>
+                        <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-bold text-gray-700 shadow-sm group-hover:bg-white/10 group-hover:text-white group-hover:border-white/30 transition-all">
+                            <i class="<?php echo $item['icon']; ?>"></i> <?php echo $item['name']; ?>
+                        </span>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+
+                <div class="group p-8 rounded-3xl bg-gray-50 hover:bg-primary hover:text-white transition duration-500 cursor-default h-full flex flex-col">
+                    <div class="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-2xl text-purple-500 mb-6 shadow-sm group-hover:scale-110 transition">
+                        <i class="bi bi-code-slash"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3"><?php echo $p['bento_title_3']; ?></h3>
+                    <p class="text-sm text-gray-500 group-hover:text-gray-400 mb-6 leading-relaxed flex-grow">
+                        <?php echo $p['bento_desc_3']; ?>
+                    </p>
+                    <div class="flex flex-wrap gap-2 mt-auto">
+                        <?php foreach($skills['Development'] as $item): ?>
+                        <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-bold text-gray-700 shadow-sm group-hover:bg-white/10 group-hover:text-white group-hover:border-white/30 transition-all">
+                            <i class="<?php echo $item['icon']; ?>"></i> <?php echo $item['name']; ?>
+                        </span>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+
             </div>
         </div>
     </section>
 
-    <section id="skills" class="py-5">
-        <div class="container">
-            <div class="text-center mb-5">
-                <span class="text-info fw-bold small border-bottom border-info pb-1">KEAHLIAN</span>
-                <h2 class="text-white fw-bold mt-2">Tech Arsenal</h2>
+    <section id="about" class="py-24 max-w-7xl mx-auto px-6">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+            
+            <div class="lg:col-span-5 sticky top-10" data-aos="fade-right">
+                <span class="text-accent font-bold tracking-widest text-xs uppercase mb-4 block">About Me</span>
+                <h2 class="text-5xl md:text-6xl font-black text-primary leading-none mb-8">
+                    <?php echo $judul_besar; ?>
+                </h2>
+                
+                <img src="assets/img/<?php echo $p['about_img_1']; ?>" class="w-full rounded-[2rem] shadow-2xl rotate-[-1deg] hover:rotate-0 transition duration-500 border-4 border-white mb-6">
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <img src="assets/img/<?php echo $p['about_img_2']; ?>" class="rounded-2xl shadow-md border-2 border-white hover:scale-105 transition">
+                    <img src="assets/img/<?php echo $p['about_img_3']; ?>" class="rounded-2xl shadow-md border-2 border-white hover:scale-105 transition">
+                </div>
             </div>
-            <div class="row g-4 justify-content-center">
+
+            <div class="lg:col-span-7 lg:pt-4" data-aos="fade-left">
+                
+                <h3 class="text-2xl md:text-3xl font-bold text-accent leading-relaxed mb-12">
+                    <?php echo $subtitle_biru; ?>
+                </h3>
+
+                <div class="bg-white p-8 rounded-[2.5rem] shadow-island border border-white/60">
+                    <h4 class="text-xl font-black mb-8 flex items-center gap-3">
+                        <i class="bi bi-briefcase-fill text-accent"></i> Perjalanan Karir
+                    </h4>
+                    
+                    <div class="timeline-container">
+                        <?php 
+                        $q_time = mysqli_query($conn, "SELECT * FROM timeline ORDER BY id DESC"); 
+                        // Error handling timeline
+                        if($q_time):
+                            while($row = mysqli_fetch_assoc($q_time)): 
+                        ?>
+                        <div class="timeline-item group">
+                            <div class="timeline-dot group-hover:scale-125 transition duration-300"></div>
+                            
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2">
+                                <h5 class="text-lg font-bold text-primary group-hover:text-accent transition">
+                                    <?php echo $row['role']; ?>
+                                </h5>
+                                <span class="text-xs font-bold bg-indigo-50 text-accent px-3 py-1 rounded-full mt-1 sm:mt-0 w-fit border border-indigo-100">
+                                    <?php echo $row['year']; ?>
+                                </span>
+                            </div>
+                            
+                            <div class="text-sm font-bold text-gray-400 mb-3 uppercase tracking-wider">
+                                <?php echo $row['company']; ?>
+                            </div>
+                            
+                            <p class="text-sm text-gray-600 leading-relaxed">
+                                <?php echo strip_tags($row['description']); ?>
+                            </p>
+                        </div>
+                        <?php 
+                            endwhile; 
+                        endif;
+                        ?>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <section id="projects" class="py-10 max-w-7xl mx-auto px-4" data-aos="fade-up">
+        <div class="island-box bg-primary text-white relative overflow-hidden">
+            <div class="absolute top-0 right-0 w-64 h-64 bg-accent/20 blur-[80px] rounded-full pointer-events-none"></div>
+
+            <div class="flex justify-between items-end mb-12 relative z-10">
+                <div>
+                    <h2 class="text-4xl md:text-5xl font-black mb-2">Selected Works</h2>
+                    <p class="text-gray-400">Proyek pilihan yang saya bangun dengan logika & passion.</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
                 <?php 
-                $cats = ['Analysis', 'Development', 'Enterprise'];
-                $icons = ['Analysis'=>'bi-kanban', 'Development'=>'bi-code-slash', 'Enterprise'=>'bi-buildings'];
-                foreach($cats as $cat) {
-                    $q_tech = mysqli_query($conn, "SELECT * FROM tech_stacks WHERE category='$cat'");
-                    if(mysqli_num_rows($q_tech) > 0) {
-                        echo '<div class="col-md-6 col-lg-4" data-aos="fade-up"><div class="p-4 rounded-4 border border-secondary" style="background:var(--glass-bg);">';
-                        echo '<div class="d-flex align-items-center mb-3"><i class="'.$icons[$cat].' fs-3 text-info me-3"></i><h5 class="text-white fw-bold m-0">'.$cat.'</h5></div>';
-                        echo '<div class="d-flex flex-wrap gap-2">';
-                        while($s = mysqli_fetch_assoc($q_tech)) {
-                            echo '<span class="badge bg-dark border border-secondary p-2 fw-normal">'.$s['name'].'</span>';
-                        }
-                        echo '</div></div></div>';
-                    }
-                }
+                $q_proj = mysqli_query($conn, "SELECT * FROM projects ORDER BY id DESC LIMIT 6"); 
+                if($q_proj):
+                    while ($d = mysqli_fetch_assoc($q_proj)): 
+                ?>
+                <div class="group cursor-pointer" onclick="openModal('<?php echo clean($d['title']);?>', '<?php echo clean($d['description']);?>', 'assets/img/<?php echo $d['image'];?>', '<?php echo clean($d['link_demo']);?>')">
+                    
+                    <div class="overflow-hidden rounded-3xl mb-5 border border-white/10 relative shadow-lg">
+                        <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition z-10"></div>
+                        <img src="assets/img/<?php echo $d['image']; ?>" class="w-full h-72 object-cover transform group-hover:scale-105 transition duration-700 ease-out" onerror="this.src='assets/img/default.jpg'">
+                    </div>
+                    
+                    <div class="flex justify-between items-start px-2">
+                        <div>
+                            <span class="text-xs font-bold text-accent uppercase tracking-wider mb-2 block"><?php echo $d['category']; ?></span>
+                            <h3 class="text-2xl font-bold group-hover:text-accent transition"><?php echo $d['title']; ?></h3>
+                        </div>
+                        <div class="w-12 h-12 rounded-full border border-white/20 flex items-center justify-center group-hover:bg-white group-hover:text-black transition">
+                            <i class="bi bi-arrow-up-right text-lg"></i>
+                        </div>
+                    </div>
+                </div>
+                <?php 
+                    endwhile; 
+                endif;
                 ?>
             </div>
         </div>
     </section>
 
-    <section id="projects" class="py-5">
-        <div class="container">
-            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-end mb-5" data-aos="fade-up">
-                <div>
-                    <span class="text-info fw-bold small border-bottom border-info pb-1" data-lang="nav_projects">PORTFOLIO</span>
-                    <h2 class="text-white fw-bold mt-2 mb-0"><?php echo $p['project_title']; ?></h2>
-                    <p class="text-muted mt-2 mb-0"><?php echo $p['project_desc']; ?></p>
-                </div>
-                <ul class="nav nav-pills mt-3 mt-lg-0 gap-2" id="pills-tab" role="tablist">
-                    <li class="nav-item"><button class="nav-link active rounded-pill px-4 bg-dark border border-secondary text-white" id="pills-work-tab" data-bs-toggle="pill" data-bs-target="#pills-work">🏢 Work</button></li>
-                    <li class="nav-item"><button class="nav-link rounded-pill px-4 bg-dark border border-secondary text-white" id="pills-personal-tab" data-bs-toggle="pill" data-bs-target="#pills-personal">🚀 Personal</button></li>
-                </ul>
-            </div>
-
-            <div class="tab-content" id="pills-tabContent">
-                <div class="tab-pane fade show active" id="pills-work">
-                    <div class="row g-4">
-                        <?php 
-                        $q_work = mysqli_query($conn, "SELECT * FROM projects WHERE category='work' ORDER BY id DESC"); 
-                        while ($d = mysqli_fetch_assoc($q_work)): 
-                        ?>
-                        <div class="col-md-6 col-lg-4" data-aos="fade-up">
-                            <div class="project-card h-100">
-                                <div class="project-img-box">
-                                    <img src="assets/img/<?php echo $d['image']; ?>" onerror="this.src='assets/img/default.jpg'">
-                                </div>
-                                <div class="p-4 d-flex flex-column flex-grow-1">
-                                    <h5 class="text-white fw-bold"><?php echo $d['title']; ?></h5>
-                                    <p class="text-muted small mb-3 flex-grow-1"><?php echo substr($d['description'], 0, 90); ?>...</p>
-                                    
-                                    <div class="border-top border-secondary pt-3 mb-3">
-                                        <div class="d-flex justify-content-between mb-2">
-                                            <small class="text-info fw-bold">CHALLENGE</small>
-                                            <small class="text-muted text-end text-truncate w-50"><?php echo !empty($d['challenge']) ? $d['challenge'] : '-'; ?></small>
-                                        </div>
-                                        <div class="d-flex justify-content-between">
-                                            <small class="text-warning fw-bold">IMPACT</small>
-                                            <small class="text-muted text-end text-truncate w-50"><?php echo !empty($d['impact']) ? $d['impact'] : '-'; ?></small>
-                                        </div>
-                                    </div>
-
-                                    <button class="btn-card-action" onclick="openProjectModal('<?php echo clean($d['title']);?>', '<?php echo clean($d['description']);?>', 'assets/img/<?php echo $d['image'];?>', '<?php echo clean($d['challenge'] ?? '');?>', '<?php echo clean($d['impact'] ?? '');?>', '<?php echo clean($d['link_demo']);?>')">
-                                        Lihat Detail <i class="bi bi-arrow-right"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        <?php endwhile; ?>
-                    </div>
-                </div>
-
-                <div class="tab-pane fade" id="pills-personal">
-                    <div class="row g-4">
-                        <?php 
-                        $q_pers = mysqli_query($conn, "SELECT * FROM projects WHERE category='personal' ORDER BY id DESC"); 
-                        while ($d = mysqli_fetch_assoc($q_pers)): 
-                        ?>
-                        <div class="col-md-6 col-lg-4" data-aos="fade-up">
-                            <div class="project-card h-100">
-                                <div class="project-img-box">
-                                    <img src="assets/img/<?php echo $d['image']; ?>" onerror="this.src='assets/img/default.jpg'">
-                                </div>
-                                <div class="p-4 d-flex flex-column flex-grow-1">
-                                    <h5 class="text-white fw-bold"><?php echo $d['title']; ?></h5>
-                                    <p class="text-muted small mb-3 flex-grow-1"><?php echo substr($d['description'], 0, 90); ?>...</p>
-                                    
-                                    <div class="border-top border-secondary pt-3 mb-3">
-                                        <div class="d-flex justify-content-between mb-2">
-                                            <small class="text-info fw-bold">CHALLENGE</small>
-                                            <small class="text-muted text-end text-truncate w-50"><?php echo !empty($d['challenge']) ? $d['challenge'] : '-'; ?></small>
-                                        </div>
-                                        <div class="d-flex justify-content-between">
-                                            <small class="text-warning fw-bold">IMPACT</small>
-                                            <small class="text-muted text-end text-truncate w-50"><?php echo !empty($d['impact']) ? $d['impact'] : '-'; ?></small>
-                                        </div>
-                                    </div>
-
-                                    <button class="btn-card-action" onclick="openProjectModal('<?php echo clean($d['title']);?>', '<?php echo clean($d['description']);?>', 'assets/img/<?php echo $d['image'];?>', '<?php echo clean($d['challenge'] ?? '');?>', '<?php echo clean($d['impact'] ?? '');?>', '<?php echo clean($d['link_demo']);?>')">
-                                        Lihat Detail <i class="bi bi-arrow-right"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        <?php endwhile; ?>
-                    </div>
-                </div>
+    <section id="contact" class="py-32 text-center" data-aos="zoom-in">
+        <div class="max-w-4xl mx-auto px-6">
+            <h2 class="text-5xl md:text-7xl font-black text-primary mb-8 tracking-tight">
+                Siap Membangun<br>
+                <span class="text-transparent bg-clip-text bg-gradient-to-r from-accent to-purple-600">Sesuatu yang Hebat?</span>
+            </h2>
+            <p class="text-xl text-gray-500 mb-12 max-w-xl mx-auto">
+                Saya tersedia untuk diskusi proyek baru, konsultasi sistem, atau sekadar bertegur sapa.
+            </p>
+            <div class="flex justify-center gap-4">
+                <a href="mailto:<?php echo $p['email']; ?>" class="bg-primary text-white px-10 py-5 rounded-full font-bold text-lg hover:bg-accent transition shadow-xl hover:-translate-y-2">
+                    Kirim Email
+                </a>
+                <a href="https://wa.me/<?php echo $p['whatsapp']; ?>" target="_blank" class="bg-white text-primary border border-gray-200 px-10 py-5 rounded-full font-bold text-lg hover:bg-gray-50 transition shadow-md">
+                    WhatsApp
+                </a>
             </div>
         </div>
     </section>
 
-    <section id="certifications" class="py-5">
-        <div class="container">
-            <div class="text-center mb-5" data-aos="fade-up">
-                <span class="text-info fw-bold small border-bottom border-info pb-1" data-lang="nav_cert">SERTIFIKASI</span>
-                <h2 class="text-white fw-bold mt-2" data-lang="cert_title">Bukti Kompetensi.</h2>
-            </div>
-            <div class="row g-4">
-                <?php $qc = mysqli_query($conn, "SELECT * FROM certifications ORDER BY id DESC"); while($c = mysqli_fetch_assoc($qc)): ?>
-                <div class="col-md-6 col-lg-3" data-aos="zoom-in">
-                    <div class="cert-card h-100">
-                        <div class="d-flex justify-content-between mb-3">
-                            <div class="bg-white p-2 rounded-3" style="width:55px; height:55px; display:flex; align-items:center; justify-content:center;">
-                                <img src="assets/img/<?php echo $c['image']; ?>" style="max-width:100%; max-height:100%; object-fit:contain;">
-                            </div>
-                            <a href="<?php echo $c['credential_link']; ?>" target="_blank" class="text-warning"><i class="bi bi-box-arrow-up-right fs-5"></i></a>
-                        </div>
-                        <h6 class="text-white fw-bold mb-1"><?php echo $c['name']; ?></h6>
-                        <div class="text-info small mb-2"><?php echo $c['issuer']; ?></div>
-                        <div class="border-top border-secondary pt-2 mt-auto">
-                            <small class="text-muted" style="font-size:0.75rem;">Issued: <?php echo $c['date_issued']; ?></small>
-                        </div>
-                    </div>
-                </div>
-                <?php endwhile; ?>
-            </div>
-        </div>
-    </section>
-
-    <section id="contact" class="py-5 mb-5 border-top border-secondary border-opacity-25">
-        <div class="container">
-            <div class="text-center mb-5" data-aos="fade-up">
-                <span class="text-info fw-bold small border-bottom border-info pb-1" data-lang="nav_contact">KONTAK</span>
-                <h2 class="text-white fw-bold mt-2" data-lang="contact_title">Mari Berkolaborasi</h2>
-            </div>
-            <div class="row justify-content-center g-4">
-                <div class="col-md-4 col-lg-3">
-                    <a href="mailto:<?php echo $p['email']; ?>" class="contact-card text-decoration-none">
-                        <i class="bi bi-envelope-at-fill fs-1 text-info mb-3"></i>
-                        <h6 class="text-white fw-bold">Email Me</h6>
-                        <span class="text-muted small"><?php echo $p['email']; ?></span>
-                    </a>
-                </div>
-                <div class="col-md-4 col-lg-3">
-                    <a href="https://wa.me/<?php echo $p['whatsapp']; ?>" target="_blank" class="contact-card text-decoration-none">
-                        <i class="bi bi-whatsapp fs-1 text-success mb-3"></i>
-                        <h6 class="text-white fw-bold">WhatsApp</h6>
-                        <span class="text-muted small">Chat Now</span>
-                    </a>
-                </div>
-                <div class="col-md-4 col-lg-3">
-                    <a href="<?php echo $p['linkedin']; ?>" target="_blank" class="contact-card text-decoration-none">
-                        <i class="bi bi-linkedin fs-1 text-primary mb-3"></i>
-                        <h6 class="text-white fw-bold">LinkedIn</h6>
-                        <span class="text-muted small">Connect</span>
-                    </a>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <footer class="py-4 text-center border-top border-secondary bg-darker">
-        <p class="small text-muted mb-0">&copy; <?php echo date('Y'); ?> Ferry Fernando.</p>
+    <footer class="text-center pb-32 pt-10 text-gray-400 text-sm border-t border-gray-200">
+        &copy; <?php echo date('Y'); ?> Ferry Fernando. Built with Logic.
     </footer>
 
-    <div class="modal fade" id="projectModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-lg">
-            <div class="modal-content bg-dark border border-secondary text-white shadow-lg">
-                <div class="modal-header border-bottom border-secondary">
-                    <h5 class="modal-title fw-bold" id="modalTitle"></h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body p-4">
-                    <img id="modalImg" src="" class="w-100 rounded-3 mb-4 shadow" style="max-height:400px; object-fit:cover;">
-                    <h5 class="text-white fw-bold mb-2">Deskripsi</h5>
-                    <p id="modalDesc" class="text-muted mb-4"></p>
+    <div id="projectModal" class="fixed inset-0 z-[100] hidden">
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity" onclick="closeModal()"></div>
+        <div class="relative min-h-screen flex items-center justify-center p-4">
+            <div class="bg-white w-full max-w-4xl rounded-[2rem] shadow-2xl overflow-hidden animate-[fadeIn_0.3s_ease-out] relative">
+                <button onclick="closeModal()" class="absolute top-4 right-4 bg-white/80 hover:bg-white p-2 rounded-full z-10 transition shadow-sm"><i class="bi bi-x-lg text-xl"></i></button>
+                
+                <img id="modalImg" src="" class="w-full h-64 md:h-96 object-cover bg-gray-100">
+                
+                <div class="p-8 md:p-12">
+                    <h3 id="modalTitle" class="text-3xl md:text-4xl font-black mb-6 text-primary"></h3>
+                    <p id="modalDesc" class="text-lg text-gray-600 leading-relaxed mb-8"></p>
                     
-                    <div class="row g-3 mb-4">
-                        <div class="col-md-6">
-                            <div class="p-3 border border-info border-opacity-25 rounded bg-info bg-opacity-10 h-100">
-                                <strong class="text-info d-block mb-2"><i class="bi bi-exclamation-circle me-2"></i>CHALLENGE</strong>
-                                <span id="modalChal" class="text-white-50 small"></span>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="p-3 border border-warning border-opacity-25 rounded bg-warning bg-opacity-10 h-100">
-                                <strong class="text-warning d-block mb-2"><i class="bi bi-check-circle me-2"></i>IMPACT</strong>
-                                <span id="modalImp" class="text-white-50 small"></span>
-                            </div>
-                        </div>
+                    <div class="flex gap-4">
+                        <a id="modalLink" href="#" target="_blank" class="bg-primary text-white px-8 py-4 rounded-full font-bold hover:bg-accent transition">Lihat Project</a>
+                        <button onclick="closeModal()" class="border border-gray-200 px-8 py-4 rounded-full font-bold hover:bg-gray-50 transition">Tutup</button>
                     </div>
-
-                    <a id="modalLink" href="#" target="_blank" class="btn btn-primary w-100 py-2 fw-bold">
-                        <i class="bi bi-rocket-takeoff me-2"></i> Buka Aplikasi / Live Demo
-                    </a>
                 </div>
             </div>
         </div>
     </div>
 
-    <div id="chat-widget" style="position: fixed; bottom: 30px; right: 30px; z-index: 9999;">
-        <div id="chat-bubble" style="position: absolute; top: -45px; right: 0; background: white; color: black; padding: 5px 15px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; box-shadow: 0 5px 15px rgba(0,0,0,0.2); white-space: nowrap; animation: bounce 2s infinite;">
-            Tanya Gue Bro! 🤖
-            <div style="position: absolute; bottom: -5px; right: 20px; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 5px solid white;"></div>
-        </div>
-        
-        <button onclick="toggleChat()" style="width: 60px; height: 60px; border-radius: 50%; background: #f59e0b; color: white; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.3s;">
-            <i class="fa fa-robot fa-lg"></i>
-        </button>
-
-        <div id="chat-box" class="d-none" style="position: fixed; bottom: 100px; right: 30px; width: 350px; height: 500px; background: white; border-radius: 15px; box-shadow: 0 5px 25px rgba(0,0,0,0.3); display: flex; flex-direction: column; overflow: hidden;">
-            <div style="background: #0f172a; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center;">
-                <div><i class="fa fa-robot me-2"></i> <b>Tech Assistant</b></div>
-                <button onclick="toggleChat()" class="btn btn-sm btn-outline-light border-0"><i class="bi bi-x-lg"></i></button>
-            </div>
-            <div id="chat-messages" style="flex: 1; padding: 15px; overflow-y: auto; background: #f8fafc; display: flex; flex-direction: column; gap: 10px;">
-                <div style="align-self: flex-start; background: #e2e8f0; color: #334155; padding: 10px 15px; border-radius: 15px 15px 15px 0; max-width: 80%; font-size: 0.9rem;">Halo! Gue AI Assistant di sini. Tanya gue apa aja soal Coding atau Teknologi! 🤖</div>
-            </div>
-            <div style="padding: 10px; border-top: 1px solid #eee; display: flex; gap: 10px; background: white;">
-                <input type="text" id="user-input" placeholder="Tanya soal tech..." onkeypress="handleEnter(event)" style="flex: 1; border: 1px solid #ddd; padding: 8px 15px; border-radius: 20px; outline: none;">
-                <button onclick="sendMessage()" style="background: #0f172a; color: white; border: none; width: 40px; height: 40px; border-radius: 50%;"><i class="fa fa-paper-plane"></i></button>
-            </div>
-        </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
-    
     <script>
-        AOS.init({ duration: 800, once: true });
-        const lightbox = GLightbox({ selector: '.glightbox' });
+        // Init Animation
+        AOS.init({ duration: 800, offset: 50, once: true, easing: 'ease-out-cubic' });
 
-        // Navbar Active Scroll
-        const sections = document.querySelectorAll("section");
-        const navLi = document.querySelectorAll(".nav-link");
-        window.addEventListener("scroll", () => {
-            let current = "";
-            sections.forEach((section) => {
-                const sectionTop = section.offsetTop;
-                const sectionHeight = section.clientHeight;
-                if (pageYOffset >= (sectionTop - sectionHeight / 3)) {
-                    current = section.getAttribute("id");
-                }
-            });
-            navLi.forEach((li) => {
-                li.classList.remove("active");
-                if (li.getAttribute("href").includes(current)) {
-                    li.classList.add("active");
-                }
-            });
-        });
-
-        // Read More Function (Hero)
-        function toggleReadMore() {
-            var desc = document.getElementById("desc-container");
-            var btn = document.getElementById("btn-read-more");
-            var currentLang = localStorage.getItem('ferry_lang') || 'id'; 
-            
-            if (desc.classList.contains("desc-truncate")) {
-                desc.classList.remove("desc-truncate");
-                btn.innerHTML = translations[currentLang]['btn_close'] + ' <i class="bi bi-chevron-up"></i>';
-            } else {
-                desc.classList.add("desc-truncate");
-                btn.innerHTML = translations[currentLang]['btn_readmore'] + ' <i class="bi bi-chevron-down"></i>';
-            }
-        }
-
-        // --- INTERACTIVE ACCORDION FOR CAREER JOURNEY ---
-        function toggleRole(btn) {
-            const card = btn.closest('.role-item');
-            const desc = card.querySelector('.role-desc');
-            const isHidden = getComputedStyle(desc).display === 'none';
-            var currentLang = localStorage.getItem('ferry_lang') || 'id';
-
-            document.querySelectorAll('.role-desc').forEach(d => d.style.display = 'none');
-            document.querySelectorAll('.toggle-role-btn').forEach(b => {
-                b.innerHTML = translations[currentLang]['btn_readmore'] + ' <i class="bi bi-chevron-down"></i>';
-            });
-
-            if (isHidden) {
-                desc.style.display = 'block';
-                btn.innerHTML = translations[currentLang]['btn_close'] + ' <i class="bi bi-chevron-up"></i>';
-            } else {
-                desc.style.display = 'none';
-                btn.innerHTML = translations[currentLang]['btn_readmore'] + ' <i class="bi bi-chevron-down"></i>';
-            }
-        }
-
-        // Chatbot
-        function toggleChat() { 
-            const box = document.getElementById('chat-box');
-            const bubble = document.getElementById('chat-bubble');
-            box.classList.toggle('d-none');
-            if(!box.classList.contains('d-none')) bubble.style.display = 'none';
-        }
-        function handleEnter(e) { if (e.key === 'Enter') sendMessage(); }
-        
-        function sendMessage() {
-            let input = document.getElementById('user-input');
-            let msg = input.value.trim();
-            if (!msg) return;
-            appendMessage(msg, 'user');
-            input.value = '';
-            
-            let loadingDiv = document.createElement('div');
-            loadingDiv.style.cssText = "align-self: flex-start; font-style: italic; color: #94a3b8; font-size: 0.8rem;";
-            loadingDiv.innerHTML = '<i class="fa fa-circle-notch fa-spin"></i> Mikir bentar...';
-            loadingDiv.id = 'loading-bubble';
-            document.getElementById('chat-messages').appendChild(loadingDiv);
-
-            fetch('apps/api/chat_brain.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: msg })
-            })
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('loading-bubble').remove();
-                let formattedReply = data.reply.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
-                appendMessage(formattedReply, 'bot');
-            })
-            .catch(error => {
-                document.getElementById('loading-bubble').remove();
-                appendMessage("Maaf bro, error koneksi nih.", 'bot');
-            });
-        }
-
-        function appendMessage(text, sender) {
-            let div = document.createElement('div');
-            if(sender === 'user') {
-                div.style.cssText = "align-self: flex-end; background: #f59e0b; color: white; padding: 10px 15px; border-radius: 15px 15px 0 15px; max-width: 80%; font-size: 0.9rem;";
-            } else {
-                div.style.cssText = "align-self: flex-start; background: #e2e8f0; color: #334155; padding: 10px 15px; border-radius: 15px 15px 15px 0; max-width: 80%; font-size: 0.9rem;";
-            }
-            div.innerHTML = text;
-            let container = document.getElementById('chat-messages');
-            container.appendChild(div);
-            container.scrollTop = container.scrollHeight;
-        }
-
-        // Modal Logic
-        function openProjectModal(title, desc, img, chal, imp, link) {
+        // Modal Functions
+        function openModal(title, desc, img, link) {
             document.getElementById('modalTitle').innerText = title;
             document.getElementById('modalDesc').innerText = desc;
             document.getElementById('modalImg').src = img;
-            document.getElementById('modalChal').innerText = chal || "-";
-            document.getElementById('modalImp').innerText = imp || "-";
-            
-            const btnLink = document.getElementById('modalLink');
-            if(link && link !== '#') {
-                btnLink.href = link;
-                btnLink.classList.remove('d-none');
-            } else {
-                btnLink.classList.add('d-none');
-            }
-            
-            new bootstrap.Modal(document.getElementById('projectModal')).show();
+            let btn = document.getElementById('modalLink');
+            if(link && link !== '#') btn.classList.remove('hidden'); else btn.classList.add('hidden');
+            document.getElementById('projectModal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden'; // Stop scroll bg
         }
-
-        // Language
-        const translations = {
-            id: {
-                nav_home:"Beranda", nav_projects:"Proyek", nav_cert:"Sertifikat", nav_about:"Tentang", 
-                hero_greeting:`👋 Halo, saya <?php echo clean($p['hero_greeting']); ?>`, hero_title:`<?php echo clean($p['hero_title']); ?>`, hero_desc:`<?php echo clean($p['hero_desc']); ?>`,
-                btn_work:"Lihat Karya", btn_cv:"Unduh CV", btn_readmore:"Lihat Selengkapnya", btn_close:"Tutup",
-                about_head:"TENTANG SAYA", about_title:"Analyst & Leader.", 
-                career_head:"Perjalanan Karir", contact_title:"Siap Memberikan Dampak?", cert_title:"Bukti Kompetensi.",
-                about_title:"<?php echo clean($judul_besar); ?>", about_subtitle:`<?php echo clean($subtitle_id); ?>`
-            },
-            en: {
-                nav_home:"Home", nav_projects:"Projects", nav_cert:"Certifications", nav_about:"About", 
-                hero_greeting:`👋 Hello, I'm <?php echo clean($p['hero_greeting_en']); ?>`, hero_title:`<?php echo clean($p['hero_title_en']); ?>`, hero_desc:`<?php echo clean($p['hero_desc_en']); ?>`,
-                btn_work:"View Work", btn_cv:"Download CV", btn_readmore:"Read More", btn_close:"Close",
-                about_head:"ABOUT ME", about_title:"Analyst & Leader.", 
-                career_head:"Career Journey", contact_title:"Ready to Make Impact?", cert_title:"Competency Proof.",
-                about_title:"<?php echo clean($judul_besar); ?>", about_subtitle:`<?php echo clean($subtitle_en); ?>`
-            }
-        };
-        function setLanguage(lang) {
-            document.querySelectorAll('[data-lang]').forEach(el => {
-                const key = el.getAttribute('data-lang');
-                if(translations[lang][key]) el.innerHTML = translations[lang][key];
-            });
-            document.getElementById('btn-id').classList.remove('active');
-            document.getElementById('btn-en').classList.remove('active');
-            document.getElementById('btn-'+lang).classList.add('active');
-            localStorage.setItem('ferry_lang', lang);
-            
-            // FIX: Reset Read More Button Text saat ganti bahasa
-            document.getElementById("desc-container").classList.add("desc-truncate"); 
-            document.getElementById("btn-read-more").innerHTML = translations[lang]['btn_readmore'] + ' <i class="bi bi-chevron-down"></i>';
-
-            // FIX: Reset semua Read More di Journey Section saat ganti bahasa
-            document.querySelectorAll('.role-desc').forEach(d => d.style.display = 'none'); // Tutup semua
-            document.querySelectorAll('.toggle-role-btn').forEach(b => {
-                b.innerHTML = translations[lang]['btn_readmore'] + ' <i class="bi bi-chevron-down"></i>';
-            });
+        
+        function closeModal() { 
+            document.getElementById('projectModal').classList.add('hidden'); 
+            document.body.style.overflow = 'auto'; // Resume scroll
         }
-        window.onload = () => { const savedLang = localStorage.getItem('ferry_lang')||'id'; setLanguage(savedLang); };
     </script>
 </body>
 </html>

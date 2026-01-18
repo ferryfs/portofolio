@@ -1,0 +1,27 @@
+RewriteEngine On
+
+# 1. Paksa HTTPS (Biar aman & gembok hijau)
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# ====================================================
+# EXCEPTION (PENGECUALIAN)
+# ====================================================
+
+# JANGAN Terapkan aturan di bawah ini untuk folder /apps/
+# Biarkan folder /apps/ diatur oleh dirinya sendiri
+RewriteCond %{REQUEST_URI} !^/apps/
+
+# ====================================================
+# PRETTY URL (Hapus .php)
+# Hanya berlaku untuk Portfolio & Admin Utama
+# ====================================================
+
+# Cek apakah file .php nya ada?
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}.php -f
+# Kalau ada, ubah URL jadi tanpa ekstensi
+RewriteRule ^(.*)$ $1.php [L]
+
+# 3. Custom Error Page (Biar ga muncul error default hosting jelek)
+ErrorDocument 404 /index.php

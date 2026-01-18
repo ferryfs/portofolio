@@ -1,719 +1,505 @@
 <?php
-
 session_start();
-
 if (!isset($_SESSION['status']) || $_SESSION['status'] != "login") { header("Location: login.php"); exit(); }
-
 include 'koneksi.php';
 
+// ==================================================================================
+// 🟢 LOGIC PHP (SEMUA PROSES SIMPAN ADA DISINI)
+// ==================================================================================
 
-
-// ============================================================
-
-// 👉 LOGIC UPDATE PROFILE
-
-// ============================================================
-
-if (isset($_POST['update_profile'])) {
-
-    // ... (Bagian ini sama persis kayak sebelumnya, gue singkat biar ga kepanjangan)
-
+// 1. UPDATE PROFILE (HERO, ABOUT, BENTO GRID, CONTACT, IMAGES)
+if (isset($_POST['save_hero'])) {
     $greeting = mysqli_real_escape_string($conn, $_POST['hero_greeting']);
-
     $greeting_en = mysqli_real_escape_string($conn, $_POST['hero_greeting_en']);
-
-    $title = mysqli_real_escape_string($conn, $_POST['hero_title']);    
-
+    $title = mysqli_real_escape_string($conn, $_POST['hero_title']);
     $title_en = mysqli_real_escape_string($conn, $_POST['hero_title_en']);
-
-    $desc = mysqli_real_escape_string($conn, $_POST['hero_desc']);    
-
+    $desc = mysqli_real_escape_string($conn, $_POST['hero_desc']);
     $desc_en = mysqli_real_escape_string($conn, $_POST['hero_desc_en']);
-
-    $about = mysqli_real_escape_string($conn, $_POST['about_text']);    
-
-    $about_en = mysqli_real_escape_string($conn, $_POST['about_text_en']);
-
-    $p_title = mysqli_real_escape_string($conn, $_POST['project_title']);
-
-    $p_title_en = mysqli_real_escape_string($conn, $_POST['project_title_en']);
-
-    $p_desc = mysqli_real_escape_string($conn, $_POST['project_desc']);  
-
-    $p_desc_en = mysqli_real_escape_string($conn, $_POST['project_desc_en']);
-
-    $exp = $_POST['years_exp']; $proj = $_POST['projects_done']; $happy = $_POST['client_happy'];
-
-    $email = $_POST['email']; $wa = $_POST['whatsapp']; $linkd = $_POST['linkedin']; $cv = $_POST['cv_link'];
-
-
-
-    $q_old = mysqli_query($conn, "SELECT profile_pic FROM profile WHERE id=1");
-
-    $d_old = mysqli_fetch_assoc($q_old);
-
-    $foto_db = $d_old['profile_pic'];
-
-
-
-    if(!empty($_FILES['profile_pic']['name'])){
-
-        $foto_baru = "profile_" . time() . ".jpg";
-
-        move_uploaded_file($_FILES['profile_pic']['tmp_name'], './assets/img/' . $foto_baru);
-
-        $foto_db = $foto_baru;
-
-    }
-
-
-
-    $sql = "UPDATE profile SET
-
-            hero_greeting='$greeting', hero_greeting_en='$greeting_en',
-
-            hero_title='$title', hero_title_en='$title_en',
-
-            hero_desc='$desc', hero_desc_en='$desc_en',
-
-            about_text='$about', about_text_en='$about_en',
-
-            project_title='$p_title', project_title_en='$p_title_en',
-
-            project_desc='$p_desc', project_desc_en='$p_desc_en',
-
-            years_exp='$exp', projects_done='$proj', client_happy='$happy',
-
-            email='$email', whatsapp='$wa', linkedin='$linkd', cv_link='$cv',
-
-            profile_pic='$foto_db' WHERE id=1";
-
-    if(mysqli_query($conn, $sql)) echo "<script>alert('Profile Updated!'); window.location='admin.php';</script>";
-
+    $cv = mysqli_real_escape_string($conn, $_POST['cv_link']);
+    
+    mysqli_query($conn, "UPDATE profile SET hero_greeting='$greeting', hero_greeting_en='$greeting_en', hero_title='$title', hero_title_en='$title_en', hero_desc='$desc', hero_desc_en='$desc_en', cv_link='$cv' WHERE id=1");
+    header("Location: admin.php?tab=prof-pane"); exit();
 }
 
+if (isset($_POST['save_about'])) {
+    $judul = mysqli_real_escape_string($conn, $_POST['about_title']);
+    $judul_en = mysqli_real_escape_string($conn, $_POST['about_title_en']);
+    $text = mysqli_real_escape_string($conn, $_POST['about_text']);
+    $text_en = mysqli_real_escape_string($conn, $_POST['about_text_en']);
+    
+    mysqli_query($conn, "UPDATE profile SET about_title='$judul', about_title_en='$judul_en', about_text='$text', about_text_en='$text_en' WHERE id=1");
+    header("Location: admin.php?tab=prof-pane"); exit();
+}
 
+if (isset($_POST['save_bento'])) {
+    // Bento 1
+    $bt1 = mysqli_real_escape_string($conn, $_POST['bento_title_1']);
+    $bd1 = mysqli_real_escape_string($conn, $_POST['bento_desc_1']);
+    $bd1_en = mysqli_real_escape_string($conn, $_POST['bento_desc_1_en']);
+    // Bento 2
+    $bt2 = mysqli_real_escape_string($conn, $_POST['bento_title_2']);
+    $bd2 = mysqli_real_escape_string($conn, $_POST['bento_desc_2']);
+    $bd2_en = mysqli_real_escape_string($conn, $_POST['bento_desc_2_en']);
+    // Bento 3
+    $bt3 = mysqli_real_escape_string($conn, $_POST['bento_title_3']);
+    $bd3 = mysqli_real_escape_string($conn, $_POST['bento_desc_3']);
+    $bd3_en = mysqli_real_escape_string($conn, $_POST['bento_desc_3_en']);
 
-// ============================================================
+    mysqli_query($conn, "UPDATE profile SET 
+        bento_title_1='$bt1', bento_desc_1='$bd1', bento_desc_1_en='$bd1_en',
+        bento_title_2='$bt2', bento_desc_2='$bd2', bento_desc_2_en='$bd2_en',
+        bento_title_3='$bt3', bento_desc_3='$bd3', bento_desc_3_en='$bd3_en'
+        WHERE id=1");
+    header("Location: admin.php?tab=prof-pane"); exit();
+}
 
-// 👉 LOGIC PROJECT
+if (isset($_POST['save_contact'])) {
+    $email = mysqli_real_escape_string($conn, $_POST['email']);
+    $wa = mysqli_real_escape_string($conn, $_POST['whatsapp']);
+    $li = mysqli_real_escape_string($conn, $_POST['linkedin']);
+    mysqli_query($conn, "UPDATE profile SET email='$email', whatsapp='$wa', linkedin='$li' WHERE id=1");
+    header("Location: admin.php?tab=prof-pane"); exit();
+}
 
-// ============================================================
+if (isset($_POST['save_images'])) {
+    $q = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM profile WHERE id=1"));
+    function uploadImg($file, $old) {
+        if(!empty($file['name'])){
+            if(file_exists('./assets/img/'.$old) && $old != '') unlink('./assets/img/'.$old);
+            $new = time() . "_" . $file['name'];
+            move_uploaded_file($file['tmp_name'], './assets/img/' . $new);
+            return $new;
+        } return $old;
+    }
+    $pic = uploadImg($_FILES['profile_pic'], $q['profile_pic']);
+    $img1 = uploadImg($_FILES['about_img_1'], $q['about_img_1']);
+    $img2 = uploadImg($_FILES['about_img_2'], $q['about_img_2']);
+    $img3 = uploadImg($_FILES['about_img_3'], $q['about_img_3']);
+    mysqli_query($conn, "UPDATE profile SET profile_pic='$pic', about_img_1='$img1', about_img_2='$img2', about_img_3='$img3' WHERE id=1");
+    header("Location: admin.php?tab=prof-pane"); exit();
+}
 
-if (isset($_POST['simpan_project'])) {
-
+// 2. ADD PROJECT
+if (isset($_POST['add_project'])) {
     $title = mysqli_real_escape_string($conn, $_POST['title']);
-
-    $desc  = mysqli_real_escape_string($conn, $_POST['description']);
-
-    $tech  = mysqli_real_escape_string($conn, $_POST['tech_stack']);
-
-    $link  = mysqli_real_escape_string($conn, $_POST['link_demo']);
-
-    $creds = mysqli_real_escape_string($conn, $_POST['credentials']);
-
-    $cat   = $_POST['category'];
-
-    $nama_gambar = $_FILES['image']['name'];
-
-    move_uploaded_file($_FILES['image']['tmp_name'], './assets/img/' . $nama_gambar);
-
-
-
-    $final_case = "#";
-
-    if(!empty($_FILES['file_case']['name'])) {
-
-        $nama_pdf = time()."_".$_FILES['file_case']['name'];
-
-        move_uploaded_file($_FILES['file_case']['tmp_name'], './assets/docs/'.$nama_pdf);
-
-        $final_case = $nama_pdf;
-
-    } elseif (!empty($_POST['url_case'])) { $final_case = $_POST['url_case']; }
-
-
-
-    $ins = mysqli_query($conn, "INSERT INTO projects VALUES (NULL, '$title', '$desc', '$nama_gambar', '$tech', '$link', '$final_case', '$creds', '$cat')");
-
-    if($ins) echo "<script>alert('Project Added!'); window.location='admin.php';</script>";
-
-}
-
-
-
-// ============================================================
-
-// 👉 LOGIC TIMELINE
-
-// ============================================================
-
-if (isset($_POST['simpan_timeline'])) {
-
-    $year = mysqli_real_escape_string($conn, $_POST['year']);
-
-    $role = mysqli_real_escape_string($conn, $_POST['role']);
-
-    $comp = mysqli_real_escape_string($conn, $_POST['company']);
-
     $desc = mysqli_real_escape_string($conn, $_POST['description']);
-
-    $ins_time = mysqli_query($conn, "INSERT INTO timeline VALUES (NULL, '$year', '$role', '$comp', '$desc')");
-
-    if($ins_time) echo "<script>alert('Timeline Added!'); window.location='admin.php';</script>";
-
-}
-
-
-
-// ============================================================
-
-// 👉 LOGIC SERTIFIKAT (DEBUG MODE)
-
-// ============================================================
-
-if (isset($_POST['simpan_cert'])) {
-
-    $name = mysqli_real_escape_string($conn, $_POST['cert_name']);
-
-    $issuer = mysqli_real_escape_string($conn, $_POST['cert_issuer']);
-
-    $date = mysqli_real_escape_string($conn, $_POST['cert_date']);
-
-    $link = mysqli_real_escape_string($conn, $_POST['cert_link']);
-
-   
-
-    // Default Gambar kalau user gak upload
-
-    $nama_logo = "default_cert.png";
-
-
-
-    // Cek apakah user upload file?
-
-    if(!empty($_FILES['cert_img']['name'])){
-
-       
-
-        // 1. Cek Error Bawaan PHP
-
-        if($_FILES['cert_img']['error'] !== UPLOAD_ERR_OK) {
-
-            echo "<script>alert('Gagal Upload! Kode Error: " . $_FILES['cert_img']['error'] . "'); window.history.back();</script>";
-
-            exit();
-
-        }
-
-
-
-        // 2. Cek Ekstensi
-
-        $ext = strtolower(pathinfo($_FILES['cert_img']['name'], PATHINFO_EXTENSION));
-
-        $allowed = ['jpg', 'jpeg', 'png', 'webp'];
-
-        if(!in_array($ext, $allowed)) {
-
-            echo "<script>alert('Format file tidak didukung! Harus JPG/PNG.'); window.history.back();</script>";
-
-            exit();
-
-        }
-
-
-
-        // 3. Buat Nama Baru & Upload
-
-        $nama_logo = "cert_" . time() . "." . $ext;
-
-        $tujuan = './assets/img/' . $nama_logo;
-
-
-
-        if(move_uploaded_file($_FILES['cert_img']['tmp_name'], $tujuan)){
-
-            // Sukses Upload
-
-        } else {
-
-            echo "<script>alert('Gagal memindahkan file! Cek permission folder assets/img'); window.history.back();</script>";
-
-            exit();
-
-        }
-
+    $cat = $_POST['category'];
+    $link = mysqli_real_escape_string($conn, $_POST['link_demo']);
+    
+    // Image Upload
+    $img_name = "default.jpg";
+    if(!empty($_FILES['image']['name'])) {
+        $img_name = "proj_" . time() . ".jpg";
+        move_uploaded_file($_FILES['image']['tmp_name'], './assets/img/' . $img_name);
     }
 
+    // PDF Upload
+    $pdf_name = "#";
+    if(!empty($_FILES['file_case']['name'])) {
+        $pdf_name = time() . "_" . $_FILES['file_case']['name'];
+        move_uploaded_file($_FILES['file_case']['tmp_name'], './assets/docs/' . $pdf_name);
+    }
 
-
-    // Simpan ke Database
-
-    $ins_cert = mysqli_query($conn, "INSERT INTO certifications VALUES (NULL, '$name', '$issuer', '$date', '$link', '$nama_logo')");
-
-   
-
-    if($ins_cert) {
-
-        echo "<script>alert('Sertifikat Berhasil Ditambah!'); window.location='admin.php';</script>";
-
+    $sql = "INSERT INTO projects (title, description, category, image, link_demo, link_case) VALUES ('$title', '$desc', '$cat', '$img_name', '$link', '$pdf_name')";
+    if(mysqli_query($conn, $sql)){
+        header("Location: admin.php?tab=proj-pane"); exit();
     } else {
-
-        echo "<script>alert('Gagal simpan database: " . mysqli_error($conn) . "');</script>";
-
+        echo "<script>alert('Error: ".mysqli_error($conn)."');</script>";
     }
-
 }
-
-
-
-// ============================================================
-
-// 👉 LOGIC DELETE
-
-// ============================================================
-
 if (isset($_GET['hapus_proj'])) {
-
     $id = $_GET['hapus_proj'];
-
-    $d = mysqli_fetch_assoc(mysqli_query($conn, "SELECT image FROM projects WHERE id='$id'"));
-
-    if(file_exists('./assets/img/'.$d['image'])) unlink('./assets/img/'.$d['image']);
-
+    $d = mysqli_fetch_assoc(mysqli_query($conn, "SELECT image, link_case FROM projects WHERE id='$id'"));
+    if($d['image'] != 'default.jpg' && file_exists('./assets/img/'.$d['image'])) unlink('./assets/img/'.$d['image']);
+    if($d['link_case'] != '#' && file_exists('./assets/docs/'.$d['link_case'])) unlink('./assets/docs/'.$d['link_case']);
     mysqli_query($conn, "DELETE FROM projects WHERE id='$id'");
-
-    echo "<script>window.location='admin.php';</script>";
-
+    header("Location: admin.php?tab=proj-pane"); exit();
 }
 
+// 3. ADD TECH STACK (CLEAN VERSION - NO DESC)
+if (isset($_POST['add_tech'])) {
+    $name = mysqli_real_escape_string($conn, $_POST['tech_name']);
+    $cat = $_POST['tech_category'];
+    $icon = mysqli_real_escape_string($conn, $_POST['tech_icon']);
+    
+    // Query Simpel: Cuma Nama, Kategori, Icon
+    mysqli_query($conn, "INSERT INTO tech_stacks (name, category, icon) VALUES ('$name', '$cat', '$icon')");
+    header("Location: admin.php?tab=tech-pane"); exit();
+}
+
+// 4. ADD TIMELINE
+if (isset($_POST['add_timeline'])) {
+    $year = mysqli_real_escape_string($conn, $_POST['year']);
+    $role = mysqli_real_escape_string($conn, $_POST['role']);
+    $comp = mysqli_real_escape_string($conn, $_POST['company']);
+    $desc = mysqli_real_escape_string($conn, $_POST['description']);
+    mysqli_query($conn, "INSERT INTO timeline (year, role, company, description) VALUES ('$year', '$role', '$comp', '$desc')");
+    header("Location: admin.php?tab=time-pane"); exit();
+}
 if (isset($_GET['hapus_time'])) {
-
     mysqli_query($conn, "DELETE FROM timeline WHERE id='$_GET[hapus_time]'");
-
-    echo "<script>window.location='admin.php';</script>";
-
+    header("Location: admin.php?tab=time-pane"); exit();
 }
 
+// 5. ADD CERTIFICATE
+if (isset($_POST['add_cert'])) {
+    $name = mysqli_real_escape_string($conn, $_POST['cert_name']);
+    $issuer = mysqli_real_escape_string($conn, $_POST['cert_issuer']);
+    $date = mysqli_real_escape_string($conn, $_POST['cert_date']);
+    $link = mysqli_real_escape_string($conn, $_POST['cert_link']);
+    
+    $img_name = "cert_" . time() . ".png";
+    move_uploaded_file($_FILES['cert_img']['tmp_name'], './assets/img/' . $img_name);
+    
+    mysqli_query($conn, "INSERT INTO certifications (name, issuer, date, link_credential, image) VALUES ('$name', '$issuer', '$date', '$link', '$img_name')");
+    header("Location: admin.php?tab=cert-pane"); exit();
+}
 if (isset($_GET['hapus_cert'])) {
-
-    $id = $_GET['hapus_cert'];
-
-    $d = mysqli_fetch_assoc(mysqli_query($conn, "SELECT image FROM certifications WHERE id='$id'"));
-
-    if(file_exists('./assets/img/'.$d['image'])) unlink('./assets/img/'.$d['image']);
-
-    mysqli_query($conn, "DELETE FROM certifications WHERE id='$id'");
-
-    echo "<script>window.location='admin.php';</script>";
-
+    mysqli_query($conn, "DELETE FROM certifications WHERE id='$_GET[hapus_cert]'");
+    header("Location: admin.php?tab=cert-pane"); exit();
 }
-
-
 
 $p = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM profile WHERE id=1"));
-
 ?>
 
-
-
 <!doctype html>
-
 <html lang="id">
-
 <head>
-
     <meta charset="utf-8"> <meta name="viewport" content="width=device-width, initial-scale=1">
-
-    <title>Admin Panel Lengkap</title>
-
+    <title>CMS Admin Panel</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-
     <style>
-
-        body { background-color: #f8f9fa; }
-
-        .nav-tabs .nav-link.active { font-weight: bold; border-top: 3px solid #0d6efd; }
-
-        .card { border: none; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-
+        body { background-color: #f1f5f9; font-family: 'Segoe UI', sans-serif; }
+        .form-floating > .form-control:focus { box-shadow: none; border-color: #0d6efd; }
+        .nav-pills .nav-link.active { background-color: #0d6efd; font-weight: bold; }
+        .nav-pills .nav-link { color: #475569; font-weight: 500; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+        .card-header { background: white; font-weight: 700; border-bottom: 1px solid #e2e8f0; padding: 1rem 1.5rem; }
     </style>
-
 </head>
-
 <body>
 
-    <div class="container py-5">
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow mb-4">
+    <div class="container">
+        <a class="navbar-brand fw-bold" href="#">⚙️ CMS PANEL</a>
+        <div class="d-flex gap-2">
+            <a href="index.php" target="_blank" class="btn btn-sm btn-outline-light">Lihat Web</a>
+            <a href="logout.php" class="btn btn-sm btn-danger">Logout</a>
+        </div>
+    </div>
+</nav>
 
-        <div class="d-flex justify-content-between align-items-center mb-4">
+<div class="container pb-5">
+    
+    <ul class="nav nav-pills mb-4 bg-white p-2 rounded shadow-sm gap-2" id="myTab" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#prof-pane">👤 Profile</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#proj-pane">📁 Projects</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tech-pane">🛠️ Tech Stack</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#time-pane">⏳ Journey</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#cert-pane">🏅 Certificates</button></li>
+    </ul>
 
-            <h2>⚙️ Admin Control Center</h2>
+    <div class="tab-content">
 
-            <div>
+        <div class="tab-pane fade show active" id="prof-pane">
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header text-primary">HERO SECTION</div>
+                        <div class="card-body">
+                            <form method="POST">
+                                <div class="form-floating mb-2"><input type="text" class="form-control" name="hero_greeting" value="<?=$p['hero_greeting']?>"><label>Greeting (ID)</label></div>
+                                <div class="form-floating mb-2"><input type="text" class="form-control" name="hero_greeting_en" value="<?=$p['hero_greeting_en']?>"><label>Greeting (EN)</label></div>
+                                <div class="form-floating mb-2"><input type="text" class="form-control" name="hero_title" value="<?=$p['hero_title']?>"><label>Headline (ID)</label></div>
+                                <div class="form-floating mb-2"><input type="text" class="form-control" name="hero_title_en" value="<?=$p['hero_title_en']?>"><label>Headline (EN)</label></div>
+                                <div class="form-floating mb-2"><textarea class="form-control" name="hero_desc" style="height:100px"><?=$p['hero_desc']?></textarea><label>Description (ID)</label></div>
+                                <div class="form-floating mb-3"><textarea class="form-control" name="hero_desc_en" style="height:100px"><?=$p['hero_desc_en']?></textarea><label>Description (EN)</label></div>
+                                <div class="form-floating mb-3"><input type="text" class="form-control" name="cv_link" value="<?=$p['cv_link']?>"><label>Link CV</label></div>
+                                <button type="submit" name="save_hero" class="btn btn-primary w-100 fw-bold">SIMPAN HERO</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
 
-                <a href="index.php" class="btn btn-secondary me-2" target="_blank"><i class="bi bi-eye"></i> Lihat Web</a>
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header text-info">ABOUT SECTION</div>
+                        <div class="card-body">
+                            <form method="POST">
+                                <div class="form-floating mb-2"><input type="text" class="form-control" name="about_title" value="<?=$p['about_title']?>"><label>Judul Besar (ID)</label></div>
+                                <div class="form-floating mb-2"><input type="text" class="form-control" name="about_title_en" value="<?=$p['about_title_en']?>"><label>Judul Besar (EN)</label></div>
+                                <div class="form-floating mb-2"><textarea class="form-control" name="about_text" style="height:120px"><?=$p['about_text']?></textarea><label>Subtitle Biru (ID)</label></div>
+                                <div class="form-floating mb-3"><textarea class="form-control" name="about_text_en" style="height:120px"><?=$p['about_text_en']?></textarea><label>Subtitle Biru (EN)</label></div>
+                                <button type="submit" name="save_about" class="btn btn-info text-white w-100 fw-bold">SIMPAN ABOUT</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
 
-                <a href="logout.php" class="btn btn-danger"><i class="bi bi-box-arrow-right"></i> Logout</a>
+                <div class="col-12">
+                    <div class="card border-warning border-2">
+                        <div class="card-header text-warning bg-warning bg-opacity-10">PENGATURAN TEKS BENTO GRID (TECH STACK)</div>
+                        <div class="card-body">
+                            <form method="POST">
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <h6 class="fw-bold">Kotak 1: Analysis</h6>
+                                        <input type="text" name="bento_title_1" class="form-control mb-2 fw-bold" value="<?=$p['bento_title_1']?>">
+                                        <textarea name="bento_desc_1" class="form-control mb-2" placeholder="Desc ID" rows="3"><?=$p['bento_desc_1']?></textarea>
+                                        <textarea name="bento_desc_1_en" class="form-control mb-3" placeholder="Desc EN" rows="3"><?=$p['bento_desc_1_en']?></textarea>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <h6 class="fw-bold">Kotak 2: Enterprise</h6>
+                                        <input type="text" name="bento_title_2" class="form-control mb-2 fw-bold" value="<?=$p['bento_title_2']?>">
+                                        <textarea name="bento_desc_2" class="form-control mb-2" placeholder="Desc ID" rows="3"><?=$p['bento_desc_2']?></textarea>
+                                        <textarea name="bento_desc_2_en" class="form-control mb-3" placeholder="Desc EN" rows="3"><?=$p['bento_desc_2_en']?></textarea>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <h6 class="fw-bold">Kotak 3: Development</h6>
+                                        <input type="text" name="bento_title_3" class="form-control mb-2 fw-bold" value="<?=$p['bento_title_3']?>">
+                                        <textarea name="bento_desc_3" class="form-control mb-2" placeholder="Desc ID" rows="3"><?=$p['bento_desc_3']?></textarea>
+                                        <textarea name="bento_desc_3_en" class="form-control mb-3" placeholder="Desc EN" rows="3"><?=$p['bento_desc_3_en']?></textarea>
+                                    </div>
+                                </div>
+                                <button type="submit" name="save_bento" class="btn btn-warning w-100 fw-bold">SIMPAN BENTO GRID</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header text-success">CONTACT INFO</div>
+                        <div class="card-body">
+                            <form method="POST">
+                                <div class="form-floating mb-2"><input type="email" class="form-control" name="email" value="<?=$p['email']?>"><label>Email</label></div>
+                                <div class="form-floating mb-2"><input type="text" class="form-control" name="whatsapp" value="<?=$p['whatsapp']?>"><label>WhatsApp</label></div>
+                                <div class="form-floating mb-3"><input type="text" class="form-control" name="linkedin" value="<?=$p['linkedin']?>"><label>LinkedIn</label></div>
+                                <button type="submit" name="save_contact" class="btn btn-success w-100 fw-bold">SIMPAN KONTAK</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
 
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header">IMAGES</div>
+                        <div class="card-body">
+                            <form method="POST" enctype="multipart/form-data">
+                                <div class="mb-2"><label class="small fw-bold">Profile Pic</label><input type="file" name="profile_pic" class="form-control"></div>
+                                <div class="mb-2"><label class="small fw-bold">About Main</label><input type="file" name="about_img_1" class="form-control"></div>
+                                <div class="mb-2"><label class="small fw-bold">About Small 1</label><input type="file" name="about_img_2" class="form-control"></div>
+                                <div class="mb-2"><label class="small fw-bold">About Small 2</label><input type="file" name="about_img_3" class="form-control"></div>
+                                <button type="submit" name="save_images" class="btn btn-dark w-100 fw-bold mt-3">UPLOAD GAMBAR</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
             </div>
-
         </div>
 
-
-
-        <ul class="nav nav-tabs mb-4" id="myTab" role="tablist">
-
-            <li class="nav-item"><button class="nav-link active" id="prof-tab" data-bs-toggle="tab" data-bs-target="#prof-pane">👤 Profile</button></li>
-
-            <li class="nav-item"><button class="nav-link" id="proj-tab" data-bs-toggle="tab" data-bs-target="#proj-pane">📁 Projects</button></li>
-
-            <li class="nav-item"><button class="nav-link" id="cert-tab" data-bs-toggle="tab" data-bs-target="#cert-pane">🏅 Certifications</button></li>
-
-            <li class="nav-item"><button class="nav-link" id="time-tab" data-bs-toggle="tab" data-bs-target="#time-pane">⏳ Timeline</button></li>
-
-        </ul>
-
-
-
-        <div class="tab-content">
-
-           
-
-            <div class="tab-pane fade show active" id="prof-pane">
-
-                <form method="POST" enctype="multipart/form-data">
-
-                    <div class="card p-4 mb-4">
-
-                        <h5 class="text-primary fw-bold mb-3"><i class="bi bi-camera"></i> Foto Profil</h5>
-
-                        <div class="row align-items-center">
-
-                            <div class="col-md-2 text-center"><img src="assets/img/<?=$p['profile_pic']?>" width="100" class="rounded-circle border"></div>
-
-                            <div class="col-md-10"><input type="file" name="profile_pic" class="form-control"></div>
-
-                        </div>
-
-                    </div>
-
-                    <div class="card p-4 mb-4">
-
-                        <h5 class="text-primary fw-bold mb-3">Konten Text</h5>
-
-                        <div class="row g-3">
-
-                            <div class="col-6"><label>ID Salam</label><input type="text" name="hero_greeting" class="form-control" value="<?=$p['hero_greeting']?>"></div>
-
-                            <div class="col-6"><label>EN Salam</label><input type="text" name="hero_greeting_en" class="form-control" value="<?=$p['hero_greeting_en']?>"></div>
-
-                            <div class="col-6"><label>ID Judul</label><input type="text" name="hero_title" class="form-control" value="<?=$p['hero_title']?>"></div>
-
-                            <div class="col-6"><label>EN Judul</label><input type="text" name="hero_title_en" class="form-control" value="<?=$p['hero_title_en']?>"></div>
-
-                            <div class="col-6"><label>ID Desc</label><textarea name="hero_desc" class="form-control"><?=$p['hero_desc']?></textarea></div>
-
-                            <div class="col-6"><label>EN Desc</label><textarea name="hero_desc_en" class="form-control"><?=$p['hero_desc_en']?></textarea></div>
-
-                            <div class="col-12"><hr></div>
-
-                            <div class="col-6"><label>ID About</label><textarea name="about_text" class="form-control" rows="3"><?=$p['about_text']?></textarea></div>
-
-                            <div class="col-6"><label>EN About</label><textarea name="about_text_en" class="form-control" rows="3"><?=$p['about_text_en']?></textarea></div>
-
-                        </div>
-
-                    </div>
-
-                    <div class="card p-4 mb-4">
-
-                        <h5 class="text-primary fw-bold mb-3">Stats & Contact</h5>
-
-                        <div class="row g-3">
-
-                            <div class="col-md-4"><label>Exp (Tahun)</label><input type="number" name="years_exp" class="form-control" value="<?=$p['years_exp']?>"></div>
-
-                            <div class="col-md-4"><label>Project Done</label><input type="number" name="projects_done" class="form-control" value="<?=$p['projects_done']?>"></div>
-
-                            <div class="col-md-4"><label>Client Happy</label><input type="number" name="client_happy" class="form-control" value="<?=$p['client_happy']?>"></div>
-
-                            <div class="col-md-6"><label>Email</label><input type="text" name="email" class="form-control" value="<?=$p['email']?>"></div>
-
-                            <div class="col-md-6"><label>WhatsApp</label><input type="text" name="whatsapp" class="form-control" value="<?=$p['whatsapp']?>"></div>
-
-                            <div class="col-md-6"><label>LinkedIn</label><input type="text" name="linkedin" class="form-control" value="<?=$p['linkedin']?>"></div>
-
-                            <div class="col-md-6"><label>Link CV</label><input type="text" name="cv_link" class="form-control" value="<?=$p['cv_link']?>"></div>
-
-                        </div>
-
-                    </div>
-
-                    <input type="hidden" name="project_title" value="<?=$p['project_title']?>">
-
-                    <input type="hidden" name="project_title_en" value="<?=$p['project_title_en']?>">
-
-                    <input type="hidden" name="project_desc" value="<?=$p['project_desc']?>">
-
-                    <input type="hidden" name="project_desc_en" value="<?=$p['project_desc_en']?>">
-
-                    <button type="submit" name="update_profile" class="btn btn-primary w-100 fw-bold">SIMPAN PROFILE</button>
-
-                </form>
-
-            </div>
-
-
-
-            <div class="tab-pane fade" id="proj-pane">
-
-                <div class="card p-4 shadow mb-4">
-
-                    <h5 class="text-primary fw-bold mb-3">Tambah Project</h5>
-
+        <div class="tab-pane fade" id="proj-pane">
+            <div class="card mb-4 border-primary border-2">
+                <div class="card-header bg-primary text-white">TAMBAH PROJECT BARU</div>
+                <div class="card-body">
                     <form method="POST" enctype="multipart/form-data">
-
-                        <div class="row g-3">
-
-                            <div class="col-md-6"><input type="text" name="title" class="form-control" placeholder="Judul" required></div>
-
-                            <div class="col-md-6">
-
+                        <div class="row g-2">
+                            <div class="col-md-6 form-floating">
+                                <input type="text" name="title" class="form-control" placeholder="Title" required>
+                                <label>Judul Project</label>
+                            </div>
+                            <div class="col-md-3 form-floating">
                                 <select name="category" class="form-select">
-
-                                    <option value="work">Work Project</option>
-
-                                    <option value="personal">Personal Project</option>
-
+                                    <option value="Work">Work Project</option>
+                                    <option value="Personal">Personal Project</option>
                                 </select>
-
+                                <label>Kategori</label>
                             </div>
-
-                            <div class="col-12"><input type="text" name="tech_stack" class="form-control" placeholder="Tech Stack" required></div>
-
-                            <div class="col-12"><textarea name="description" class="form-control" placeholder="Deskripsi" required></textarea></div>
-
-                            <div class="col-12"><textarea name="credentials" class="form-control" placeholder="Credentials"></textarea></div>
-
-                            <div class="col-md-6"><input type="file" name="image" class="form-control" required></div>
-
-                            <div class="col-md-6"><input type="text" name="link_demo" class="form-control" placeholder="Link Demo"></div>
-
-                            <div class="col-md-6"><input type="file" name="file_case" class="form-control"></div>
-
-                            <div class="col-md-6"><input type="text" name="url_case" class="form-control" placeholder="Link Studi Kasus"></div>
-
-                        </div>
-
-                        <button type="submit" name="simpan_project" class="btn btn-success w-100 mt-3">SIMPAN PROJECT</button>
-
-                    </form>
-
-                </div>
-
-                <div class="card shadow p-0">
-
-                    <table class="table table-hover mb-0">
-
-                        <thead class="table-dark"><tr><th>Judul</th><th>Kategori</th><th>Aksi</th></tr></thead>
-
-                        <tbody>
-
-                            <?php $qp=mysqli_query($conn,"SELECT * FROM projects ORDER BY id DESC"); while($d=mysqli_fetch_assoc($qp)): ?>
-
-                            <tr>
-
-                                <td><?=$d['title']?></td>
-
-                                <td><?=$d['category']?></td>
-
-                                <td>
-
-                                    <a href="edit.php?id=<?=$d['id']?>" class="btn btn-sm btn-warning"><i class="bi bi-pencil"></i></a>
-
-                                    <a href="admin.php?hapus_proj=<?=$d['id']?>" class="btn btn-sm btn-danger" onclick="return confirm('Hapus?')"><i class="bi bi-trash"></i></a>
-
-                                </td>
-
-                            </tr>
-
-                            <?php endwhile; ?>
-
-                        </tbody>
-
-                    </table>
-
-                </div>
-
-            </div>
-
-
-
-            <div class="tab-pane fade" id="cert-pane">
-
-                <div class="card p-4 shadow mb-4">
-
-                    <h5 class="text-primary fw-bold mb-3"><i class="bi bi-award"></i> Tambah Sertifikat</h5>
-
-                    <form method="POST" enctype="multipart/form-data">
-
-                        <div class="row g-3">
-
+                            <div class="col-md-3">
+                                <input type="file" name="image" class="form-control h-100 pt-3" required>
+                            </div>
+                            <div class="col-12 form-floating">
+                                <textarea name="description" class="form-control" style="height:80px" placeholder="Desc" required></textarea>
+                                <label>Deskripsi Singkat</label>
+                            </div>
+                            <div class="col-md-6 form-floating">
+                                <input type="text" name="link_demo" class="form-control" placeholder="Link">
+                                <label>Link Website / Demo</label>
+                            </div>
                             <div class="col-md-6">
-
-                                <label class="form-label">Nama Sertifikat</label>
-
-                                <input type="text" name="cert_name" class="form-control" placeholder="Contoh: AWS Certified" required>
-
+                                <label class="small text-muted">Upload PDF Case Study</label>
+                                <input type="file" name="file_case" class="form-control" accept=".pdf">
                             </div>
-
-                            <div class="col-md-6">
-
-                                <label class="form-label">Penerbit (Issuer)</label>
-
-                                <input type="text" name="cert_issuer" class="form-control" placeholder="Contoh: Amazon / Dicoding" required>
-
-                            </div>
-
-                            <div class="col-md-6">
-
-                                <label class="form-label">Tanggal Terbit</label>
-
-                                <input type="text" name="cert_date" class="form-control" placeholder="Contoh: Jan 2024" required>
-
-                            </div>
-
-                            <div class="col-md-6">
-
-                                <label class="form-label">Link Credential</label>
-
-                                <input type="text" name="cert_link" class="form-control" placeholder="https://..." required>
-
-                            </div>
-
                             <div class="col-12">
-
-                                <label class="form-label">Logo Penerbit / Sertifikat</label>
-
-                                <input type="file" name="cert_img" class="form-control" required>
-
+                                <button type="submit" name="add_project" class="btn btn-primary w-100 fw-bold">TAMBAH PROJECT</button>
                             </div>
-
                         </div>
-
-                        <button type="submit" name="simpan_cert" class="btn btn-success w-100 mt-3 fw-bold">SIMPAN SERTIFIKAT</button>
-
                     </form>
-
                 </div>
-
-
-
-                <div class="card shadow p-0">
-
-                    <table class="table table-hover mb-0">
-
-                        <thead class="table-dark"><tr><th>Logo</th><th>Nama</th><th>Penerbit</th><th class="text-end">Aksi</th></tr></thead>
-
-                        <tbody>
-
-                            <?php $qc=mysqli_query($conn,"SELECT * FROM certifications ORDER BY id DESC"); while($c=mysqli_fetch_assoc($qc)): ?>
-
-                            <tr>
-
-                                <td><img src="assets/img/<?=$c['image']?>" width="40"></td>
-
-                                <td class="fw-bold"><?=$c['name']?></td>
-
-                                <td><?=$c['issuer']?></td>
-
-                                <td class="text-end">
-
-                                    <a href="admin.php?hapus_cert=<?=$c['id']?>" class="btn btn-sm btn-danger" onclick="return confirm('Hapus Sertifikat?')"><i class="bi bi-trash"></i></a>
-
-                                </td>
-
-                            </tr>
-
-                            <?php endwhile; ?>
-
-                        </tbody>
-
-                    </table>
-
-                </div>
-
             </div>
 
+            <div class="card">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-dark"><tr><th>Cover</th><th>Judul</th><th>Kategori</th><th>Aksi</th></tr></thead>
+                    <tbody>
+                        <?php $qp = mysqli_query($conn, "SELECT * FROM projects ORDER BY id DESC"); while($d = mysqli_fetch_assoc($qp)): ?>
+                        <tr>
+                            <td width="80"><img src="assets/img/<?=$d['image']?>" width="60" class="rounded"></td>
+                            <td class="fw-bold"><?=$d['title']?></td>
+                            <td><span class="badge bg-light text-dark border"><?=$d['category']?></span></td>
+                            <td>
+                                <a href="edit.php?id=<?=$d['id']?>" class="btn btn-sm btn-warning"><i class="bi bi-pencil"></i></a>
+                                <a href="admin.php?hapus_proj=<?=$d['id']?>" class="btn btn-sm btn-danger" onclick="return confirm('Hapus?')"><i class="bi bi-trash"></i></a>
+                            </td>
+                        </tr>
+                        <?php endwhile; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
 
+        <div class="tab-pane fade" id="tech-pane">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card mb-4 border-warning border-2">
+                        <div class="card-header bg-warning text-dark fw-bold">TAMBAH ICON SKILL</div>
+                        <div class="card-body">
+                            <form method="POST">
+                                <div class="form-floating mb-2">
+                                    <input type="text" name="tech_name" class="form-control" placeholder="Name" required>
+                                    <label>Nama Skill (mis: PHP, JIRA)</label>
+                                </div>
+                                <div class="form-floating mb-2">
+                                    <select name="tech_category" class="form-select">
+                                        <option value="Analysis">Analysis (Kiri)</option>
+                                        <option value="Enterprise">Enterprise (Tengah)</option>
+                                        <option value="Development">Development (Kanan)</option>
+                                    </select>
+                                    <label>Masuk Kotak Mana?</label>
+                                </div>
+                                <div class="form-floating mb-3">
+                                    <input type="text" name="tech_icon" class="form-control" placeholder="Icon" required>
+                                    <label>Icon Class (bi-kanban)</label>
+                                    <small class="text-muted d-block mt-1">
+                                        Cari icon di <a href="https://icons.getbootstrap.com/" target="_blank">Bootstrap Icons</a>
+                                    </small>
+                                </div>
+                                <button type="submit" name="add_tech" class="btn btn-warning w-100 fw-bold">TAMBAH</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header bg-white fw-bold">DAFTAR SKILL / TOOLS</div>
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-dark"><tr><th>Icon</th><th>Skill</th><th>Kotak</th><th>Aksi</th></tr></thead>
+                                <tbody>
+                                    <?php $qt = mysqli_query($conn, "SELECT * FROM tech_stacks ORDER BY category ASC"); while($ts = mysqli_fetch_assoc($qt)): ?>
+                                    <tr>
+                                        <td class="text-center"><i class="<?=$ts['icon']?> fs-5"></i></td>
+                                        <td class="fw-bold"><?=$ts['name']?></td>
+                                        <td>
+                                            <?php 
+                                            // Warna Badge Biar Enak Dilihat
+                                            $bg = 'bg-secondary';
+                                            if($ts['category'] == 'Analysis') $bg = 'bg-primary';
+                                            if($ts['category'] == 'Enterprise') $bg = 'bg-success';
+                                            if($ts['category'] == 'Development') $bg = 'bg-dark';
+                                            ?>
+                                            <span class="badge <?=$bg?> text-white"><?=$ts['category']?></span>
+                                        </td>
+                                        <td><a href="admin.php?hapus_tech=<?=$ts['id']?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Hapus?')"><i class="bi bi-trash"></i></a></td>
+                                    </tr>
+                                    <?php endwhile; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-            <div class="tab-pane fade" id="time-pane">
-
-                <div class="card p-4 shadow mb-4">
-
-                    <h5 class="text-primary fw-bold mb-3">Tambah Timeline</h5>
-
+        <div class="tab-pane fade" id="time-pane">
+            <div class="card mb-4 border-info border-2">
+                <div class="card-header bg-info text-white fw-bold">TAMBAH PENGALAMAN</div>
+                <div class="card-body">
                     <form method="POST">
-
-                        <div class="row g-3">
-
-                            <div class="col-md-4"><input type="text" name="year" class="form-control" placeholder="Tahun" required></div>
-
-                            <div class="col-md-4"><input type="text" name="role" class="form-control" placeholder="Role" required></div>
-
-                            <div class="col-md-4"><input type="text" name="company" class="form-control" placeholder="Perusahaan" required></div>
-
-                            <div class="col-12"><textarea name="description" class="form-control" placeholder="Deskripsi"></textarea></div>
-
+                        <div class="row g-2">
+                            <div class="col-md-2 form-floating"><input type="text" name="year" class="form-control" placeholder="Year"><label>Tahun</label></div>
+                            <div class="col-md-4 form-floating"><input type="text" name="role" class="form-control" placeholder="Role"><label>Role</label></div>
+                            <div class="col-md-6 form-floating"><input type="text" name="company" class="form-control" placeholder="Comp"><label>Perusahaan</label></div>
+                            <div class="col-12 form-floating"><textarea name="description" class="form-control" style="height:80px" placeholder="Desc"></textarea><label>Deskripsi</label></div>
+                            <div class="col-12"><button type="submit" name="add_timeline" class="btn btn-info text-white w-100 fw-bold">SIMPAN</button></div>
                         </div>
-
-                        <button type="submit" name="simpan_timeline" class="btn btn-success w-100 mt-3">SIMPAN TIMELINE</button>
-
                     </form>
-
                 </div>
-
-                <div class="card shadow p-0">
-
-                    <table class="table table-hover mb-0">
-
-                        <thead class="table-dark"><tr><th>Tahun</th><th>Role</th><th class="text-end">Aksi</th></tr></thead>
-
-                        <tbody>
-
-                            <?php $qt=mysqli_query($conn,"SELECT * FROM timeline ORDER BY id DESC"); while($t=mysqli_fetch_assoc($qt)): ?>
-
-                            <tr>
-
-                                <td><?=$t['year']?></td>
-
-                                <td><?=$t['role']?></td>
-
-                                <td class="text-end"><a href="admin.php?hapus_time=<?=$t['id']?>" class="btn btn-sm btn-danger" onclick="return confirm('Hapus?')"><i class="bi bi-trash"></i></a></td>
-
-                            </tr>
-
-                            <?php endwhile; ?>
-
-                        </tbody>
-
-                    </table>
-
-                </div>
-
             </div>
+            <div class="card">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-dark"><tr><th>Tahun</th><th>Role</th><th>Aksi</th></tr></thead>
+                    <tbody>
+                        <?php $qtime = mysqli_query($conn, "SELECT * FROM timeline ORDER BY id DESC"); while($tm = mysqli_fetch_assoc($qtime)): ?>
+                        <tr>
+                            <td><span class="badge bg-secondary"><?=$tm['year']?></span></td>
+                            <td><b><?=$tm['role']?></b><br><small class="text-muted"><?=$tm['company']?></small></td>
+                            <td>
+                                <a href="edit_timeline.php?id=<?=$tm['id']?>" class="btn btn-sm btn-warning"><i class="bi bi-pencil"></i></a>
+                                <a href="admin.php?hapus_time=<?=$tm['id']?>" class="btn btn-sm btn-danger"><i class="bi bi-trash"></i></a>
+                            </td>
+                        </tr>
+                        <?php endwhile; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
 
-
-
+        <div class="tab-pane fade" id="cert-pane">
+            <div class="card mb-4 border-success border-2">
+                <div class="card-header bg-success text-white fw-bold">TAMBAH SERTIFIKAT</div>
+                <div class="card-body">
+                    <form method="POST" enctype="multipart/form-data">
+                        <div class="row g-2">
+                            <div class="col-md-4 form-floating"><input type="text" name="cert_name" class="form-control" placeholder="Name"><label>Nama Sertifikat</label></div>
+                            <div class="col-md-4 form-floating"><input type="text" name="cert_issuer" class="form-control" placeholder="Issuer"><label>Penerbit</label></div>
+                            <div class="col-md-4 form-floating"><input type="text" name="cert_date" class="form-control" placeholder="Date"><label>Tgl Terbit</label></div>
+                            <div class="col-md-6 form-floating"><input type="text" name="cert_link" class="form-control" placeholder="Link"><label>Link Credential</label></div>
+                            <div class="col-md-6"><input type="file" name="cert_img" class="form-control h-100 pt-3" required></div>
+                            <div class="col-12"><button type="submit" name="add_cert" class="btn btn-success w-100 fw-bold">SIMPAN SERTIFIKAT</button></div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <div class="card">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-dark"><tr><th>Logo</th><th>Nama</th><th>Aksi</th></tr></thead>
+                    <tbody>
+                        <?php $qcert = mysqli_query($conn, "SELECT * FROM certifications ORDER BY id DESC"); while($c = mysqli_fetch_assoc($qcert)): ?>
+                        <tr>
+                            <td width="60"><img src="assets/img/<?=$c['image']?>" width="40"></td>
+                            <td><b><?=$c['name']?></b><br><small><?=$c['issuer']?></small></td>
+                            <td><a href="admin.php?hapus_cert=<?=$c['id']?>" class="btn btn-sm btn-danger"><i class="bi bi-trash"></i></a></td>
+                        </tr>
+                        <?php endwhile; ?>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
     </div>
+</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // Tab Persistence Logic
+    const urlParams = new URLSearchParams(window.location.search);
+    const tab = urlParams.get('tab');
+    if(tab){
+        const tabBtn = document.querySelector(`[data-bs-target="#${tab}"]`);
+        if(tabBtn) { const t = new bootstrap.Tab(tabBtn); t.show(); }
+    }
+</script>
 </body>
-
 </html>

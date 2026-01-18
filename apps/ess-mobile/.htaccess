@@ -1,0 +1,13 @@
+RewriteEngine On
+
+# 1. Mencegah orang liat isi folder (Listing directory)
+# Biar orang ga bisa liat daftar file kodingan lu
+Options -Indexes
+
+# 2. Ilangin ekstensi .php (Pretty URL)
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}.php -f
+RewriteRule ^(.*)$ $1.php [L]
+
+# 3. Paksa file index.php jadi default kalau folder dibuka
+DirectoryIndex index.phps
