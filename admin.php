@@ -3,11 +3,17 @@ session_start();
 if (!isset($_SESSION['status']) || $_SESSION['status'] != "login") { header("Location: login.php"); exit(); }
 include 'koneksi.php';
 
+// HELPER FUNCTION BUAT FLASH MESSAGE
+function setFlash($msg, $type='success') {
+    $_SESSION['flash_msg'] = $msg;
+    $_SESSION['flash_type'] = $type;
+}
+
 // ==================================================================================
-// 🟢 LOGIC PHP (SEMUA PROSES SIMPAN ADA DISINI)
+// 🟢 LOGIC PHP (DENGAN FLASH MESSAGE)
 // ==================================================================================
 
-// 1. UPDATE PROFILE (HERO, ABOUT, BENTO GRID, CONTACT, IMAGES)
+// 1. UPDATE PROFILE
 if (isset($_POST['save_hero'])) {
     $greeting = mysqli_real_escape_string($conn, $_POST['hero_greeting']);
     $greeting_en = mysqli_real_escape_string($conn, $_POST['hero_greeting_en']);
@@ -17,7 +23,11 @@ if (isset($_POST['save_hero'])) {
     $desc_en = mysqli_real_escape_string($conn, $_POST['hero_desc_en']);
     $cv = mysqli_real_escape_string($conn, $_POST['cv_link']);
     
-    mysqli_query($conn, "UPDATE profile SET hero_greeting='$greeting', hero_greeting_en='$greeting_en', hero_title='$title', hero_title_en='$title_en', hero_desc='$desc', hero_desc_en='$desc_en', cv_link='$cv' WHERE id=1");
+    if(mysqli_query($conn, "UPDATE profile SET hero_greeting='$greeting', hero_greeting_en='$greeting_en', hero_title='$title', hero_title_en='$title_en', hero_desc='$desc', hero_desc_en='$desc_en', cv_link='$cv' WHERE id=1")) {
+        setFlash('Hero Section Berhasil Diupdate!');
+    } else {
+        setFlash('Gagal Update: '.mysqli_error($conn), 'error');
+    }
     header("Location: admin.php?tab=prof-pane"); exit();
 }
 
@@ -28,19 +38,17 @@ if (isset($_POST['save_about'])) {
     $text_en = mysqli_real_escape_string($conn, $_POST['about_text_en']);
     
     mysqli_query($conn, "UPDATE profile SET about_title='$judul', about_title_en='$judul_en', about_text='$text', about_text_en='$text_en' WHERE id=1");
+    setFlash('About Section Berhasil Diupdate!');
     header("Location: admin.php?tab=prof-pane"); exit();
 }
 
 if (isset($_POST['save_bento'])) {
-    // Bento 1
     $bt1 = mysqli_real_escape_string($conn, $_POST['bento_title_1']);
     $bd1 = mysqli_real_escape_string($conn, $_POST['bento_desc_1']);
     $bd1_en = mysqli_real_escape_string($conn, $_POST['bento_desc_1_en']);
-    // Bento 2
     $bt2 = mysqli_real_escape_string($conn, $_POST['bento_title_2']);
     $bd2 = mysqli_real_escape_string($conn, $_POST['bento_desc_2']);
     $bd2_en = mysqli_real_escape_string($conn, $_POST['bento_desc_2_en']);
-    // Bento 3
     $bt3 = mysqli_real_escape_string($conn, $_POST['bento_title_3']);
     $bd3 = mysqli_real_escape_string($conn, $_POST['bento_desc_3']);
     $bd3_en = mysqli_real_escape_string($conn, $_POST['bento_desc_3_en']);
@@ -50,6 +58,7 @@ if (isset($_POST['save_bento'])) {
         bento_title_2='$bt2', bento_desc_2='$bd2', bento_desc_2_en='$bd2_en',
         bento_title_3='$bt3', bento_desc_3='$bd3', bento_desc_3_en='$bd3_en'
         WHERE id=1");
+    setFlash('Bento Grid Info Berhasil Diupdate!');
     header("Location: admin.php?tab=prof-pane"); exit();
 }
 
@@ -58,6 +67,7 @@ if (isset($_POST['save_contact'])) {
     $wa = mysqli_real_escape_string($conn, $_POST['whatsapp']);
     $li = mysqli_real_escape_string($conn, $_POST['linkedin']);
     mysqli_query($conn, "UPDATE profile SET email='$email', whatsapp='$wa', linkedin='$li' WHERE id=1");
+    setFlash('Kontak Berhasil Diupdate!');
     header("Location: admin.php?tab=prof-pane"); exit();
 }
 
@@ -75,7 +85,9 @@ if (isset($_POST['save_images'])) {
     $img1 = uploadImg($_FILES['about_img_1'], $q['about_img_1']);
     $img2 = uploadImg($_FILES['about_img_2'], $q['about_img_2']);
     $img3 = uploadImg($_FILES['about_img_3'], $q['about_img_3']);
+    
     mysqli_query($conn, "UPDATE profile SET profile_pic='$pic', about_img_1='$img1', about_img_2='$img2', about_img_3='$img3' WHERE id=1");
+    setFlash('Gambar Berhasil Diupload!');
     header("Location: admin.php?tab=prof-pane"); exit();
 }
 
@@ -86,14 +98,12 @@ if (isset($_POST['add_project'])) {
     $cat = $_POST['category'];
     $link = mysqli_real_escape_string($conn, $_POST['link_demo']);
     
-    // Image Upload
     $img_name = "default.jpg";
     if(!empty($_FILES['image']['name'])) {
         $img_name = "proj_" . time() . ".jpg";
         move_uploaded_file($_FILES['image']['tmp_name'], './assets/img/' . $img_name);
     }
 
-    // PDF Upload
     $pdf_name = "#";
     if(!empty($_FILES['file_case']['name'])) {
         $pdf_name = time() . "_" . $_FILES['file_case']['name'];
@@ -102,28 +112,37 @@ if (isset($_POST['add_project'])) {
 
     $sql = "INSERT INTO projects (title, description, category, image, link_demo, link_case) VALUES ('$title', '$desc', '$cat', '$img_name', '$link', '$pdf_name')";
     if(mysqli_query($conn, $sql)){
-        header("Location: admin.php?tab=proj-pane"); exit();
+        setFlash('Project Baru Berhasil Ditambah!');
     } else {
-        echo "<script>alert('Error: ".mysqli_error($conn)."');</script>";
+        setFlash('Gagal: '.mysqli_error($conn), 'error');
     }
+    header("Location: admin.php?tab=proj-pane"); exit();
 }
+
 if (isset($_GET['hapus_proj'])) {
     $id = $_GET['hapus_proj'];
     $d = mysqli_fetch_assoc(mysqli_query($conn, "SELECT image, link_case FROM projects WHERE id='$id'"));
     if($d['image'] != 'default.jpg' && file_exists('./assets/img/'.$d['image'])) unlink('./assets/img/'.$d['image']);
     if($d['link_case'] != '#' && file_exists('./assets/docs/'.$d['link_case'])) unlink('./assets/docs/'.$d['link_case']);
+    
     mysqli_query($conn, "DELETE FROM projects WHERE id='$id'");
+    setFlash('Project Berhasil Dihapus!');
     header("Location: admin.php?tab=proj-pane"); exit();
 }
 
-// 3. ADD TECH STACK (CLEAN VERSION - NO DESC)
+// 3. ADD TECH STACK
 if (isset($_POST['add_tech'])) {
     $name = mysqli_real_escape_string($conn, $_POST['tech_name']);
     $cat = $_POST['tech_category'];
     $icon = mysqli_real_escape_string($conn, $_POST['tech_icon']);
     
-    // Query Simpel: Cuma Nama, Kategori, Icon
     mysqli_query($conn, "INSERT INTO tech_stacks (name, category, icon) VALUES ('$name', '$cat', '$icon')");
+    setFlash('Skill Baru Berhasil Ditambah!');
+    header("Location: admin.php?tab=tech-pane"); exit();
+}
+if (isset($_GET['hapus_tech'])) {
+    mysqli_query($conn, "DELETE FROM tech_stacks WHERE id='$_GET[hapus_tech]'");
+    setFlash('Skill Berhasil Dihapus!');
     header("Location: admin.php?tab=tech-pane"); exit();
 }
 
@@ -134,10 +153,12 @@ if (isset($_POST['add_timeline'])) {
     $comp = mysqli_real_escape_string($conn, $_POST['company']);
     $desc = mysqli_real_escape_string($conn, $_POST['description']);
     mysqli_query($conn, "INSERT INTO timeline (year, role, company, description) VALUES ('$year', '$role', '$comp', '$desc')");
+    setFlash('Timeline Karir Berhasil Ditambah!');
     header("Location: admin.php?tab=time-pane"); exit();
 }
 if (isset($_GET['hapus_time'])) {
     mysqli_query($conn, "DELETE FROM timeline WHERE id='$_GET[hapus_time]'");
+    setFlash('Timeline Berhasil Dihapus!');
     header("Location: admin.php?tab=time-pane"); exit();
 }
 
@@ -152,10 +173,12 @@ if (isset($_POST['add_cert'])) {
     move_uploaded_file($_FILES['cert_img']['tmp_name'], './assets/img/' . $img_name);
     
     mysqli_query($conn, "INSERT INTO certifications (name, issuer, date, link_credential, image) VALUES ('$name', '$issuer', '$date', '$link', '$img_name')");
+    setFlash('Sertifikat Berhasil Ditambah!');
     header("Location: admin.php?tab=cert-pane"); exit();
 }
 if (isset($_GET['hapus_cert'])) {
     mysqli_query($conn, "DELETE FROM certifications WHERE id='$_GET[hapus_cert]'");
+    setFlash('Sertifikat Berhasil Dihapus!');
     header("Location: admin.php?tab=cert-pane"); exit();
 }
 
@@ -169,6 +192,10 @@ $p = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM profile WHERE id=1"))
     <title>CMS Admin Panel</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    
+    
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     <style>
         body { background-color: #f1f5f9; font-family: 'Segoe UI', sans-serif; }
         .form-floating > .form-control:focus { box-shadow: none; border-color: #0d6efd; }
@@ -201,7 +228,6 @@ $p = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM profile WHERE id=1"))
     </ul>
 
     <div class="tab-content">
-
         <div class="tab-pane fade show active" id="prof-pane">
             <div class="row g-4">
                 <div class="col-md-6">
@@ -227,8 +253,8 @@ $p = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM profile WHERE id=1"))
                         <div class="card-header text-info">ABOUT SECTION</div>
                         <div class="card-body">
                             <form method="POST">
-                                <div class="form-floating mb-2"><input type="text" class="form-control" name="about_title" value="<?=$p['about_title']?>"><label>Judul Besar (ID)</label></div>
-                                <div class="form-floating mb-2"><input type="text" class="form-control" name="about_title_en" value="<?=$p['about_title_en']?>"><label>Judul Besar (EN)</label></div>
+                                <div class="form-floating mb-2"><input type="text" class="form-control" name="about_text" value="<?=$p['about_text']?>"><label>Judul Besar (ID)</label></div>
+                                <div class="form-floating mb-2"><input type="text" class="form-control" name="about_text_en" value="<?=$p['about_text_en']?>"><label>Judul Besar (EN)</label></div>
                                 <div class="form-floating mb-2"><textarea class="form-control" name="about_text" style="height:120px"><?=$p['about_text']?></textarea><label>Subtitle Biru (ID)</label></div>
                                 <div class="form-floating mb-3"><textarea class="form-control" name="about_text_en" style="height:120px"><?=$p['about_text_en']?></textarea><label>Subtitle Biru (EN)</label></div>
                                 <button type="submit" name="save_about" class="btn btn-info text-white w-100 fw-bold">SIMPAN ABOUT</button>
@@ -403,7 +429,6 @@ $p = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM profile WHERE id=1"))
                                         <td class="fw-bold"><?=$ts['name']?></td>
                                         <td>
                                             <?php 
-                                            // Warna Badge Biar Enak Dilihat
                                             $bg = 'bg-secondary';
                                             if($ts['category'] == 'Analysis') $bg = 'bg-primary';
                                             if($ts['category'] == 'Enterprise') $bg = 'bg-success';
@@ -492,6 +517,23 @@ $p = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM profile WHERE id=1"))
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<?php if(isset($_SESSION['flash_msg'])): ?>
+<script>
+    Swal.fire({
+        title: 'Sukses!',
+        text: '<?php echo $_SESSION['flash_msg']; ?>',
+        icon: '<?php echo isset($_SESSION['flash_type']) ? $_SESSION['flash_type'] : 'success'; ?>',
+        timer: 3000,
+        showConfirmButton: false
+    });
+</script>
+<?php 
+unset($_SESSION['flash_msg']);
+unset($_SESSION['flash_type']);
+endif; 
+?>
+
 <script>
     // Tab Persistence Logic
     const urlParams = new URLSearchParams(window.location.search);
