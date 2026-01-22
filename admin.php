@@ -1,7 +1,11 @@
 <?php
 session_start();
-if (!isset($_SESSION['status']) || $_SESSION['status'] != "login") { header("Location: login.php"); exit(); }
-include 'koneksi.php';
+// Cek sesi login (sesuaikan dengan login.php lu)
+if (!isset($_SESSION['status']) || $_SESSION['status'] != "login") { 
+    header("Location: login.php"); 
+    exit(); 
+}
+include 'koneksi.php'; // Pastikan path ini benar
 
 // HELPER FUNCTION BUAT FLASH MESSAGE
 function setFlash($msg, $type='success') {
@@ -10,7 +14,7 @@ function setFlash($msg, $type='success') {
 }
 
 // ==================================================================================
-// 🟢 LOGIC PHP (DENGAN FLASH MESSAGE)
+// 🟢 LOGIC PHP
 // ==================================================================================
 
 // 1. UPDATE PROFILE
@@ -31,14 +35,14 @@ if (isset($_POST['save_hero'])) {
     header("Location: admin.php?tab=prof-pane"); exit();
 }
 
+// 🔥 UPDATE ABOUT TITLE (PENGGANTI RUNNING TEXT)
 if (isset($_POST['save_about'])) {
     $judul = mysqli_real_escape_string($conn, $_POST['about_title']);
     $judul_en = mysqli_real_escape_string($conn, $_POST['about_title_en']);
-    $text = mysqli_real_escape_string($conn, $_POST['about_text']);
-    $text_en = mysqli_real_escape_string($conn, $_POST['about_text_en']);
     
-    mysqli_query($conn, "UPDATE profile SET about_title='$judul', about_title_en='$judul_en', about_text='$text', about_text_en='$text_en' WHERE id=1");
-    setFlash('About Section Berhasil Diupdate!');
+    // Kita update kolom about_title & about_title_en
+    mysqli_query($conn, "UPDATE profile SET about_title='$judul', about_title_en='$judul_en' WHERE id=1");
+    setFlash('Judul About (Tengah) Berhasil Diupdate!');
     header("Location: admin.php?tab=prof-pane"); exit();
 }
 
@@ -146,18 +150,33 @@ if (isset($_GET['hapus_tech'])) {
     header("Location: admin.php?tab=tech-pane"); exit();
 }
 
-// 4. ADD TIMELINE
+// 4. ADD TIMELINE (JOURNEY) - 🔥 ADA UPLOAD GAMBAR & SUMMERNOTE
 if (isset($_POST['add_timeline'])) {
     $year = mysqli_real_escape_string($conn, $_POST['year']);
+    $s_date = mysqli_real_escape_string($conn, $_POST['sort_date']); // Ambil Tanggal Sortir
     $role = mysqli_real_escape_string($conn, $_POST['role']);
     $comp = mysqli_real_escape_string($conn, $_POST['company']);
     $desc = mysqli_real_escape_string($conn, $_POST['description']);
-    mysqli_query($conn, "INSERT INTO timeline (year, role, company, description) VALUES ('$year', '$role', '$comp', '$desc')");
+    
+    $img_name = "";
+    if(!empty($_FILES['image']['name'])) {
+        $img_name = "cartoon_" . time() . ".png";
+        move_uploaded_file($_FILES['image']['tmp_name'], '../assets/img/' . $img_name);
+    }
+
+    // Insert Sort Date
+    mysqli_query($conn, "INSERT INTO timeline (year, sort_date, role, company, description, image) VALUES ('$year', '$s_date', '$role', '$comp', '$desc', '$img_name')");
     setFlash('Timeline Karir Berhasil Ditambah!');
-    header("Location: admin.php?tab=time-pane"); exit();
+    header("Location: index.php?tab=time-pane"); exit();
 }
+
 if (isset($_GET['hapus_time'])) {
-    mysqli_query($conn, "DELETE FROM timeline WHERE id='$_GET[hapus_time]'");
+    // Hapus gambar kalo ada
+    $id = $_GET['hapus_time'];
+    $d = mysqli_fetch_assoc(mysqli_query($conn, "SELECT image FROM timeline WHERE id='$id'"));
+    if(!empty($d['image']) && file_exists('./assets/img/'.$d['image'])) unlink('./assets/img/'.$d['image']);
+
+    mysqli_query($conn, "DELETE FROM timeline WHERE id='$id'");
     setFlash('Timeline Berhasil Dihapus!');
     header("Location: admin.php?tab=time-pane"); exit();
 }
@@ -190,9 +209,11 @@ $p = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM profile WHERE id=1"))
 <head>
     <meta charset="utf-8"> <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>CMS Admin Panel</title>
+    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     
+    <link href="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.css" rel="stylesheet">
     
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
@@ -203,6 +224,11 @@ $p = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM profile WHERE id=1"))
         .nav-pills .nav-link { color: #475569; font-weight: 500; }
         .card { border: none; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
         .card-header { background: white; font-weight: 700; border-bottom: 1px solid #e2e8f0; padding: 1rem 1.5rem; }
+        
+        /* Fix Summernote Style */
+        .note-editor .dropdown-toggle::after { all: unset; } 
+        .note-editor .note-dropdown-menu { box-sizing: content-box; }
+        .note-editor .note-modal-footer { box-sizing: content-box; }
     </style>
 </head>
 <body>
@@ -221,15 +247,37 @@ $p = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM profile WHERE id=1"))
     
     <ul class="nav nav-pills mb-4 bg-white p-2 rounded shadow-sm gap-2" id="myTab" role="tablist">
         <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#prof-pane">👤 Profile</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#time-pane">⏳ Journey</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#proj-pane">📁 Projects</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tech-pane">🛠️ Tech Stack</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#time-pane">⏳ Journey</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#cert-pane">🏅 Certificates</button></li>
     </ul>
 
     <div class="tab-content">
         <div class="tab-pane fade show active" id="prof-pane">
             <div class="row g-4">
+                
+                <div class="col-md-12">
+                    <div class="card border-primary border-2">
+                        <div class="card-header text-primary">JUDUL TENGAH (ABOUT TITLE)</div>
+                        <div class="card-body">
+                            <form method="POST">
+                                <div class="row">
+                                    <div class="col-md-6 form-floating mb-2">
+                                        <input type="text" class="form-control" name="about_title" value="<?=$p['about_title']?>">
+                                        <label>Judul (ID) - misal: Analis & Pemimpin</label>
+                                    </div>
+                                    <div class="col-md-6 form-floating mb-2">
+                                        <input type="text" class="form-control" name="about_title_en" value="<?=$p['about_title_en']?>">
+                                        <label>Judul (EN) - misal: Analyst & Leader</label>
+                                    </div>
+                                </div>
+                                <button type="submit" name="save_about" class="btn btn-primary w-100 fw-bold">UPDATE JUDUL</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="col-md-6">
                     <div class="card h-100">
                         <div class="card-header text-primary">HERO SECTION</div>
@@ -250,14 +298,28 @@ $p = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM profile WHERE id=1"))
 
                 <div class="col-md-6">
                     <div class="card h-100">
-                        <div class="card-header text-info">ABOUT SECTION</div>
+                        <div class="card-header">IMAGES (3 SLOT FOTO ABOUT)</div>
                         <div class="card-body">
-                            <form method="POST">
-                                <div class="form-floating mb-2"><input type="text" class="form-control" name="about_text" value="<?=$p['about_text']?>"><label>Judul Besar (ID)</label></div>
-                                <div class="form-floating mb-2"><input type="text" class="form-control" name="about_text_en" value="<?=$p['about_text_en']?>"><label>Judul Besar (EN)</label></div>
-                                <div class="form-floating mb-2"><textarea class="form-control" name="about_text" style="height:120px"><?=$p['about_text']?></textarea><label>Subtitle Biru (ID)</label></div>
-                                <div class="form-floating mb-3"><textarea class="form-control" name="about_text_en" style="height:120px"><?=$p['about_text_en']?></textarea><label>Subtitle Biru (EN)</label></div>
-                                <button type="submit" name="save_about" class="btn btn-info text-white w-100 fw-bold">SIMPAN ABOUT</button>
+                            <form method="POST" enctype="multipart/form-data">
+                                <div class="mb-3">
+                                    <label class="small fw-bold">Foto Utama (Hero Section)</label>
+                                    <input type="file" name="profile_pic" class="form-control">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="small fw-bold">Foto About Utama (Besar Kiri)</label>
+                                    <input type="file" name="about_img_1" class="form-control">
+                                </div>
+                                <div class="row">
+                                    <div class="col-6 mb-3">
+                                        <label class="small fw-bold">Foto Kecil 1</label>
+                                        <input type="file" name="about_img_2" class="form-control">
+                                    </div>
+                                    <div class="col-6 mb-3">
+                                        <label class="small fw-bold">Foto Kecil 2</label>
+                                        <input type="file" name="about_img_3" class="form-control">
+                                    </div>
+                                </div>
+                                <button type="submit" name="save_images" class="btn btn-dark w-100 fw-bold mt-3">UPLOAD GAMBAR</button>
                             </form>
                         </div>
                     </div>
@@ -265,27 +327,27 @@ $p = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM profile WHERE id=1"))
 
                 <div class="col-12">
                     <div class="card border-warning border-2">
-                        <div class="card-header text-warning bg-warning bg-opacity-10">PENGATURAN TEKS BENTO GRID (TECH STACK)</div>
+                        <div class="card-header text-warning bg-warning bg-opacity-10">BENTO GRID (INFO BOX)</div>
                         <div class="card-body">
                             <form method="POST">
                                 <div class="row">
                                     <div class="col-md-4">
                                         <h6 class="fw-bold">Kotak 1: Analysis</h6>
                                         <input type="text" name="bento_title_1" class="form-control mb-2 fw-bold" value="<?=$p['bento_title_1']?>">
-                                        <textarea name="bento_desc_1" class="form-control mb-2" placeholder="Desc ID" rows="3"><?=$p['bento_desc_1']?></textarea>
-                                        <textarea name="bento_desc_1_en" class="form-control mb-3" placeholder="Desc EN" rows="3"><?=$p['bento_desc_1_en']?></textarea>
+                                        <textarea name="bento_desc_1" class="form-control mb-2" rows="3"><?=$p['bento_desc_1']?></textarea>
+                                        <textarea name="bento_desc_1_en" class="form-control mb-3" rows="3"><?=$p['bento_desc_1_en']?></textarea>
                                     </div>
                                     <div class="col-md-4">
                                         <h6 class="fw-bold">Kotak 2: Enterprise</h6>
                                         <input type="text" name="bento_title_2" class="form-control mb-2 fw-bold" value="<?=$p['bento_title_2']?>">
-                                        <textarea name="bento_desc_2" class="form-control mb-2" placeholder="Desc ID" rows="3"><?=$p['bento_desc_2']?></textarea>
-                                        <textarea name="bento_desc_2_en" class="form-control mb-3" placeholder="Desc EN" rows="3"><?=$p['bento_desc_2_en']?></textarea>
+                                        <textarea name="bento_desc_2" class="form-control mb-2" rows="3"><?=$p['bento_desc_2']?></textarea>
+                                        <textarea name="bento_desc_2_en" class="form-control mb-3" rows="3"><?=$p['bento_desc_2_en']?></textarea>
                                     </div>
                                     <div class="col-md-4">
                                         <h6 class="fw-bold">Kotak 3: Development</h6>
                                         <input type="text" name="bento_title_3" class="form-control mb-2 fw-bold" value="<?=$p['bento_title_3']?>">
-                                        <textarea name="bento_desc_3" class="form-control mb-2" placeholder="Desc ID" rows="3"><?=$p['bento_desc_3']?></textarea>
-                                        <textarea name="bento_desc_3_en" class="form-control mb-3" placeholder="Desc EN" rows="3"><?=$p['bento_desc_3_en']?></textarea>
+                                        <textarea name="bento_desc_3" class="form-control mb-2" rows="3"><?=$p['bento_desc_3']?></textarea>
+                                        <textarea name="bento_desc_3_en" class="form-control mb-3" rows="3"><?=$p['bento_desc_3_en']?></textarea>
                                     </div>
                                 </div>
                                 <button type="submit" name="save_bento" class="btn btn-warning w-100 fw-bold">SIMPAN BENTO GRID</button>
@@ -294,30 +356,17 @@ $p = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM profile WHERE id=1"))
                     </div>
                 </div>
                 
-                <div class="col-md-6">
+                <div class="col-md-12">
                     <div class="card h-100">
                         <div class="card-header text-success">CONTACT INFO</div>
                         <div class="card-body">
                             <form method="POST">
-                                <div class="form-floating mb-2"><input type="email" class="form-control" name="email" value="<?=$p['email']?>"><label>Email</label></div>
-                                <div class="form-floating mb-2"><input type="text" class="form-control" name="whatsapp" value="<?=$p['whatsapp']?>"><label>WhatsApp</label></div>
-                                <div class="form-floating mb-3"><input type="text" class="form-control" name="linkedin" value="<?=$p['linkedin']?>"><label>LinkedIn</label></div>
+                                <div class="row">
+                                    <div class="col-md-4 form-floating mb-2"><input type="email" class="form-control" name="email" value="<?=$p['email']?>"><label>Email</label></div>
+                                    <div class="col-md-4 form-floating mb-2"><input type="text" class="form-control" name="whatsapp" value="<?=$p['whatsapp']?>"><label>WhatsApp</label></div>
+                                    <div class="col-md-4 form-floating mb-3"><input type="text" class="form-control" name="linkedin" value="<?=$p['linkedin']?>"><label>LinkedIn</label></div>
+                                </div>
                                 <button type="submit" name="save_contact" class="btn btn-success w-100 fw-bold">SIMPAN KONTAK</button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-md-6">
-                    <div class="card h-100">
-                        <div class="card-header">IMAGES</div>
-                        <div class="card-body">
-                            <form method="POST" enctype="multipart/form-data">
-                                <div class="mb-2"><label class="small fw-bold">Profile Pic</label><input type="file" name="profile_pic" class="form-control"></div>
-                                <div class="mb-2"><label class="small fw-bold">About Main</label><input type="file" name="about_img_1" class="form-control"></div>
-                                <div class="mb-2"><label class="small fw-bold">About Small 1</label><input type="file" name="about_img_2" class="form-control"></div>
-                                <div class="mb-2"><label class="small fw-bold">About Small 2</label><input type="file" name="about_img_3" class="form-control"></div>
-                                <button type="submit" name="save_images" class="btn btn-dark w-100 fw-bold mt-3">UPLOAD GAMBAR</button>
                             </form>
                         </div>
                     </div>
@@ -375,8 +424,8 @@ $p = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM profile WHERE id=1"))
                             <td class="fw-bold"><?=$d['title']?></td>
                             <td><span class="badge bg-light text-dark border"><?=$d['category']?></span></td>
                             <td>
-                                <a href="edit.php?id=<?=$d['id']?>" class="btn btn-sm btn-warning"><i class="bi bi-pencil"></i></a>
-                                <a href="admin.php?hapus_proj=<?=$d['id']?>" class="btn btn-sm btn-danger" onclick="return confirm('Hapus?')"><i class="bi bi-trash"></i></a>
+                                <a href="edit_timeline?id=<?=$d['id']?>" class="btn btn-sm btn-warning"><i class="bi bi-pencil"></i></a>
+                                <a href="admin?hapus_proj=<?=$d['id']?>" class="btn btn-sm btn-danger" onclick="return confirm('Hapus?')"><i class="bi bi-trash"></i></a>
                             </td>
                         </tr>
                         <?php endwhile; ?>
@@ -427,15 +476,7 @@ $p = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM profile WHERE id=1"))
                                     <tr>
                                         <td class="text-center"><i class="<?=$ts['icon']?> fs-5"></i></td>
                                         <td class="fw-bold"><?=$ts['name']?></td>
-                                        <td>
-                                            <?php 
-                                            $bg = 'bg-secondary';
-                                            if($ts['category'] == 'Analysis') $bg = 'bg-primary';
-                                            if($ts['category'] == 'Enterprise') $bg = 'bg-success';
-                                            if($ts['category'] == 'Development') $bg = 'bg-dark';
-                                            ?>
-                                            <span class="badge <?=$bg?> text-white"><?=$ts['category']?></span>
-                                        </td>
+                                        <td><span class="badge bg-secondary"><?=$ts['category']?></span></td>
                                         <td><a href="admin.php?hapus_tech=<?=$ts['id']?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Hapus?')"><i class="bi bi-trash"></i></a></td>
                                     </tr>
                                     <?php endwhile; ?>
@@ -448,36 +489,74 @@ $p = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM profile WHERE id=1"))
         </div>
 
         <div class="tab-pane fade" id="time-pane">
-            <div class="card mb-4 border-info border-2">
-                <div class="card-header bg-info text-white fw-bold">TAMBAH PENGALAMAN</div>
-                <div class="card-body">
-                    <form method="POST">
-                        <div class="row g-2">
-                            <div class="col-md-2 form-floating"><input type="text" name="year" class="form-control" placeholder="Year"><label>Tahun</label></div>
-                            <div class="col-md-4 form-floating"><input type="text" name="role" class="form-control" placeholder="Role"><label>Role</label></div>
-                            <div class="col-md-6 form-floating"><input type="text" name="company" class="form-control" placeholder="Comp"><label>Perusahaan</label></div>
-                            <div class="col-12 form-floating"><textarea name="description" class="form-control" style="height:80px" placeholder="Desc"></textarea><label>Deskripsi</label></div>
-                            <div class="col-12"><button type="submit" name="add_timeline" class="btn btn-info text-white w-100 fw-bold">SIMPAN</button></div>
+            <div class="row">
+                <div class="col-md-5">
+                    <div class="card mb-4 border-info border-2">
+                        <div class="card-header bg-info text-white fw-bold">TAMBAH PENGALAMAN</div>
+                        <div class="card-body">
+                            <form method="POST" enctype="multipart/form-data">
+                                <div class="row g-2">
+                                    <div class="col-md-8 form-floating">
+                                        <input type="text" name="year" class="form-control" placeholder="Year" required>
+                                        <label>Teks Tahun (Cth: March 2022 - Now)</label>
+                                    </div>
+                                    <div class="col-md-4 form-floating">
+                                        <input type="date" name="sort_date" class="form-control" required>
+                                        <label>Tgl Mulai (Utk Urutan)</label>
+                                    </div>
+                                    
+                                    <div class="col-12 form-floating"><input type="text" name="role" class="form-control" placeholder="Role" required><label>Jabatan / Role</label></div>
+                                    <div class="col-12 form-floating"><input type="text" name="company" class="form-control" placeholder="Comp" required><label>Perusahaan</label></div>
+                                    
+                                    <div class="col-12">
+                                        <label class="small text-muted fw-bold mb-1">Deskripsi Pekerjaan</label>
+                                        <textarea id="summernote" name="description" class="form-control" required></textarea>
+                                    </div>
+
+                                    <div class="col-12 mt-3">
+                                        <label class="small fw-bold text-muted mb-1">Kartun Popup (Opsional)</label>
+                                        <input type="file" name="image" class="form-control form-control-sm">
+                                        <small style="font-size:10px" class="text-danger">*Sistem akan otomatis cari gambar di PT ini.</small>
+                                    </div>
+
+                                    <div class="col-12 mt-2"><button type="submit" name="add_timeline" class="btn btn-info text-white w-100 fw-bold">SIMPAN</button></div>
+                                </div>
+                            </form>
                         </div>
-                    </form>
+                    </div>
                 </div>
-            </div>
-            <div class="card">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="table-dark"><tr><th>Tahun</th><th>Role</th><th>Aksi</th></tr></thead>
-                    <tbody>
-                        <?php $qtime = mysqli_query($conn, "SELECT * FROM timeline ORDER BY id DESC"); while($tm = mysqli_fetch_assoc($qtime)): ?>
-                        <tr>
-                            <td><span class="badge bg-secondary"><?=$tm['year']?></span></td>
-                            <td><b><?=$tm['role']?></b><br><small class="text-muted"><?=$tm['company']?></small></td>
-                            <td>
-                                <a href="edit_timeline.php?id=<?=$tm['id']?>" class="btn btn-sm btn-warning"><i class="bi bi-pencil"></i></a>
-                                <a href="admin.php?hapus_time=<?=$tm['id']?>" class="btn btn-sm btn-danger"><i class="bi bi-trash"></i></a>
-                            </td>
-                        </tr>
-                        <?php endwhile; ?>
-                    </tbody>
-                </table>
+                <div class="col-md-7">
+                    <div class="card">
+                        <div class="card-header bg-white fw-bold">RIWAYAT KARIR</div>
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-dark"><tr><th>Info</th><th>Kartun</th><th>Aksi</th></tr></thead>
+                                <tbody>
+                                    <?php $qtime = mysqli_query($conn, "SELECT * FROM timeline ORDER BY id DESC"); while($tm = mysqli_fetch_assoc($qtime)): ?>
+                                    <tr>
+                                        <td>
+                                            <span class="badge bg-secondary mb-1"><?=$tm['year']?></span><br>
+                                            <b><?=$tm['role']?></b><br>
+                                            <small class="text-muted"><?=$tm['company']?></small>
+                                        </td>
+                                        <td>
+                                            <?php if(!empty($tm['image'])): ?>
+                                                <img src="./assets/img/<?=$tm['image']?>" width="40" class="rounded border">
+                                            <?php else: ?>
+                                                <span class="badge bg-light text-muted border">-</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <a href="edit_timeline.php?id=<?=$tm['id']?>" class="btn btn-sm btn-warning"><i class="bi bi-pencil"></i></a>
+                                            <a href="admin.php?hapus_time=<?=$tm['id']?>" class="btn btn-sm btn-danger"><i class="bi bi-trash"></i></a>
+                                        </td>
+                                    </tr>
+                                    <?php endwhile; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -516,7 +595,32 @@ $p = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM profile WHERE id=1"))
     </div>
 </div>
 
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.js"></script>
+
+<script>
+    // 🔥 INISIALISASI SUMMERNOTE
+    $('#summernote').summernote({
+        placeholder: 'Ketik deskripsi di sini...',
+        tabsize: 2,
+        height: 150,
+        toolbar: [
+            ['style', ['bold', 'italic', 'underline', 'clear']],
+            ['para', ['ul', 'ol', 'paragraph']], // Tombol Bullet Point (UL) ada di sini
+            ['insert', ['link']],
+            ['view', ['codeview']]
+        ]
+    });
+
+    // Tab Persistence Logic
+    const urlParams = new URLSearchParams(window.location.search);
+    const tab = urlParams.get('tab');
+    if(tab){
+        const tabBtn = document.querySelector(`[data-bs-target="#${tab}"]`);
+        if(tabBtn) { const t = new bootstrap.Tab(tabBtn); t.show(); }
+    }
+</script>
 
 <?php if(isset($_SESSION['flash_msg'])): ?>
 <script>
@@ -534,14 +638,5 @@ unset($_SESSION['flash_type']);
 endif; 
 ?>
 
-<script>
-    // Tab Persistence Logic
-    const urlParams = new URLSearchParams(window.location.search);
-    const tab = urlParams.get('tab');
-    if(tab){
-        const tabBtn = document.querySelector(`[data-bs-target="#${tab}"]`);
-        if(tabBtn) { const t = new bootstrap.Tab(tabBtn); t.show(); }
-    }
-</script>
 </body>
 </html>

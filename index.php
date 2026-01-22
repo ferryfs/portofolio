@@ -1,6 +1,6 @@
 <?php 
 // ==========================================
-// 🛡️ 1. SECURITY HEADERS
+// 🛡️ 1. SECURITY HEADERS (AMAN)
 // ==========================================
 error_reporting(E_ALL); 
 ini_set('display_errors', 0);
@@ -37,10 +37,8 @@ $txt = [
     'stat_hiring' => $is_en ? "Available" : "Available",
     'btn_port' => $is_en ? "View Portfolio" : "Lihat Portfolio",
     'btn_cv' => $is_en ? "Download CV" : "Unduh CV",
-    
     'sect_skills_label' => $is_en ? "Core Competencies" : "Kompetensi Utama", 
     'sect_skills' => $is_en ? "Technical Arsenal" : "Keahlian Teknis",
-    
     'sect_about' => $is_en ? "About Me" : "Tentang Saya",
     'sect_proj' => $is_en ? "Selected Works" : "Proyek Pilihan",
     'sect_contact_1' => $is_en ? "Ready to" : "Siap Membangun",
@@ -57,14 +55,23 @@ $query = mysqli_query($conn, "SELECT * FROM profile WHERE id=1");
 if ($query && mysqli_num_rows($query) > 0) {
     $p = mysqli_fetch_assoc($query);
 } else {
-    $p = ['hero_title'=>'System Analyst','hero_title_en'=>'System Analyst','hero_desc'=>'Please configure CMS.','profile_pic'=>'','cv_link'=>'#'];
+    $p = [
+        'hero_title'=>'System Analyst',
+        'hero_title_en'=>'System Analyst',
+        'hero_desc'=>'Please configure CMS.',
+        'profile_pic'=>'',
+        'cv_link'=>'#',
+        'about_title' => 'Analyst & Leader.',
+        'about_title_en' => 'Analyst & Leader.'
+    ];
 }
 
 $hero_title_raw = $is_en ? $p['hero_title_en'] : $p['hero_title'];
 $hero_title = str_replace('| ', '| <br class="hidden md:block">', $hero_title_raw);
 $hero_desc  = $is_en ? $p['hero_desc_en'] : $p['hero_desc'];
-$about_title = $is_en ? $p['about_title_en'] : $p['about_title'];
-$about_text  = $is_en ? $p['about_text_en'] : $p['about_text'];
+
+// 🔥 FIX: ABOUT TITLE AMBIL DARI DB (INDO/INGGRIS)
+$about_title = $is_en ? ($p['about_title_en'] ?? $p['about_title']) : $p['about_title'];
 
 $bt1 = $p['bento_title_1']; $bd1 = $is_en ? $p['bento_desc_1_en'] : $p['bento_desc_1'];
 $bt2 = $p['bento_title_2']; $bd2 = $is_en ? $p['bento_desc_2_en'] : $p['bento_desc_2'];
@@ -72,6 +79,9 @@ $bt3 = $p['bento_title_3']; $bd3 = $is_en ? $p['bento_desc_3_en'] : $p['bento_de
 
 $foto_profile = !empty($p['profile_pic']) && file_exists("assets/img/".$p['profile_pic']) ? "assets/img/".$p['profile_pic'] : "https://via.placeholder.com/600x750?text=No+Image";
 $cv_url = (!empty($p['cv_link']) && strpos($p['cv_link'], 'http') !== false) ? $p['cv_link'] : "assets/doc/" . ($p['cv_link'] ?? '#');
+
+// SETUP GAMBAR POPUP DEFAULT (Jika di DB kosong)
+$default_popup_img = "https://cdni.iconscout.com/illustration/premium/thumb/businessman-showing-thumbs-up-sign-2761821-2299873.png";
 ?>
 
 <!DOCTYPE html>
@@ -148,7 +158,6 @@ $cv_url = (!empty($p['cv_link']) && strpos($p['cv_link'], 'http') !== false) ? $
         <div class="absolute top-0 right-0 w-[600px] h-[600px] bg-blue-50 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/3 pointer-events-none opacity-70"></div>
         <div class="max-w-7xl mx-auto px-6 w-full relative z-10">
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
-                
                 <div data-aos="fade-right" data-aos-duration="1000" class="-mt-20 lg:-mt-32">
                     <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white border border-gray-200 shadow-sm text-secondary text-[10px] font-bold uppercase tracking-widest mb-6">
                         <span class="relative flex h-2 w-2">
@@ -157,12 +166,11 @@ $cv_url = (!empty($p['cv_link']) && strpos($p['cv_link'], 'http') !== false) ? $
                         </span>
                         <?php echo $txt['status_avail']; ?>
                     </div>
-                    
                     <div class="mb-6">
                         <h2 class="text-2xl md:text-3xl font-bold mb-4"> <span class="text-accent"><?php echo $txt['greeting_pre']; ?></span> <span class="text-primary">Ferry Fernando</span>,</h2>
                         <h1 class="text-5xl md:text-7xl font-black leading-[1.1] text-primary tracking-tight"><?php echo $hero_title; ?></h1>
                     </div>
-
+                    
                     <div class="relative w-full max-w-sm mx-auto my-10 lg:hidden flex justify-center" data-aos="fade-up">
                         <div class="relative w-full z-10">
                             <div class="rounded-[2.5rem] overflow-hidden shadow-2xl rotate-2 border-[6px] border-white bg-white">
@@ -188,13 +196,12 @@ $cv_url = (!empty($p['cv_link']) && strpos($p['cv_link'], 'http') !== false) ? $
                     <div class="flex gap-6 mb-10 border-l-4 border-accent pl-6">
                         <p class="text-lg text-gray-600 leading-relaxed max-w-lg font-medium"><?php echo $hero_desc; ?></p>
                     </div>
-
                     <div class="flex flex-wrap gap-4">
                         <a href="#projects" class="bg-primary text-white px-8 py-3.5 rounded-full font-bold text-sm hover:bg-accent transition shadow-lg hover:shadow-glow hover:-translate-y-1"><?php echo $txt['btn_port']; ?></a>
                         <a href="<?php echo $cv_url; ?>" target="_blank" class="bg-white text-primary border border-gray-200 px-8 py-3.5 rounded-full font-bold text-sm hover:bg-gray-50 transition shadow-sm hover:-translate-y-1"><?php echo $txt['btn_cv']; ?></a>
                     </div>
                 </div>
-
+                
                 <div class="relative hidden lg:flex justify-end" data-aos="fade-left" data-aos-duration="1200">
                     <div class="relative w-full max-w-md z-10">
                         <div class="rounded-[3rem] overflow-hidden shadow-2xl rotate-2 hover:rotate-0 transition duration-700 ease-out border-[8px] border-white bg-white">
@@ -217,12 +224,11 @@ $cv_url = (!empty($p['cv_link']) && strpos($p['cv_link'], 'http') !== false) ? $
                     </div>
                     <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[110%] h-[110%] border border-dashed border-gray-300 rounded-full -z-10 animate-[spin_30s_linear_infinite] opacity-50"></div>
                 </div>
-
             </div>
         </div>
     </section>
 
-    <section id="skills" class="pt-0 pb-20 md:pt-10 md:pb-24 max-w-7xl mx-auto px-4" data-aos="fade-up">
+    <section id="skills" class="pt-0 pb-8 md:pt-10 md:pb-16 max-w-7xl mx-auto px-4" data-aos="fade-up">
         <div class="island-box">
             <div class="text-center mb-16">
                 <span class="text-accent font-bold tracking-widest text-xs uppercase mb-2 block"><?php echo $txt['sect_skills_label']; ?></span>
@@ -281,73 +287,69 @@ $cv_url = (!empty($p['cv_link']) && strpos($p['cv_link'], 'http') !== false) ? $
         </div>
     </section>
 
-    <section id="about" class="py-24 max-w-7xl mx-auto px-6">
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
-            
-            <div class="lg:col-span-5 sticky top-24 h-fit" data-aos="fade-right">
-                <span class="text-accent font-bold tracking-widest text-xs uppercase mb-4 block"><?php echo $txt['sect_about']; ?></span>
-                <h2 class="text-4xl md:text-5xl font-black text-primary leading-tight mb-8"><?php echo $about_title; ?></h2>
-                
-                <div class="cursor-zoom-in" onclick="openImageModal('assets/img/<?php echo $p['about_img_1']; ?>')">
-                    <img src="assets/img/<?php echo $p['about_img_1']; ?>" class="w-full rounded-[2rem] shadow-2xl rotate-[-1deg] hover:rotate-0 transition duration-500 border-4 border-white mb-6 bg-gray-200 hover:shadow-glow">
-                </div>
+    <section id="about" class="pt-8 pb-24 md:pt-16 md:pb-32 max-w-7xl mx-auto px-6">
+        <div class="text-center mb-12" data-aos="fade-up">
+            <span class="text-accent font-bold tracking-widest text-xs uppercase mb-4 block"><?php echo $txt['sect_about']; ?></span>
+            <h2 class="text-4xl md:text-5xl font-black text-primary leading-tight"><?php echo $about_title; ?></h2>
+        </div>
 
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="cursor-zoom-in" onclick="openImageModal('assets/img/<?php echo $p['about_img_2']; ?>')">
-                        <img src="assets/img/<?php echo $p['about_img_2']; ?>" class="rounded-2xl shadow-md border-2 border-white hover:scale-105 transition bg-gray-200 w-full h-32 object-cover">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch lg:h-[600px]">
+            
+            <div class="flex flex-col gap-4 lg:h-[600px]" data-aos="fade-right">
+                <div class="h-[65%] cursor-zoom-in relative group overflow-hidden rounded-[2rem] border-4 border-white bg-gray-200 shadow-sm" onclick="openImageModal('assets/img/<?php echo $p['about_img_1']; ?>')">
+                    <img src="assets/img/<?php echo $p['about_img_1']; ?>" class="w-full h-full object-cover group-hover:scale-105 transition duration-700">
+                </div>
+                <div class="h-[35%] grid grid-cols-2 gap-4">
+                    <div class="cursor-zoom-in rounded-2xl overflow-hidden shadow-sm" onclick="openImageModal('assets/img/<?php echo $p['about_img_2']; ?>')">
+                        <img src="assets/img/<?php echo $p['about_img_2']; ?>" class="w-full h-full object-cover hover:scale-105 transition duration-500 bg-gray-200">
                     </div>
-                    <div class="cursor-zoom-in" onclick="openImageModal('assets/img/<?php echo $p['about_img_3']; ?>')">
-                        <img src="assets/img/<?php echo $p['about_img_3']; ?>" class="rounded-2xl shadow-md border-2 border-white hover:scale-105 transition bg-gray-200 w-full h-32 object-cover">
+                    <div class="cursor-zoom-in rounded-2xl overflow-hidden shadow-sm" onclick="openImageModal('assets/img/<?php echo $p['about_img_3']; ?>')">
+                        <img src="assets/img/<?php echo $p['about_img_3']; ?>" class="w-full h-full object-cover hover:scale-105 transition duration-500 bg-gray-200">
                     </div>
                 </div>
             </div>
 
-            <div class="lg:col-span-7" data-aos="fade-left">
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-8 border-l-4 border-accent">
-                    <h3 class="text-2xl font-bold text-gray-700 leading-relaxed">
-                        <?php echo $about_text; ?>
-                    </h3>
-                </div>
+            <div class="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-glass border border-white/60 relative flex flex-col lg:h-[600px]" data-aos="fade-left">
                 
-                <div class="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-glass border border-white/60 relative overflow-hidden">
-                    <h4 class="text-xl font-black mb-8 flex items-center gap-3">
+                <div class="flex-none pb-4 border-b border-gray-100">
+                    <h4 class="text-xl font-black flex items-center gap-3">
                         <div class="p-2 bg-blue-50 text-accent rounded-lg"><i class="bi bi-briefcase-fill"></i></div> 
                         <?php echo $txt['career_title']; ?>
                     </h4>
+                </div>
 
-                    <div class="max-h-[500px] overflow-y-auto custom-scroll pr-2">
-                        <div class="flex-1 w-full grid grid-cols-1 gap-4">
-                            <?php 
-                            $careers = [];
-                            $q_time = mysqli_query($conn, "SELECT * FROM timeline ORDER BY id DESC"); 
-                            while($row = mysqli_fetch_assoc($q_time)) {
-                                $careers[$row['company']][] = $row; 
-                            }
+                <div class="flex-1 overflow-y-auto custom-scroll pr-2 mt-4">
+                    <div class="grid grid-cols-1 gap-4">
+                        <?php 
+                        $careers = [];
+                        $q_time = mysqli_query($conn, "SELECT * FROM timeline ORDER BY sort_date DESC"); 
+                        while($row = mysqli_fetch_assoc($q_time)) {
+                            $careers[$row['company']][] = $row; 
+                        }
 
-                            $jsCareerData = [];
-                            foreach($careers as $company => $roles) {
-                                $jsCareerData[$company] = $roles;
-                            ?>
+                        $jsCareerData = [];
+                        foreach($careers as $company => $roles) {
+                            $jsCareerData[$company] = $roles;
+                        ?>
+                        
+                        <div class="group bg-gray-50 hover:bg-white hover:shadow-xl border border-gray-100 rounded-2xl p-5 cursor-pointer transition-all duration-300 transform hover:-translate-y-1 hover:border-accent/30" 
+                             onclick="openCareerModal('<?php echo clean($company); ?>')">
                             
-                            <div class="group bg-gray-50 hover:bg-white hover:shadow-xl border border-gray-100 rounded-2xl p-5 cursor-pointer transition-all duration-300 transform hover:-translate-y-1 hover:border-accent/30" 
-                                 onclick="openCareerModal('<?php echo clean($company); ?>')">
-                                
-                                <div class="flex justify-between items-center mb-2">
-                                    <div class="text-xs font-bold bg-accent/10 text-accent px-3 py-1 rounded-full uppercase tracking-wider">
-                                        <?php echo $roles[0]['year']; ?>
-                                    </div>
-                                    <i class="bi bi-arrow-right-circle-fill text-gray-300 group-hover:text-accent text-2xl transition"></i>
+                            <div class="flex justify-between items-center mb-2">
+                                <div class="text-xs font-bold bg-accent/10 text-accent px-3 py-1 rounded-full uppercase tracking-wider">
+                                    <?php echo $roles[0]['year']; ?>
                                 </div>
-                                
-                                <h5 class="text-lg font-black text-primary mb-1"><?php echo $company; ?></h5>
-                                <p class="text-sm text-gray-500 font-medium mb-4 line-clamp-1"><?php echo $roles[0]['role']; ?></p>
-                                
-                                <span class="text-xs font-bold text-accent border-b border-accent/20 group-hover:border-accent pb-0.5 transition">
-                                    <?php echo $txt['read_more']; ?>
-                                </span>
+                                <i class="bi bi-arrow-right-circle-fill text-gray-300 group-hover:text-accent text-2xl transition"></i>
                             </div>
-                            <?php } ?>
+                            
+                            <h5 class="text-lg font-black text-primary mb-1"><?php echo $company; ?></h5>
+                            <p class="text-sm text-gray-500 font-medium mb-4 line-clamp-1"><?php echo $roles[0]['role']; ?></p>
+                            
+                            <span class="text-xs font-bold text-accent border-b border-accent/20 group-hover:border-accent pb-0.5 transition">
+                                <?php echo $txt['read_more']; ?>
+                            </span>
                         </div>
+                        <?php } ?>
                     </div>
                 </div>
             </div>
@@ -402,15 +404,14 @@ $cv_url = (!empty($p['cv_link']) && strpos($p['cv_link'], 'http') !== false) ? $
         &copy; <?php echo date('Y'); ?> Ferry Fernando. <?php echo $txt['footer']; ?>
     </footer>
 
-    <div class="fixed bottom-8 right-8 z-[9999] flex flex-col items-end">
+    <div class="fixed bottom-8 right-8 z-40 flex flex-col items-end">
         <div class="bg-white py-2 px-4 rounded-xl shadow-lg mb-2 animate-bounce text-sm font-bold text-accent hidden md:block">
             <?php echo $txt['chatbot_invite']; ?> 👇
         </div>
         <button onclick="toggleChatbot()" class="bg-accent text-white p-4 rounded-full shadow-2xl hover:bg-primary transition hover:scale-110 flex items-center justify-center w-16 h-16 relative z-20">
             <i class="bi bi-robot text-3xl"></i>
         </button>
-        
-        <div id="chatbotFrame" class="hidden fixed bottom-24 right-4 md:right-8 w-[90%] md:w-[350px] h-[500px] max-h-[80vh] bg-white rounded-3xl shadow-2xl border border-gray-200 overflow-hidden z-[9999] animate-fadeInUp origin-bottom-right flex flex-col">
+        <div id="chatbotFrame" class="hidden fixed bottom-24 right-4 md:right-8 w-[90%] md:w-[350px] h-[500px] max-h-[80vh] bg-white rounded-3xl shadow-2xl border border-gray-200 overflow-hidden z-50 animate-fadeInUp origin-bottom-right flex flex-col">
             <div class="bg-gray-50 p-3 flex justify-between items-center border-b flex-none">
                 <span class="font-bold text-sm">Ferry AI Assistant</span>
                 <button onclick="toggleChatbot()" class="text-gray-400 hover:text-gray-600"><i class="bi bi-x-lg"></i></button>
@@ -449,10 +450,10 @@ $cv_url = (!empty($p['cv_link']) && strpos($p['cv_link'], 'http') !== false) ? $
     <div id="careerModal" class="fixed inset-0 z-[100] hidden">
         <div class="absolute inset-0 bg-primary/80 backdrop-blur-sm transition-opacity" onclick="closeCareerModal()"></div>
         <div class="relative min-h-screen flex items-center justify-center p-4">
-            <div class="bg-white w-full max-w-5xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-[fadeInUp_0.3s_ease-out] relative max-h-[85vh] flex flex-col md:flex-row">
+            <div class="bg-white w-full max-w-5xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-[fadeInUp_0.3s_ease-out] relative h-[80vh] flex flex-col md:flex-row">
                 
                 <div class="w-full md:w-1/3 bg-blue-50 flex items-center justify-center p-8 border-b md:border-b-0 md:border-r border-gray-100 relative">
-                    <img src="https://cdni.iconscout.com/illustration/premium/thumb/businessman-showing-thumbs-up-sign-2761821-2299873.png" class="w-48 md:w-full drop-shadow-xl animate-[bounce_4s_infinite]">
+                    <img id="careerCartoon" src="" class="w-48 md:w-full drop-shadow-xl animate-[bounce_4s_infinite]">
                     <div class="absolute bottom-4 text-center w-full text-xs text-gray-400 font-bold uppercase tracking-widest opacity-50">Career Highlights</div>
                 </div>
 
@@ -462,7 +463,7 @@ $cv_url = (!empty($p['cv_link']) && strpos($p['cv_link'], 'http') !== false) ? $
                         <button onclick="closeCareerModal()" class="bg-gray-100 hover:bg-red-50 hover:text-red-500 w-10 h-10 rounded-full flex items-center justify-center transition"><i class="bi bi-x-lg"></i></button>
                     </div>
                     
-                    <div class="flex-1 min-h-0 overflow-y-auto custom-scroll">
+                    <div class="flex-1 overflow-y-auto custom-scroll">
                         <div id="careerContent" class="p-8">
                             </div>
                     </div>
@@ -473,6 +474,8 @@ $cv_url = (!empty($p['cv_link']) && strpos($p['cv_link'], 'http') !== false) ? $
 
     <script>
         const careerData = <?php echo json_encode($jsCareerData); ?>;
+        // Default image jika di DB kosong
+        const defaultCartoon = "<?php echo $default_popup_img; ?>";
     </script>
 
     <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
@@ -507,18 +510,29 @@ $cv_url = (!empty($p['cv_link']) && strpos($p['cv_link'], 'http') !== false) ? $
             document.getElementById('careerCompany').innerText = company;
             
             const roles = careerData[company];
-            let html = '';
-
-            if(roles.length > 1) {
-                html += '<div class="grid grid-cols-1 gap-6">';
-            } else {
-                html += '<div>';
+            
+            // 🔥 LOGIKA BARU: LOOPING CARI GAMBAR
+            // Kita cari di SEMUA role dalam PT tersebut.
+            // Begitu nemu satu gambar, langsung pake itu.
+            let foundImg = defaultCartoon;
+            
+            for (let i = 0; i < roles.length; i++) {
+                // Cek apakah kolom image ada isinya dan tidak null
+                if (roles[i].image && roles[i].image.trim() !== "") {
+                    foundImg = 'assets/img/' + roles[i].image;
+                    break; // Berhenti mencari kalau udah nemu
+                }
             }
+            
+            // Pasang gambarnya
+            document.getElementById('careerCartoon').src = foundImg;
+
+            // ... (Kode render HTML list jabatan di bawahnya tetep sama) ...
+            let html = '';
+            if(roles.length > 1) { html += '<div class="grid grid-cols-1 gap-6">'; } 
+            else { html += '<div>'; }
 
             roles.forEach(role => {
-                let descClean = role.description.replace(/(<([^>]+)>)/gi, "").trim();
-                let points = descClean.split('. ').filter(p => p.length > 3).map(p => `<li class="mb-2 pl-2 border-l-2 border-accent/30 flex items-start"><i class="bi bi-check2 text-accent mr-2 mt-1"></i> <span>${p}.</span></li>`).join('');
-
                 html += `
                     <div class="bg-gray-50 rounded-2xl p-6 border border-gray-100 hover:border-accent/30 transition shadow-sm hover:shadow-md">
                         <div class="flex justify-between items-start mb-4 border-b border-gray-200 pb-3">
@@ -526,15 +540,15 @@ $cv_url = (!empty($p['cv_link']) && strpos($p['cv_link'], 'http') !== false) ? $
                                 <h4 class="font-bold text-lg text-primary">${role.role}</h4>
                                 <div class="text-xs text-gray-500 font-bold uppercase tracking-wider mt-1">Full Time</div>
                             </div>
-                            <span class="text-xs font-bold bg-primary text-white px-3 py-1 rounded-full">${role.year}</span>
+                            <span class="text-xs font-bold bg-primary text-white px-3 py-1 rounded-full text-center h-fit">${role.year}</span>
                         </div>
-                        <ul class="text-sm text-gray-600 list-none ml-0 space-y-2">
-                            ${points || '<li>' + descClean + '</li>'}
-                        </ul>
+                        <div class="text-sm text-gray-600 leading-relaxed space-y-2 prose prose-sm max-w-none">
+                            <style>.db-desc ul { padding-left: 1.2rem; list-style-type: disc; } .db-desc li { margin-bottom: 0.5rem; } .db-desc b, .db-desc strong { color: #2563EB; font-weight: 800; }</style>
+                            <div class="db-desc">${role.description}</div>
+                        </div>
                     </div>
                 `;
             });
-
             html += '</div>';
             
             document.getElementById('careerContent').innerHTML = html;
