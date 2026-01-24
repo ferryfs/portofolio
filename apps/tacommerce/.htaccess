@@ -1,13 +1,48 @@
-RewriteEngine On
+# ====================================================
+# 🛡️ 1. SECURITY UTAMA (WAJIB ADA)
+# ====================================================
 
-# 1. Mencegah orang liat isi folder (Listing directory)
-# Biar orang ga bisa liat daftar file kodingan lu
+# 🚫 MATIKAN FITUR NGINTIP FOLDER
+# Biar orang gak bisa liat daftar file kalo buka /assets/img/
 Options -Indexes
 
-# 2. Ilangin ekstensi .php (Pretty URL)
+# 🔒 BLOKIR AKSES LANGSUNG KE FILE RAHASIA
+# Orang gak boleh buka koneksi.php lewat browser (hanya boleh via include PHP)
+<FilesMatch "^(koneksi\.php|\.env|\.git)">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# 🛡️ TAMENG BROWSER (SECURITY HEADERS)
+<IfModule mod_headers.c>
+    # Anti-Clickjacking (Gak bisa di-iframe web lain)
+    Header set X-Frame-Options "SAMEORIGIN"
+    # Anti-MIME Sniffing (Browser gak boleh nebak-nebak file)
+    Header set X-Content-Type-Options "nosniff"
+    # Anti-XSS (Untuk browser lama)
+    Header set X-XSS-Protection "1; mode=block"
+</IfModule>
+
+# ====================================================
+# 🚀 2. URL REWRITE & SYSTEM (PUNYA LU + FIX)
+# ====================================================
+RewriteEngine On
+
+# ⚠️ PAKSA HTTPS (Hanya Nyalakan pas udah ONLINE / Hosting)
+# Kalau di XAMPP bikin error, kasih tanda pagar (#) di 2 baris bawah ini:
+# RewriteCond %{HTTPS} off
+# RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# PENGECUALIAN FOLDER /apps/ (Biar API Chatbot aman)
+RewriteCond %{REQUEST_URI} !^/apps/
+
+# PRETTY URL (Hapus .php)
+# Cek apakah bukan folder
 RewriteCond %{REQUEST_FILENAME} !-d
+# Cek apakah file .php nya ada
 RewriteCond %{REQUEST_FILENAME}.php -f
+# Ubah URL
 RewriteRule ^(.*)$ $1.php [L]
 
-# 3. Paksa file index.php jadi default kalau folder dibuka
-DirectoryIndex index.php
+# 3. Custom Error Page
+ErrorDocument 404 /index.php

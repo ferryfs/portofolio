@@ -1,36 +1,64 @@
 <?php
 session_start();
-if (!isset($_SESSION['status']) || $_SESSION['status'] != "login") { header("Location: login.php"); exit(); }
+// Security Check
+if (!isset($_SESSION['status']) || $_SESSION['status'] != "login") { 
+    header("Location: login.php"); 
+    exit(); 
+}
 include 'koneksi.php'; 
 
 $id = $_GET['id'];
 $d = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM timeline WHERE id='$id'"));
 
+// ==========================================
+// 🛡️ HELPER FUNCTIONS
+// ==========================================
 function setFlash($msg, $type='success') {
     $_SESSION['flash_msg'] = $msg;
     $_SESSION['flash_type'] = $type;
 }
 
+function purify($text) {
+    // Izinkan tag HTML dasar untuk Summernote
+    return strip_tags($text, '<ul><ol><li><b><strong><i><em><u><br><p>');
+}
+
+function clearCache($file) {
+    $path = "cache/" . $file . ".json";
+    if (file_exists($path)) unlink($path);
+}
+
+// ==========================================
+// 🟢 LOGIC UPDATE
+// ==========================================
 if(isset($_POST['update'])){
     $year = mysqli_real_escape_string($conn, $_POST['year']);
-    $s_date = mysqli_real_escape_string($conn, $_POST['sort_date']); // 🔥 Tanggal Sortir
+    $s_date = mysqli_real_escape_string($conn, $_POST['sort_date']); 
     $role = mysqli_real_escape_string($conn, $_POST['role']);
     $comp = mysqli_real_escape_string($conn, $_POST['company']);
-    $desc = mysqli_real_escape_string($conn, $_POST['description']);
+    
+    // Security Sanitize
+    $desc = mysqli_real_escape_string($conn, purify($_POST['description']));
     
     $img_sql = ""; 
     if(!empty($_FILES['image']['name'])) {
         $img_name = "cartoon_" . time() . ".png";
-        if(!empty($d['image']) && file_exists('assets/img/'.$d['image'])) unlink('assets/img/'.$d['image']);
+        
+        // Hapus yang lama (Path Root)
+        if(!empty($d['image']) && file_exists('assets/img/'.$d['image'])) {
+            unlink('assets/img/'.$d['image']);
+        }
+        
+        // Upload ke folder (Path Root)
         move_uploaded_file($_FILES['image']['tmp_name'], 'assets/img/' . $img_name);
         $img_sql = ", image='$img_name'";
     }
 
-    // Update Query
     $query = "UPDATE timeline SET year='$year', sort_date='$s_date', role='$role', company='$comp', description='$desc' $img_sql WHERE id='$id'";
     
     if(mysqli_query($conn, $query)) {
         setFlash('Timeline Berhasil Diupdate!');
+        clearCache('timeline'); // 🧹 BERSIHKAN CACHE
     } else {
         setFlash('Gagal: '.mysqli_error($conn), 'error');
     }
@@ -49,9 +77,9 @@ if(isset($_POST['update'])){
 <body class="p-4">
     <div class="container">
         <div class="card col-md-8 mx-auto shadow border-0 rounded-4">
-            <div class="card-header bg-info text-white fw-bold p-3 d-flex justify-content-between">
+            <div class="card-header bg-info text-white fw-bold p-3 d-flex justify-content-between align-items-center">
                 <span>✏️ Edit Career Journey</span>
-                <a href="admin.php?tab=time-pane" class="btn btn-sm btn-light text-info fw-bold">Kembali</a>
+                <a href="admin" class="btn btn-sm btn-light text-info fw-bold">Kembali</a>
             </div>
             <div class="card-body p-4">
                 <form method="POST" enctype="multipart/form-data">
@@ -72,10 +100,12 @@ if(isset($_POST['update'])){
                             <label class="fw-bold small text-muted">Role / Posisi</label>
                             <input type="text" name="role" class="form-control" value="<?=$d['role']?>" required>
                         </div>
+                        
                         <div class="col-12 mb-4">
                             <label class="fw-bold small text-muted mb-1">Deskripsi</label>
                             <textarea id="summernote" name="description" required><?=$d['description']?></textarea>
                         </div>
+
                         <div class="col-12 mb-4">
                             <label class="fw-bold small text-muted">Update Kartun Popup</label>
                             <div class="d-flex align-items-center gap-3 mt-1">
@@ -86,7 +116,9 @@ if(isset($_POST['update'])){
                                 <?php endif; ?>
                                 <input type="file" name="image" class="form-control">
                             </div>
+                            <small class="text-muted" style="font-size:11px">*Biarkan kosong jika tidak ingin mengubah gambar</small>
                         </div>
+
                         <div class="col-12">
                             <button type="submit" name="update" class="btn btn-info text-white w-100 fw-bold py-2">UPDATE DATA</button>
                         </div>
@@ -96,7 +128,20 @@ if(isset($_POST['update'])){
         </div>
     </div>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.js"></script>
-    <script>$('#summernote').summernote({ tabsize: 2, height: 200 });</script>
+    <script>
+        $('#summernote').summernote({
+            placeholder: 'Tulis deskripsi...',
+            tabsize: 2,
+            height: 200,
+            toolbar: [
+                ['style', ['bold', 'italic', 'underline', 'clear']],
+                ['para', ['ul', 'ol', 'paragraph']],
+                ['insert', ['link']],
+                ['view', ['codeview']]
+            ]
+        });
+    </script>
 </body>
 </html>

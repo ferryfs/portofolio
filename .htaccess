@@ -1,27 +1,48 @@
+# ====================================================
+# 🛡️ 1. SECURITY UTAMA (WAJIB ADA)
+# ====================================================
+
+# 🚫 MATIKAN FITUR NGINTIP FOLDER
+# Biar orang gak bisa liat daftar file kalo buka /assets/img/
+Options -Indexes
+
+# 🔒 BLOKIR AKSES LANGSUNG KE FILE RAHASIA
+# Orang gak boleh buka koneksi.php lewat browser (hanya boleh via include PHP)
+<FilesMatch "^(koneksi\.php|\.env|\.git)">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# 🛡️ TAMENG BROWSER (SECURITY HEADERS)
+<IfModule mod_headers.c>
+    # Anti-Clickjacking (Gak bisa di-iframe web lain)
+    Header set X-Frame-Options "SAMEORIGIN"
+    # Anti-MIME Sniffing (Browser gak boleh nebak-nebak file)
+    Header set X-Content-Type-Options "nosniff"
+    # Anti-XSS (Untuk browser lama)
+    Header set X-XSS-Protection "1; mode=block"
+</IfModule>
+
+# ====================================================
+# 🚀 2. URL REWRITE & SYSTEM (PUNYA LU + FIX)
+# ====================================================
 RewriteEngine On
 
-# 1. Paksa HTTPS (Biar aman & gembok hijau)
-RewriteCond %{HTTPS} off
-RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+# ⚠️ PAKSA HTTPS (Hanya Nyalakan pas udah ONLINE / Hosting)
+# Kalau di XAMPP bikin error, kasih tanda pagar (#) di 2 baris bawah ini:
+# RewriteCond %{HTTPS} off
+# RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
-# ====================================================
-# EXCEPTION (PENGECUALIAN)
-# ====================================================
-
-# JANGAN Terapkan aturan di bawah ini untuk folder /apps/
-# Biarkan folder /apps/ diatur oleh dirinya sendiri
+# PENGECUALIAN FOLDER /apps/ (Biar API Chatbot aman)
 RewriteCond %{REQUEST_URI} !^/apps/
 
-# ====================================================
 # PRETTY URL (Hapus .php)
-# Hanya berlaku untuk Portfolio & Admin Utama
-# ====================================================
-
-# Cek apakah file .php nya ada?
+# Cek apakah bukan folder
 RewriteCond %{REQUEST_FILENAME} !-d
+# Cek apakah file .php nya ada
 RewriteCond %{REQUEST_FILENAME}.php -f
-# Kalau ada, ubah URL jadi tanpa ekstensi
+# Ubah URL
 RewriteRule ^(.*)$ $1.php [L]
 
-# 3. Custom Error Page (Biar ga muncul error default hosting jelek)
+# 3. Custom Error Page
 ErrorDocument 404 /index.php
