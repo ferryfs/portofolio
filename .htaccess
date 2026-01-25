@@ -3,45 +3,43 @@
 # ====================================================
 
 # 🚫 MATIKAN FITUR NGINTIP FOLDER
-# Biar orang gak bisa liat daftar file kalo buka /assets/img/
 Options -Indexes
 
-# 🔒 BLOKIR AKSES LANGSUNG KE FILE RAHASIA
-# Orang gak boleh buka koneksi.php lewat browser (hanya boleh via include PHP)
-<FilesMatch "^(koneksi\.php|\.env|\.git)">
+# 🔒 BLOKIR AKSES FILE SENSITIF & JSON CACHE
+# Ini gabungan biar .env, koneksi.php, git, dan file json di cache gak bisa dibuka
+<FilesMatch "^(koneksi\.php|\.env|\.git|composer\.lock|package\.lock)">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Blokir akses langsung ke file JSON (untuk folder cache)
+<FilesMatch "\.(json)$">
     Order allow,deny
     Deny from all
 </FilesMatch>
 
 # 🛡️ TAMENG BROWSER (SECURITY HEADERS)
 <IfModule mod_headers.c>
-    # Anti-Clickjacking (Gak bisa di-iframe web lain)
     Header set X-Frame-Options "SAMEORIGIN"
-    # Anti-MIME Sniffing (Browser gak boleh nebak-nebak file)
     Header set X-Content-Type-Options "nosniff"
-    # Anti-XSS (Untuk browser lama)
     Header set X-XSS-Protection "1; mode=block"
 </IfModule>
 
 # ====================================================
-# 🚀 2. URL REWRITE & SYSTEM (PUNYA LU + FIX)
+# 🚀 2. URL REWRITE & SYSTEM
 # ====================================================
 RewriteEngine On
 
-# ⚠️ PAKSA HTTPS (Hanya Nyalakan pas udah ONLINE / Hosting)
-# Kalau di XAMPP bikin error, kasih tanda pagar (#) di 2 baris bawah ini:
+# ⚠️ PAKSA HTTPS (Aktifkan nanti pas di Hosting)
 # RewriteCond %{HTTPS} off
 # RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
-# PENGECUALIAN FOLDER /apps/ (Biar API Chatbot aman)
+# PENGECUALIAN: Jangan rewrite folder /apps/ (biar apps lama jalan normal)
 RewriteCond %{REQUEST_URI} !^/apps/
 
-# PRETTY URL (Hapus .php)
-# Cek apakah bukan folder
+# PRETTY URL: Hapus ekstensi .php di URL
 RewriteCond %{REQUEST_FILENAME} !-d
-# Cek apakah file .php nya ada
 RewriteCond %{REQUEST_FILENAME}.php -f
-# Ubah URL
 RewriteRule ^(.*)$ $1.php [L]
 
 # 3. Custom Error Page
