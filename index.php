@@ -1,21 +1,18 @@
 <?php
-// Portfolio - Clean Architecture
-// 2025 Ferry Fernando
+// index.php - MAIN ROUTER (BERSIH)
 
-// 1. HEADER (Logic & Config ada di sini)
+// 1. HEADER (Wajib Paling Atas - Memuat Config & Data)
 include 'views/header.php';
 
 // 2. COMPONENTS
 include 'views/navbar.php';
 include 'views/hero.php';
-include 'views/skills.php';
 include 'views/about.php';
-include 'views/projects.php'; // PASTIKAN CUMA SATU BARIS INI
+include 'views/skills.php';
+include 'views/projects.php'; 
 include 'views/contact.php';
 
-// 3. MODALS
+// 3. FOOTER
 include 'views/modals.php';
-
-// 4. FOOTER (Scripts)
 include 'views/footer.php';
 ?>
