@@ -349,15 +349,15 @@ $p = $stmt->fetch(PDO::FETCH_ASSOC);
                                 <div class="row g-3">
                                     <div class="col-md-6 border-end">
                                         <h6 class="text-muted fw-bold">SECTION ABOUT</h6>
-                                        <div class="mb-2"><label class="small">Label Kecil (Tentang Saya)</label><input type="text" class="form-control form-control-sm" name="label_about" value="<?= htmlspecialchars($p['label_about']) ?>"></div>
-                                        <div class="mb-2"><label class="small">Label Kecil (EN)</label><input type="text" class="form-control form-control-sm" name="label_about_en" value="<?= htmlspecialchars($p['label_about_en']) ?>"></div>
+                                        <div class="mb-2"><label class="small">Label Kecil (Tentang Saya)</label><input type="text" class="form-control form-control-sm" name="tentang_saya" value="<?= htmlspecialchars($p['tentang_saya']) ?>"></div>
+                                        <div class="mb-2"><label class="small">Label Kecil (EN)</label><input type="text" class="form-control form-control-sm" name="tentang_saya_en" value="<?= htmlspecialchars($p['tentang_saya_en']) ?>"></div>
                                         <div class="mb-2"><label class="small">Judul Besar (ID)</label><input type="text" class="form-control form-control-sm" name="about_title" value="<?= htmlspecialchars($p['about_title']) ?>"></div>
                                         <div class="mb-2"><label class="small">Judul Besar (EN)</label><input type="text" class="form-control form-control-sm" name="about_title_en" value="<?= htmlspecialchars($p['about_title_en']) ?>"></div>
                                     </div>
                                     <div class="col-md-6">
                                         <h6 class="text-muted fw-bold">SECTION SKILLS</h6>
-                                        <div class="mb-2"><label class="small">Label Kecil (Kompetensi)</label><input type="text" class="form-control form-control-sm" name="label_skills" value="<?= htmlspecialchars($p['label_skills']) ?>"></div>
-                                        <div class="mb-2"><label class="small">Label Kecil (EN)</label><input type="text" class="form-control form-control-sm" name="label_skills_en" value="<?= htmlspecialchars($p['label_skills_en']) ?>"></div>
+                                        <div class="mb-2"><label class="small">Label Kecil (Kompetensi)</label><input type="text" class="form-control form-control-sm" name="skills" value="<?= htmlspecialchars($p['skills']) ?>"></div>
+                                        <div class="mb-2"><label class="small">Label Kecil (EN)</label><input type="text" class="form-control form-control-sm" name="skills_en" value="<?= htmlspecialchars($p['skills_en']) ?>"></div>
                                         <div class="mb-2"><label class="small">Judul Besar (Keahlian)</label><input type="text" class="form-control form-control-sm" name="title_skills" value="<?= htmlspecialchars($p['title_skills']) ?>"></div>
                                         <div class="mb-2"><label class="small">Judul Besar (EN)</label><input type="text" class="form-control form-control-sm" name="title_skills_en" value="<?= htmlspecialchars($p['title_skills_en']) ?>"></div>
                                     </div>

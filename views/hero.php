@@ -25,6 +25,25 @@
                         <div class="rounded-[2.5rem] overflow-hidden shadow-2xl rotate-2 border-[6px] border-white bg-white relative z-10">
                             <img src="<?php echo $foto_profile; ?>" alt="Profile" class="w-full h-auto object-cover" loading="lazy">
                         </div>
+                        
+                        <div class="absolute top-4 -right-2 flex flex-col gap-3 z-20 scale-90">
+                            
+                            <div class="w-16 h-16 bg-white rounded-full shadow-lg flex flex-col items-center justify-center border border-gray-100 animate-[bounce_3s_infinite] p-1">
+                                <span class="text-lg font-black text-primary leading-none mb-0.5"><?php echo $p['years_exp'] ?? 0; ?>+</span>
+                                <span class="text-[7px] font-bold text-gray-400 uppercase text-center leading-tight"><?php echo $txt['stat_exp']; ?></span>
+                            </div>
+
+                            <div class="w-16 h-16 bg-primary rounded-full shadow-lg flex flex-col items-center justify-center border border-gray-800 animate-[bounce_3.5s_infinite] p-1">
+                                <span class="text-lg font-black text-white leading-none mb-0.5"><?php echo $p['projects_done'] ?? 0; ?>+</span>
+                                <span class="text-[7px] font-bold text-gray-400 uppercase text-center leading-tight"><?php echo $txt['stat_proj']; ?></span>
+                            </div>
+
+                            <div class="w-16 h-16 bg-white rounded-full shadow-lg flex flex-col items-center justify-center border border-gray-100 animate-[bounce_4s_infinite] p-1">
+                                <div class="w-2 h-2 bg-green-500 rounded-full mb-1 animate-pulse"></div>
+                                <span class="text-[7px] font-bold text-primary uppercase text-center leading-none">Available<br>Hire Me</span>
+                            </div>
+
+                        </div>
                     </div>
                 </div>
 
@@ -44,13 +63,17 @@
                     </div>
                     
                     <div class="absolute top-10 right-6 flex flex-col gap-4 z-20">
-                        <div class="w-24 h-24 bg-white rounded-full shadow-xl flex flex-col items-center justify-center border border-gray-100 animate-[bounce_3s_infinite] p-2">
-                            <span class="text-3xl font-black text-primary leading-none mb-1"><?php echo $p['years_exp']; ?>+</span>
-                            <span class="text-[9px] font-bold text-gray-400 uppercase text-center leading-none"><?php echo $txt['stat_exp']; ?></span>
+                        <div class="w-16 h-16 bg-white rounded-full shadow-xl flex flex-col items-center justify-center border border-gray-100 animate-[bounce_3s_infinite] p-1">
+                            <span class="text-xl font-black text-primary leading-none mb-0.5"><?php echo $p['years_exp'] ?? 0; ?>+</span>
+                            <span class="text-[7px] font-bold text-gray-400 uppercase text-center leading-none"><?php echo $txt['stat_exp']; ?></span>
                         </div>
-                        <div class="w-24 h-24 bg-primary rounded-full shadow-xl flex flex-col items-center justify-center border border-gray-800 animate-[bounce_3.5s_infinite] p-2">
-                            <span class="text-3xl font-black text-white leading-none mb-1"><?php echo $p['projects_done']; ?>+</span>
-                            <span class="text-[9px] font-bold text-gray-400 uppercase text-center leading-none"><?php echo $txt['stat_proj']; ?></span>
+                        <div class="w-16 h-16 bg-primary rounded-full shadow-xl flex flex-col items-center justify-center border border-gray-800 animate-[bounce_3.5s_infinite] p-1">
+                            <span class="text-xl font-black text-white leading-none mb-0.5"><?php echo $p['projects_done'] ?? 0; ?>+</span>
+                            <span class="text-[7px] font-bold text-gray-400 uppercase text-center leading-none"><?php echo $txt['stat_proj']; ?></span>
+                        </div>
+                        <div class="w-16 h-16 bg-white rounded-full shadow-xl flex flex-col items-center justify-center border border-gray-100 animate-[bounce_4s_infinite] p-1">
+                            <div class="w-2 h-2 bg-green-500 rounded-full mb-1 animate-pulse"></div>
+                            <span class="text-[7px] font-bold text-primary uppercase text-center leading-none">Available<br>For Hire</span>
                         </div>
                     </div>
                 </div>

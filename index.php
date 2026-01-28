@@ -10,6 +10,7 @@ include 'views/hero.php';
 include 'views/about.php';
 include 'views/skills.php';
 include 'views/projects.php'; 
+include 'views/certificates.php';
 include 'views/contact.php';
 
 // 3. FOOTER
