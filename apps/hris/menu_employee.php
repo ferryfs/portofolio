@@ -1,4 +1,5 @@
 <?php
+session_name("HRIS_APP_SESSION");
 session_start();
 $conn = mysqli_connect("localhost", "root", "", "portofolio_db");
 if(!isset($_SESSION['hris_user'])) { header("Location: login.php"); exit(); }

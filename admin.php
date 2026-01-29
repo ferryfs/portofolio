@@ -3,483 +3,311 @@ session_start();
 
 // 1. CEK LOGIN
 if (!isset($_SESSION['status']) || $_SESSION['status'] != "login") { 
-    header("Location: login.php"); 
-    exit(); 
+    header("Location: login.php"); exit(); 
 }
 
-// 2. KONEKSI DATABASE BARU (PDO)
-require_once 'config/database.php';
+// 2. KONEKSI
+require_once __DIR__ . '/config/database.php';
 
 // HELPER FUNCTIONS
-function setFlash($msg, $type='success') {
-    $_SESSION['flash_msg'] = $msg;
-    $_SESSION['flash_type'] = $type;
-}
-
-// Hanya untuk membersihkan tag HTML berbahaya, bukan untuk SQL Injection (PDO sudah handle SQL Injection)
-function purify($text) {
-    return strip_tags($text, '<ul><ol><li><b><strong><i><em><u><br><p>');
-}
-
-function clearCache($file) {
-    $path = "cache/" . $file . ".json"; 
-    if (file_exists($path)) unlink($path);
-}
+function purify($text) { return strip_tags($text ?? '', '<ul><ol><li><b><strong><i><em><u><br><p>'); }
+function setFlash($msg, $type='success') { $_SESSION['flash_msg'] = $msg; $_SESSION['flash_type'] = $type; }
+function v($arr, $key) { return htmlspecialchars($arr[$key] ?? ''); }
 
 // ==========================================
 // 🟢 LOGIC PHP (DATABASE ACTIONS)
 // ==========================================
-
 try {
-
-    // 1. UPDATE HERO
+    // 1. PROFILE & HERO
     if (isset($_POST['save_hero'])) {
-        $sql = "UPDATE profile SET 
-                hero_pre = ?, hero_pre_en = ?,
-                hero_greeting = ?, hero_greeting_en = ?, 
-                hero_title = ?, hero_title_en = ?, 
-                hero_desc = ?, hero_desc_en = ?, 
-                cv_link = ? WHERE id = 1";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([
-            $_POST['hero_pre'], $_POST['hero_pre_en'],
-            $_POST['hero_greeting'], $_POST['hero_greeting_en'],
-            $_POST['hero_title'], $_POST['hero_title_en'],
-            $_POST['hero_desc'], $_POST['hero_desc_en'],
-            $_POST['cv_link']
-        ]);
-        
-        setFlash('Hero Section Berhasil Diupdate!');
-        header("Location: admin.php?tab=prof-pane"); exit();
+        $pdo->prepare("UPDATE profile SET hero_pre=?, hero_pre_en=?, hero_greeting=?, hero_greeting_en=?, hero_title=?, hero_title_en=?, hero_desc=?, hero_desc_en=?, cv_link=? WHERE id=1")
+            ->execute([$_POST['hero_pre'], $_POST['hero_pre_en'], $_POST['hero_greeting'], $_POST['hero_greeting_en'], $_POST['hero_title'], $_POST['hero_title_en'], $_POST['hero_desc'], $_POST['hero_desc_en'], $_POST['cv_link']]);
+        setFlash('Hero Updated!'); header("Location: admin.php?tab=prof-pane"); exit();
     }
-
-    // 2. UPDATE LABELS & JUDUL SECTION
     if (isset($_POST['save_labels'])) {
-        $sql = "UPDATE profile SET 
-                label_about=?, label_about_en=?, about_title=?, about_title_en=?,
-                label_skills=?, label_skills_en=?, title_skills=?, title_skills_en=?,
-                title_contact_1=?, title_contact_1_en=?, title_contact_2=?, title_contact_2_en=?
-                WHERE id=1";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([
-            $_POST['label_about'], $_POST['label_about_en'], $_POST['about_title'], $_POST['about_title_en'],
-            $_POST['label_skills'], $_POST['label_skills_en'], $_POST['title_skills'], $_POST['title_skills_en'],
-            $_POST['title_contact_1'], $_POST['title_contact_1_en'], $_POST['title_contact_2'], $_POST['title_contact_2_en']
-        ]);
-
-        setFlash('Label & Judul Section Berhasil Diupdate!');
-        header("Location: admin.php?tab=prof-pane"); exit();
+        $pdo->prepare("UPDATE profile SET label_about=?, label_about_en=?, about_title=?, about_title_en=?, label_skills=?, label_skills_en=?, title_skills=?, title_skills_en=?, title_contact_1=?, title_contact_1_en=?, title_contact_2=?, title_contact_2_en=? WHERE id=1")
+            ->execute([$_POST['label_about'], $_POST['label_about_en'], $_POST['about_title'], $_POST['about_title_en'], $_POST['label_skills'], $_POST['label_skills_en'], $_POST['title_skills'], $_POST['title_skills_en'], $_POST['title_contact_1'], $_POST['title_contact_1_en'], $_POST['title_contact_2'], $_POST['title_contact_2_en']]);
+        setFlash('Labels Updated!'); header("Location: admin.php?tab=prof-pane"); exit();
     }
-
-    // 3. UPDATE BENTO GRID
     if (isset($_POST['save_bento'])) {
-        $sql = "UPDATE profile SET 
-                bento_title_1=?, bento_desc_1=?, bento_desc_1_en=?, 
-                bento_title_2=?, bento_desc_2=?, bento_desc_2_en=?, 
-                bento_title_3=?, bento_desc_3=?, bento_desc_3_en=? 
-                WHERE id=1";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([
-            $_POST['bento_title_1'], $_POST['bento_desc_1'], $_POST['bento_desc_1_en'],
-            $_POST['bento_title_2'], $_POST['bento_desc_2'], $_POST['bento_desc_2_en'],
-            $_POST['bento_title_3'], $_POST['bento_desc_3'], $_POST['bento_desc_3_en']
-        ]);
-
-        setFlash('Bento Grid Info Berhasil Diupdate!');
-        clearCache('skills');
-        header("Location: admin.php?tab=prof-pane"); exit();
+        $pdo->prepare("UPDATE profile SET bento_title_1=?, bento_desc_1=?, bento_desc_1_en=?, bento_title_2=?, bento_desc_2=?, bento_desc_2_en=?, bento_title_3=?, bento_desc_3=?, bento_desc_3_en=? WHERE id=1")
+            ->execute([$_POST['bento_title_1'], $_POST['bento_desc_1'], $_POST['bento_desc_1_en'], $_POST['bento_title_2'], $_POST['bento_desc_2'], $_POST['bento_desc_2_en'], $_POST['bento_title_3'], $_POST['bento_desc_3'], $_POST['bento_desc_3_en']]);
+        setFlash('Bento Grid Updated!'); header("Location: admin.php?tab=prof-pane"); exit();
     }
-
-    // 4. SAVE CONTACT INFO
     if (isset($_POST['save_contact'])) {
-        $stmt = $pdo->prepare("UPDATE profile SET email=?, whatsapp=?, linkedin=? WHERE id=1");
-        $stmt->execute([$_POST['email'], $_POST['whatsapp'], $_POST['linkedin']]);
-        
-        setFlash('Kontak Berhasil Diupdate!');
-        header("Location: admin.php?tab=prof-pane"); exit();
+        $pdo->prepare("UPDATE profile SET email=?, whatsapp=?, linkedin=? WHERE id=1")->execute([$_POST['email'], $_POST['whatsapp'], $_POST['linkedin']]);
+        setFlash('Contact Updated!'); header("Location: admin.php?tab=prof-pane"); exit();
     }
-
-    // 5. UPDATE IMAGES
     if (isset($_POST['save_images'])) {
-        // Ambil data lama dulu
-        $stmt = $pdo->query("SELECT * FROM profile WHERE id=1");
-        $q = $stmt->fetch(PDO::FETCH_ASSOC);
-
+        $q = $pdo->query("SELECT * FROM profile WHERE id=1")->fetch(PDO::FETCH_ASSOC);
         function uploadImg($file, $old) {
             if(!empty($file['name'])){
-                // Hapus file lama jika ada
-                if(file_exists('assets/img/'.$old) && $old != '') unlink('assets/img/'.$old);
-                // Upload file baru
-                $new = time() . "_" . $file['name'];
-                move_uploaded_file($file['tmp_name'], 'assets/img/' . $new);
-                return $new;
-            } 
-            return $old;
+                $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
+                $new = time() . "_" . uniqid() . "." . $ext;
+                if(move_uploaded_file($file['tmp_name'], 'assets/img/' . $new)) {
+                    if($old && $old != 'default.jpg' && file_exists('assets/img/'.$old)) unlink('assets/img/'.$old);
+                    return $new;
+                }
+            } return $old;
         }
-
-        $pic = uploadImg($_FILES['profile_pic'], $q['profile_pic']);
-        $img1 = uploadImg($_FILES['about_img_1'], $q['about_img_1']);
-        $img2 = uploadImg($_FILES['about_img_2'], $q['about_img_2']);
-        $img3 = uploadImg($_FILES['about_img_3'], $q['about_img_3']);
-
-        $stmt = $pdo->prepare("UPDATE profile SET profile_pic=?, about_img_1=?, about_img_2=?, about_img_3=? WHERE id=1");
-        $stmt->execute([$pic, $img1, $img2, $img3]);
-
-        setFlash('Gambar Berhasil Diupload!');
-        header("Location: admin.php?tab=prof-pane"); exit();
+        $pic = uploadImg($_FILES['profile_pic'], $q['profile_pic'] ?? '');
+        $img1 = uploadImg($_FILES['about_img_1'], $q['about_img_1'] ?? '');
+        $img2 = uploadImg($_FILES['about_img_2'], $q['about_img_2'] ?? '');
+        $img3 = uploadImg($_FILES['about_img_3'], $q['about_img_3'] ?? '');
+        $pdo->prepare("UPDATE profile SET profile_pic=?, about_img_1=?, about_img_2=?, about_img_3=? WHERE id=1")->execute([$pic, $img1, $img2, $img3]);
+        setFlash('Images Uploaded!'); header("Location: admin.php?tab=prof-pane"); exit();
     }
 
-    // 6. SAVE HEADER PROJECT
+    // 2. PROJECTS (FULL)
     if (isset($_POST['save_project_text'])) {
-        $stmt = $pdo->prepare("UPDATE profile SET project_title=?, project_title_en=?, project_desc=?, project_desc_en=? WHERE id=1");
-        $stmt->execute([
-            $_POST['project_title'], $_POST['project_title_en'],
-            $_POST['project_desc'], $_POST['project_desc_en']
-        ]);
-        
-        setFlash('Header Section Project Berhasil Diupdate!');
-        header("Location: admin.php?tab=proj-pane"); exit();
+        $pdo->prepare("UPDATE profile SET project_title=?, project_title_en=?, project_desc=?, project_desc_en=? WHERE id=1")->execute([$_POST['project_title'], $_POST['project_title_en'], $_POST['project_desc'], $_POST['project_desc_en']]);
+        setFlash('Project Header Updated!'); header("Location: admin.php?tab=proj-pane"); exit();
     }
-
-    // 7. ADD PROJECT
-    if (isset($_POST['add_project'])) {
-        $img_name = "default.jpg";
+    if (isset($_POST['save_project'])) { 
+        $is_update = !empty($_POST['proj_id']);
+        $img_name = $_POST['old_image'] ?? "default.jpg";
         if(!empty($_FILES['image']['name'])) {
-            $img_name = "proj_" . time() . ".jpg";
-            move_uploaded_file($_FILES['image']['tmp_name'], 'assets/img/' . $img_name);
+            $ext = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
+            $new_img = "proj_" . time() . "." . $ext;
+            if(move_uploaded_file($_FILES['image']['tmp_name'], 'assets/img/' . $new_img)){
+                $img_name = $new_img;
+                if($is_update && $_POST['old_image'] != 'default.jpg' && file_exists('assets/img/'.$_POST['old_image'])) unlink('assets/img/'.$_POST['old_image']);
+            }
         }
-
-        $sql = "INSERT INTO projects (title, category, tech_stack, description, description_en, challenge, impact, link_demo, image) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([
-            $_POST['title'],
-            $_POST['category'],
-            $_POST['tech_stack'],
-            purify($_POST['description']),
-            purify($_POST['description_en']),
-            purify($_POST['challenge']),
-            purify($_POST['impact']),
-            $_POST['link_demo'],
-            $img_name
-        ]);
-
-        setFlash('Project Baru Berhasil Ditambah!');
-        header("Location: admin.php?tab=proj-pane"); exit();
+        if ($is_update) {
+            $sql = "UPDATE projects SET title=?, category=?, tech_stack=?, description=?, description_en=?, challenge=?, impact=?, link_demo=?, image=? WHERE id=?";
+            $params = [$_POST['title'], $_POST['category'], $_POST['tech_stack'], purify($_POST['description']), purify($_POST['description_en']), purify($_POST['challenge']), purify($_POST['impact']), $_POST['link_demo'], $img_name, $_POST['proj_id']];
+            $msg = "Project Updated!";
+        } else {
+            $sql = "INSERT INTO projects (title, category, tech_stack, description, description_en, challenge, impact, link_demo, image) VALUES (?,?,?,?,?,?,?,?,?)";
+            $params = [$_POST['title'], $_POST['category'], $_POST['tech_stack'], purify($_POST['description']), purify($_POST['description_en']), purify($_POST['challenge']), purify($_POST['impact']), $_POST['link_demo'], $img_name];
+            $msg = "Project Added!";
+        }
+        $pdo->prepare($sql)->execute($params);
+        setFlash($msg); header("Location: admin.php?tab=proj-pane"); exit();
     }
-
     if (isset($_GET['hapus_proj'])) {
         $id = $_GET['hapus_proj'];
-        // Ambil gambar dulu
-        $stmt = $pdo->prepare("SELECT image FROM projects WHERE id = ?");
-        $stmt->execute([$id]);
-        $d = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        // Hapus file
-        if($d && $d['image'] != 'default.jpg' && file_exists('assets/img/'.$d['image'])) {
-            unlink('assets/img/'.$d['image']);
-        }
-
-        // Hapus data
-        $stmt = $pdo->prepare("DELETE FROM projects WHERE id = ?");
-        $stmt->execute([$id]);
-
-        setFlash('Project Berhasil Dihapus!');
-        header("Location: admin.php?tab=proj-pane"); exit();
+        $d = $pdo->query("SELECT image FROM projects WHERE id=$id")->fetch();
+        if($d && $d['image'] != 'default.jpg' && file_exists('assets/img/'.$d['image'])) unlink('assets/img/'.$d['image']);
+        $pdo->prepare("DELETE FROM projects WHERE id=?")->execute([$id]);
+        setFlash('Project Deleted!'); header("Location: admin.php?tab=proj-pane"); exit();
     }
 
-    // 8. ADD TECH
-    if (isset($_POST['add_tech'])) {
-        $stmt = $pdo->prepare("INSERT INTO tech_stacks (name, category, icon) VALUES (?, ?, ?)");
-        $stmt->execute([$_POST['tech_name'], $_POST['tech_category'], $_POST['tech_icon']]);
-        
-        setFlash('Skill Baru Berhasil Ditambah!');
-        clearCache('skills');
-        header("Location: admin.php?tab=tech-pane"); exit();
-    }
-    if (isset($_GET['hapus_tech'])) {
-        $stmt = $pdo->prepare("DELETE FROM tech_stacks WHERE id = ?");
-        $stmt->execute([$_GET['hapus_tech']]);
-        
-        setFlash('Skill Berhasil Dihapus!');
-        clearCache('skills');
-        header("Location: admin.php?tab=tech-pane"); exit();
-    }
-
-    // 9. ADD TIMELINE
-    if (isset($_POST['add_timeline'])) {
-        $img_name = "";
+    // 3. JOURNEY
+    if (isset($_POST['save_timeline'])) {
+        $is_update = !empty($_POST['time_id']);
+        $img_name = $_POST['old_image'] ?? "";
         if(!empty($_FILES['image']['name'])) {
-            $img_name = "cartoon_" . time() . ".png";
-            move_uploaded_file($_FILES['image']['tmp_name'], 'assets/img/' . $img_name);
+            $ext = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
+            $new_img = "cartoon_" . time() . "." . $ext;
+            if(move_uploaded_file($_FILES['image']['tmp_name'], 'assets/img/' . $new_img)){
+                $img_name = $new_img;
+                if($is_update && !empty($_POST['old_image']) && file_exists('assets/img/'.$_POST['old_image'])) unlink('assets/img/'.$_POST['old_image']);
+            }
         }
-
-        $stmt = $pdo->prepare("INSERT INTO timeline (year, sort_date, role, company, description, image) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->execute([
-            $_POST['year'], $_POST['sort_date'], $_POST['role'], 
-            $_POST['company'], purify($_POST['description']), $img_name
-        ]);
-
-        setFlash('Timeline Karir Berhasil Ditambah!');
-        clearCache('timeline');
-        header("Location: admin.php?tab=time-pane"); exit();
+        if ($is_update) {
+            $sql = "UPDATE timeline SET year=?, sort_date=?, role=?, company=?, description=?, image=? WHERE id=?";
+            $params = [$_POST['year'], $_POST['sort_date'], $_POST['role'], $_POST['company'], purify($_POST['description']), $img_name, $_POST['time_id']];
+            $msg = "Timeline Updated!";
+        } else {
+            $sql = "INSERT INTO timeline (year, sort_date, role, company, description, image) VALUES (?,?,?,?,?,?)";
+            $params = [$_POST['year'], $_POST['sort_date'], $_POST['role'], $_POST['company'], purify($_POST['description']), $img_name];
+            $msg = "Timeline Added!";
+        }
+        $pdo->prepare($sql)->execute($params);
+        setFlash($msg); header("Location: admin.php?tab=time-pane"); exit();
     }
     if (isset($_GET['hapus_time'])) {
         $id = $_GET['hapus_time'];
-        $stmt = $pdo->prepare("SELECT image FROM timeline WHERE id = ?");
-        $stmt->execute([$id]);
-        $d = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if($d && !empty($d['image']) && file_exists('assets/img/'.$d['image'])) {
-            unlink('assets/img/'.$d['image']);
-        }
-
-        $stmt = $pdo->prepare("DELETE FROM timeline WHERE id = ?");
-        $stmt->execute([$id]);
-
-        setFlash('Timeline Berhasil Dihapus!');
-        clearCache('timeline');
-        header("Location: admin.php?tab=time-pane"); exit();
+        $d = $pdo->query("SELECT image FROM timeline WHERE id=$id")->fetch();
+        if($d && !empty($d['image']) && file_exists('assets/img/'.$d['image'])) unlink('assets/img/'.$d['image']);
+        $pdo->prepare("DELETE FROM timeline WHERE id=?")->execute([$id]);
+        setFlash('Timeline Deleted!'); header("Location: admin.php?tab=time-pane"); exit();
     }
 
-    // 10. ADD CERTIFICATE
-    if (isset($_POST['add_cert'])) {
-        $img_name = "cert_" . time() . ".png";
-        move_uploaded_file($_FILES['cert_img']['tmp_name'], 'assets/img/' . $img_name);
+    // 4. SKILLS (FIX: NO LINK FIELD)
+    if (isset($_POST['save_tech'])) {
+        if (!empty($_POST['tech_id'])) {
+            $pdo->prepare("UPDATE tech_stacks SET name=?, category=?, icon=? WHERE id=?")->execute([$_POST['tech_name'], $_POST['tech_category'], $_POST['tech_icon'], $_POST['tech_id']]);
+            $msg = "Skill Updated!";
+        } else {
+            $pdo->prepare("INSERT INTO tech_stacks (name, category, icon) VALUES (?,?,?)")->execute([$_POST['tech_name'], $_POST['tech_category'], $_POST['tech_icon']]);
+            $msg = "Skill Added!";
+        }
+        setFlash($msg); header("Location: admin.php?tab=tech-pane"); exit();
+    }
+    if (isset($_GET['hapus_tech'])) {
+        $pdo->prepare("DELETE FROM tech_stacks WHERE id=?")->execute([$_GET['hapus_tech']]);
+        setFlash('Skill Deleted!'); header("Location: admin.php?tab=tech-pane"); exit();
+    }
 
-        $stmt = $pdo->prepare("INSERT INTO certifications (name, issuer, date, link_credential, image) VALUES (?, ?, ?, ?, ?)");
-        $stmt->execute([
-            $_POST['cert_name'], $_POST['cert_issuer'], 
-            $_POST['cert_date'], $_POST['cert_link'], $img_name
-        ]);
-
-        setFlash('Sertifikat Berhasil Ditambah!');
-        header("Location: admin.php?tab=cert-pane"); exit();
+    // 5. CERTIFICATES
+    if (isset($_POST['save_cert'])) {
+        $is_update = !empty($_POST['cert_id']);
+        $img_name = $_POST['old_image'] ?? "default_cert.png";
+        if (!empty($_FILES['cert_img']['name'])) {
+            $ext = pathinfo($_FILES['cert_img']['name'], PATHINFO_EXTENSION);
+            $new_img = "cert_" . time() . "." . $ext;
+            if(move_uploaded_file($_FILES['cert_img']['tmp_name'], 'assets/img/' . $new_img)){
+                $img_name = $new_img;
+                if($is_update && !empty($_POST['old_image']) && file_exists('assets/img/'.$_POST['old_image'])) unlink('assets/img/'.$_POST['old_image']);
+            }
+        }
+        if ($is_update) {
+            $sql = "UPDATE certifications SET name=?, issuer=?, date_issued=?, credential_link=?, image=? WHERE id=?";
+            $params = [$_POST['cert_name'], $_POST['cert_issuer'], $_POST['cert_date'], $_POST['cert_link'], $img_name, $_POST['cert_id']];
+            $msg = "Certificate Updated!";
+        } else {
+            $sql = "INSERT INTO certifications (name, issuer, date_issued, credential_link, image) VALUES (?,?,?,?,?)";
+            $params = [$_POST['cert_name'], $_POST['cert_issuer'], $_POST['cert_date'], $_POST['cert_link'], $img_name];
+            $msg = "Certificate Added!";
+        }
+        $pdo->prepare($sql)->execute($params);
+        setFlash($msg); header("Location: admin.php?tab=cert-pane"); exit();
     }
     if (isset($_GET['hapus_cert'])) {
-        $stmt = $pdo->prepare("DELETE FROM certifications WHERE id = ?");
-        $stmt->execute([$_GET['hapus_cert']]);
-        
-        setFlash('Sertifikat Berhasil Dihapus!');
-        header("Location: admin.php?tab=cert-pane"); exit();
+        $id = $_GET['hapus_cert'];
+        $d = $pdo->query("SELECT image FROM certifications WHERE id=$id")->fetch();
+        if($d && !empty($d['image']) && file_exists('assets/img/'.$d['image'])) unlink('assets/img/'.$d['image']);
+        $pdo->prepare("DELETE FROM certifications WHERE id=?")->execute([$id]);
+        setFlash('Certificate Deleted!'); header("Location: admin.php?tab=cert-pane"); exit();
     }
 
-} catch (PDOException $e) {
-    setFlash("Database Error: " . $e->getMessage(), 'error');
-}
+} catch (PDOException $e) { setFlash("DB Error: " . $e->getMessage(), 'error'); }
 
-// ==========================================
-// 🔵 FETCH DATA UTAMA
-// ==========================================
-$stmt = $pdo->query("SELECT * FROM profile WHERE id=1");
-$p = $stmt->fetch(PDO::FETCH_ASSOC);
+$stmt = $pdo->query("SELECT * FROM profile LIMIT 1");
+$p = $stmt->fetch(PDO::FETCH_ASSOC); if (!$p) $p = [];
 ?>
 
 <!doctype html>
 <html lang="id">
 <head>
     <meta charset="utf-8"> <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>CMS Admin Panel</title>
+    <title>Admin Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link href="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
     <style>
-        body { background-color: #f1f5f9; font-family: 'Segoe UI', sans-serif; }
-        .form-floating > .form-control:focus { box-shadow: none; border-color: #0d6efd; }
-        .nav-pills .nav-link.active { background-color: #0d6efd; font-weight: bold; }
-        .nav-pills .nav-link { color: #475569; font-weight: 500; }
-        .card { border: none; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-        .card-header { background: white; font-weight: 700; border-bottom: 1px solid #e2e8f0; padding: 1rem 1.5rem; }
-        .note-editor .dropdown-toggle::after { all: unset; } 
+        :root { --primary: #0f172a; --accent: #3b82f6; --bg: #f8fafc; }
+        body { background: var(--bg); font-family: 'Plus Jakarta Sans', sans-serif; color: #334155; padding-bottom: 50px; }
+        .nav-link { color: #64748b; font-weight: 600; padding: 10px 20px; border-radius: 8px !important; margin-right: 5px; }
+        .nav-link.active { background-color: var(--primary) !important; color: white !important; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .card-header { background: white; border-bottom: 1px solid #e2e8f0; font-weight: 700; padding: 1rem; color: var(--primary); }
+        .form-floating label { color: #94a3b8; }
+        .table img { object-fit: cover; border-radius: 6px; }
+        .btn-icon { width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; }
+        .note-modal-backdrop { z-index: 1040 !important; }
     </style>
 </head>
 <body>
 
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow mb-4">
+<nav class="navbar navbar-dark bg-dark sticky-top shadow-sm mb-4" style="background: var(--primary) !important;">
     <div class="container">
-        <a class="navbar-brand fw-bold" href="#">⚙️ CMS PANEL</a>
+        <span class="navbar-brand fw-bold"><i class="bi bi-grid-fill me-2"></i> CMS PANEL</span>
         <div class="d-flex gap-2">
-            <a href="index.php" target="_blank" class="btn btn-sm btn-outline-light">Lihat Web</a>
-            <a href="logout.php" class="btn btn-sm btn-danger">Logout</a>
+            <a href="index.php" target="_blank" class="btn btn-sm btn-outline-light"><i class="bi bi-eye"></i> Web</a>
+            <a href="logout.php" class="btn btn-sm btn-danger"><i class="bi bi-power"></i></a>
         </div>
     </div>
 </nav>
 
 <div class="container pb-5">
-    <ul class="nav nav-pills mb-4 bg-white p-2 rounded shadow-sm gap-2" id="myTab" role="tablist">
-        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#prof-pane">👤 Profile</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#time-pane">⏳ Journey</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#proj-pane">📁 Projects</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tech-pane">🛠️ Tech Stack</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#cert-pane">🏅 Certificates</button></li>
+    <ul class="nav nav-pills mb-4 bg-white p-2 rounded shadow-sm d-flex flex-nowrap overflow-auto" id="adminTab" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-bs-target="#prof-pane" data-bs-toggle="tab">👤 Profile</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-target="#proj-pane" data-bs-toggle="tab">📁 Projects</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-target="#time-pane" data-bs-toggle="tab">⏳ Journey</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-target="#cert-pane" data-bs-toggle="tab">🏅 Certs</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-target="#tech-pane" data-bs-toggle="tab">🛠️ Skills</button></li>
     </ul>
 
     <div class="tab-content">
+        
         <div class="tab-pane fade show active" id="prof-pane">
             <div class="row g-4">
-                
-                <div class="col-md-12">
+                <div class="col-lg-8">
                     <div class="card h-100">
-                        <div class="card-header text-primary">HERO SECTION</div>
+                        <div class="card-header bg-primary text-white"><i class="bi bi-window me-2"></i> Hero Section</div>
                         <div class="card-body">
                             <form method="POST">
-                                <div class="row">
-                                    <div class="col-md-6 form-floating mb-2"><input type="text" class="form-control" name="hero_pre" value="<?= htmlspecialchars($p['hero_pre']) ?>"><label>Opening (Halo Semuanya 👋)</label></div>
-                                    <div class="col-md-6 form-floating mb-2"><input type="text" class="form-control" name="hero_pre_en" value="<?= htmlspecialchars($p['hero_pre_en']) ?>"><label>Opening (EN)</label></div>
-                                </div>
-                                <div class="form-floating mb-2"><input type="text" class="form-control" name="hero_greeting" value="<?= htmlspecialchars($p['hero_greeting']) ?>"><label>Greeting (I'm Ferry...)</label></div>
-                                <div class="form-floating mb-2"><input type="text" class="form-control" name="hero_greeting_en" value="<?= htmlspecialchars($p['hero_greeting_en']) ?>"><label>Greeting (EN)</label></div>
-                                <div class="form-floating mb-2"><input type="text" class="form-control" name="hero_title" value="<?= htmlspecialchars($p['hero_title']) ?>"><label>Headline (ID)</label></div>
-                                <div class="form-floating mb-2"><input type="text" class="form-control" name="hero_title_en" value="<?= htmlspecialchars($p['hero_title_en']) ?>"><label>Headline (EN)</label></div>
-                                <div class="form-floating mb-2"><textarea class="form-control" name="hero_desc" style="height:100px"><?= htmlspecialchars($p['hero_desc']) ?></textarea><label>Description (ID)</label></div>
-                                <div class="form-floating mb-3"><textarea class="form-control" name="hero_desc_en" style="height:100px"><?= htmlspecialchars($p['hero_desc_en']) ?></textarea><label>Description (EN)</label></div>
-                                <div class="form-floating mb-3"><input type="text" class="form-control" name="cv_link" value="<?= htmlspecialchars($p['cv_link']) ?>"><label>Link CV</label></div>
-                                <button type="submit" name="save_hero" class="btn btn-primary w-100 fw-bold">SIMPAN HERO</button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-md-12">
-                    <div class="card border-primary border-2">
-                        <div class="card-header bg-primary bg-opacity-10 fw-bold">JUDUL-JUDUL SEKSI (ABOUT, SKILLS, CONTACT)</div>
-                        <div class="card-body">
-                            <form method="POST">
-                                <div class="row g-3">
-                                    <div class="col-md-6 border-end">
-                                        <h6 class="text-muted fw-bold">SECTION ABOUT</h6>
-                                        <div class="mb-2"><label class="small">Label Kecil (Tentang Saya)</label><input type="text" class="form-control form-control-sm" name="tentang_saya" value="<?= htmlspecialchars($p['tentang_saya']) ?>"></div>
-                                        <div class="mb-2"><label class="small">Label Kecil (EN)</label><input type="text" class="form-control form-control-sm" name="tentang_saya_en" value="<?= htmlspecialchars($p['tentang_saya_en']) ?>"></div>
-                                        <div class="mb-2"><label class="small">Judul Besar (ID)</label><input type="text" class="form-control form-control-sm" name="about_title" value="<?= htmlspecialchars($p['about_title']) ?>"></div>
-                                        <div class="mb-2"><label class="small">Judul Besar (EN)</label><input type="text" class="form-control form-control-sm" name="about_title_en" value="<?= htmlspecialchars($p['about_title_en']) ?>"></div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <h6 class="text-muted fw-bold">SECTION SKILLS</h6>
-                                        <div class="mb-2"><label class="small">Label Kecil (Kompetensi)</label><input type="text" class="form-control form-control-sm" name="skills" value="<?= htmlspecialchars($p['skills']) ?>"></div>
-                                        <div class="mb-2"><label class="small">Label Kecil (EN)</label><input type="text" class="form-control form-control-sm" name="skills_en" value="<?= htmlspecialchars($p['skills_en']) ?>"></div>
-                                        <div class="mb-2"><label class="small">Judul Besar (Keahlian)</label><input type="text" class="form-control form-control-sm" name="title_skills" value="<?= htmlspecialchars($p['title_skills']) ?>"></div>
-                                        <div class="mb-2"><label class="small">Judul Besar (EN)</label><input type="text" class="form-control form-control-sm" name="title_skills_en" value="<?= htmlspecialchars($p['title_skills_en']) ?>"></div>
-                                    </div>
-                                    <div class="col-12 border-top pt-3">
-                                        <h6 class="text-muted fw-bold">SECTION CONTACT</h6>
-                                        <div class="row">
-                                            <div class="col-md-3"><label class="small">Baris 1 (Siap Membangun)</label><input type="text" class="form-control form-control-sm" name="title_contact_1" value="<?= htmlspecialchars($p['title_contact_1']) ?>"></div>
-                                            <div class="col-md-3"><label class="small">Baris 1 (EN)</label><input type="text" class="form-control form-control-sm" name="title_contact_1_en" value="<?= htmlspecialchars($p['title_contact_1_en']) ?>"></div>
-                                            <div class="col-md-3"><label class="small">Baris 2 (Sesuatu Hebat?)</label><input type="text" class="form-control form-control-sm" name="title_contact_2" value="<?= htmlspecialchars($p['title_contact_2']) ?>"></div>
-                                            <div class="col-md-3"><label class="small">Baris 2 (EN)</label><input type="text" class="form-control form-control-sm" name="title_contact_2_en" value="<?= htmlspecialchars($p['title_contact_2_en']) ?>"></div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <button type="submit" name="save_labels" class="btn btn-outline-primary w-100 fw-bold mt-3">UPDATE LABEL & JUDUL</button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-md-6">
-                    <div class="card h-100">
-                        <div class="card-header">IMAGES (3 SLOT FOTO ABOUT)</div>
-                        <div class="card-body">
-                            <form method="POST" enctype="multipart/form-data">
-                                <div class="mb-3"><label class="small fw-bold">Foto Utama (Hero)</label><input type="file" name="profile_pic" class="form-control"></div>
-                                <div class="mb-3"><label class="small fw-bold">Foto About Utama (Kiri)</label><input type="file" name="about_img_1" class="form-control"></div>
-                                <div class="row">
-                                    <div class="col-6 mb-3"><label class="small fw-bold">Foto Kecil 1</label><input type="file" name="about_img_2" class="form-control"></div>
-                                    <div class="col-6 mb-3"><label class="small fw-bold">Foto Kecil 2</label><input type="file" name="about_img_3" class="form-control"></div>
-                                </div>
-                                <button type="submit" name="save_images" class="btn btn-dark w-100 fw-bold mt-3">UPLOAD GAMBAR</button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="col-md-6">
-                    <div class="card border-warning border-2 h-100">
-                        <div class="card-header text-warning bg-warning bg-opacity-10">BENTO GRID (INFO BOX)</div>
-                        <div class="card-body">
-                            <form method="POST">
-                                <h6 class="fw-bold">Kotak 1: Analysis</h6>
-                                <input type="text" name="bento_title_1" class="form-control mb-1 fw-bold" value="<?= htmlspecialchars($p['bento_title_1']) ?>">
-                                <textarea name="bento_desc_1" class="form-control mb-1" rows="2"><?= htmlspecialchars($p['bento_desc_1']) ?></textarea>
-                                <textarea name="bento_desc_1_en" class="form-control mb-3" rows="2"><?= htmlspecialchars($p['bento_desc_1_en']) ?></textarea>
-                                
-                                <h6 class="fw-bold">Kotak 2: Enterprise</h6>
-                                <input type="text" name="bento_title_2" class="form-control mb-1 fw-bold" value="<?= htmlspecialchars($p['bento_title_2']) ?>">
-                                <textarea name="bento_desc_2" class="form-control mb-1" rows="2"><?= htmlspecialchars($p['bento_desc_2']) ?></textarea>
-                                <textarea name="bento_desc_2_en" class="form-control mb-3" rows="2"><?= htmlspecialchars($p['bento_desc_2_en']) ?></textarea>
-                                
-                                <h6 class="fw-bold">Kotak 3: Development</h6>
-                                <input type="text" name="bento_title_3" class="form-control mb-1 fw-bold" value="<?= htmlspecialchars($p['bento_title_3']) ?>">
-                                <textarea name="bento_desc_3" class="form-control mb-1" rows="2"><?= htmlspecialchars($p['bento_desc_3']) ?></textarea>
-                                <textarea name="bento_desc_3_en" class="form-control mb-3" rows="2"><?= htmlspecialchars($p['bento_desc_3_en']) ?></textarea>
-                                
-                                <button type="submit" name="save_bento" class="btn btn-warning w-100 fw-bold">SIMPAN BENTO GRID</button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-md-12">
-                    <div class="card h-100">
-                        <div class="card-header text-success">CONTACT INFO</div>
-                        <div class="card-body">
-                            <form method="POST">
-                                <div class="row">
-                                    <div class="col-md-4 form-floating mb-2"><input type="email" class="form-control" name="email" value="<?= htmlspecialchars($p['email']) ?>"><label>Email</label></div>
-                                    <div class="col-md-4 form-floating mb-2"><input type="text" class="form-control" name="whatsapp" value="<?= htmlspecialchars($p['whatsapp']) ?>"><label>WhatsApp</label></div>
-                                    <div class="col-md-4 form-floating mb-3"><input type="text" class="form-control" name="linkedin" value="<?= htmlspecialchars($p['linkedin']) ?>"><label>LinkedIn</label></div>
-                                </div>
-                                <button type="submit" name="save_contact" class="btn btn-success w-100 fw-bold">SIMPAN KONTAK</button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="tab-pane fade" id="time-pane">
-            <div class="row">
-                <div class="col-md-5">
-                    <div class="card mb-4 border-info border-2">
-                        <div class="card-header bg-info text-white fw-bold">TAMBAH PENGALAMAN</div>
-                        <div class="card-body">
-                            <form method="POST" enctype="multipart/form-data">
                                 <div class="row g-2">
-                                    <div class="col-md-8 form-floating"><input type="text" name="year" class="form-control" placeholder="Year" required><label>Teks Tahun (Cth: 2022 - Now)</label></div>
-                                    <div class="col-md-4 form-floating"><input type="date" name="sort_date" class="form-control" required><label>Tgl Mulai</label></div>
-                                    <div class="col-12 form-floating"><input type="text" name="role" class="form-control" placeholder="Role" required><label>Jabatan / Role</label></div>
-                                    <div class="col-12 form-floating"><input type="text" name="company" class="form-control" placeholder="Comp" required><label>Perusahaan</label></div>
-                                    <div class="col-12"><label class="small text-muted fw-bold mb-1">Deskripsi Pekerjaan</label><textarea id="summernote" name="description" class="form-control" required></textarea></div>
-                                    <div class="col-12 mt-3"><label class="small fw-bold text-muted mb-1">Kartun Popup (Opsional)</label><input type="file" name="image" class="form-control form-control-sm"></div>
-                                    <div class="col-12 mt-2"><button type="submit" name="add_timeline" class="btn btn-info text-white w-100 fw-bold">SIMPAN</button></div>
+                                    <div class="col-md-6 form-floating mb-2"><input type="text" class="form-control" name="hero_pre" value="<?= v($p, 'hero_pre') ?>"><label>Opening (ID)</label></div>
+                                    <div class="col-md-6 form-floating mb-2"><input type="text" class="form-control" name="hero_pre_en" value="<?= v($p, 'hero_pre_en') ?>"><label>Opening (EN)</label></div>
+                                    <div class="col-md-6 form-floating mb-2"><input type="text" class="form-control" name="hero_greeting" value="<?= v($p, 'hero_greeting') ?>"><label>Name (ID)</label></div>
+                                    <div class="col-md-6 form-floating mb-2"><input type="text" class="form-control" name="hero_greeting_en" value="<?= v($p, 'hero_greeting_en') ?>"><label>Name (EN)</label></div>
+                                    <div class="col-md-6 form-floating mb-2"><input type="text" class="form-control" name="hero_title" value="<?= v($p, 'hero_title') ?>"><label>Headline (ID)</label></div>
+                                    <div class="col-md-6 form-floating mb-2"><input type="text" class="form-control" name="hero_title_en" value="<?= v($p, 'hero_title_en') ?>"><label>Headline (EN)</label></div>
+                                    <div class="col-12 form-floating mb-2"><textarea class="form-control" name="hero_desc" style="height:80px"><?= v($p, 'hero_desc') ?></textarea><label>Desc (ID)</label></div>
+                                    <div class="col-12 form-floating mb-2"><textarea class="form-control" name="hero_desc_en" style="height:80px"><?= v($p, 'hero_desc_en') ?></textarea><label>Desc (EN)</label></div>
+                                    <div class="col-12 form-floating"><input type="text" class="form-control" name="cv_link" value="<?= v($p, 'cv_link') ?>"><label>CV Link</label></div>
+                                    <div class="col-12 mt-3 text-end"><button type="submit" name="save_hero" class="btn btn-primary">Update Hero</button></div>
                                 </div>
                             </form>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-7">
+                <div class="col-lg-4">
+                    <div class="card mb-4">
+                        <div class="card-header"><i class="bi bi-person-lines-fill me-2"></i> Contact</div>
+                        <div class="card-body">
+                            <form method="POST">
+                                <div class="mb-2"><label class="small text-muted">Email</label><input type="text" name="email" class="form-control form-control-sm" value="<?= v($p, 'email') ?>"></div>
+                                <div class="mb-2"><label class="small text-muted">WhatsApp</label><input type="text" name="whatsapp" class="form-control form-control-sm" value="<?= v($p, 'whatsapp') ?>"></div>
+                                <div class="mb-2"><label class="small text-muted">LinkedIn</label><input type="text" name="linkedin" class="form-control form-control-sm" value="<?= v($p, 'linkedin') ?>"></div>
+                                <button type="submit" name="save_contact" class="btn btn-dark btn-sm w-100 mt-2">Save Contact</button>
+                            </form>
+                        </div>
+                    </div>
                     <div class="card">
-                        <div class="card-header bg-white fw-bold">RIWAYAT KARIR</div>
-                        <div class="table-responsive">
-                            <table class="table table-hover align-middle mb-0">
-                                <thead class="table-dark"><tr><th>Tahun</th><th>Role & PT</th><th>Kartun</th><th>Aksi</th></tr></thead>
-                                <tbody>
-                                    <?php 
-                                    $stmt = $pdo->query("SELECT * FROM timeline ORDER BY sort_date DESC");
-                                    while($tm = $stmt->fetch(PDO::FETCH_ASSOC)): 
-                                    ?>
-                                    <tr>
-                                        <td><span class="badge bg-secondary mb-1"><?=$tm['year']?></span><br><small class="text-muted" style="font-size:10px"><?=date('M Y', strtotime($tm['sort_date']))?></small></td>
-                                        <td><b><?=$tm['role']?></b><br><small class="text-muted"><?=$tm['company']?></small></td>
-                                        <td><?php if(!empty($tm['image'])): ?><img src="assets/img/<?=$tm['image']?>" width="40" class="rounded border"><?php else: ?>-<?php endif; ?></td>
-                                        <td>
-                                            <a href="admin.php?hapus_time=<?=$tm['id']?>" class="btn btn-sm btn-danger" onclick="return confirm('Hapus?')"><i class="bi bi-trash"></i></a>
-                                        </td>
-                                    </tr>
-                                    <?php endwhile; ?>
-                                </tbody>
-                            </table>
+                        <div class="card-header"><i class="bi bi-images me-2"></i> Images</div>
+                        <div class="card-body">
+                            <form method="POST" enctype="multipart/form-data">
+                                <div class="mb-2"><label class="small text-muted">Profile Pic</label><input type="file" name="profile_pic" class="form-control form-control-sm"></div>
+                                <div class="mb-2"><label class="small text-muted">About Main</label><input type="file" name="about_img_1" class="form-control form-control-sm"></div>
+                                <div class="row g-2">
+                                    <div class="col-6"><label class="small text-muted">About 2</label><input type="file" name="about_img_2" class="form-control form-control-sm"></div>
+                                    <div class="col-6"><label class="small text-muted">About 3</label><input type="file" name="about_img_3" class="form-control form-control-sm"></div>
+                                </div>
+                                <button type="submit" name="save_images" class="btn btn-outline-primary btn-sm w-100 mt-3">Upload</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="card h-100 border-warning border-start-4">
+                        <div class="card-header bg-white">Bento Grid</div>
+                        <div class="card-body">
+                            <form method="POST">
+                                <?php for($i=1; $i<=3; $i++): ?>
+                                <div class="mb-3 border-bottom pb-2">
+                                    <input type="text" name="bento_title_<?=$i?>" class="form-control form-control-sm fw-bold mb-1" value="<?= v($p, 'bento_title_'.$i) ?>" placeholder="Title <?=$i?>">
+                                    <textarea name="bento_desc_<?=$i?>" class="form-control form-control-sm mb-1" rows="2" placeholder="ID"><?= v($p, 'bento_desc_'.$i) ?></textarea>
+                                    <textarea name="bento_desc_<?=$i?>_en" class="form-control form-control-sm" rows="2" placeholder="EN"><?= v($p, 'bento_desc_'.$i.'_en') ?></textarea>
+                                </div>
+                                <?php endfor; ?>
+                                <button type="submit" name="save_bento" class="btn btn-warning w-100 btn-sm">Update Bento</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="card h-100">
+                        <div class="card-header">Section Titles</div>
+                        <div class="card-body">
+                            <form method="POST">
+                                <div class="row g-2">
+                                    <div class="col-6"><input type="text" class="form-control form-control-sm" name="label_about" value="<?= v($p, 'label_about') ?>" placeholder="About Label"></div>
+                                    <div class="col-6"><input type="text" class="form-control form-control-sm" name="about_title" value="<?= v($p, 'about_title') ?>" placeholder="About Title"></div>
+                                    <div class="col-6"><input type="text" class="form-control form-control-sm" name="label_skills" value="<?= v($p, 'label_skills') ?>" placeholder="Skills Label"></div>
+                                    <div class="col-6"><input type="text" class="form-control form-control-sm" name="title_skills" value="<?= v($p, 'title_skills') ?>" placeholder="Skills Title"></div>
+                                    <input type="hidden" name="label_about_en" value="<?= v($p, 'label_about_en') ?>"><input type="hidden" name="about_title_en" value="<?= v($p, 'about_title_en') ?>"><input type="hidden" name="label_skills_en" value="<?= v($p, 'label_skills_en') ?>"><input type="hidden" name="title_skills_en" value="<?= v($p, 'title_skills_en') ?>"><input type="hidden" name="title_contact_1" value="<?= v($p, 'title_contact_1') ?>"><input type="hidden" name="title_contact_1_en" value="<?= v($p, 'title_contact_1_en') ?>"><input type="hidden" name="title_contact_2" value="<?= v($p, 'title_contact_2') ?>"><input type="hidden" name="title_contact_2_en" value="<?= v($p, 'title_contact_2_en') ?>">
+                                </div>
+                                <button type="submit" name="save_labels" class="btn btn-secondary w-100 btn-sm mt-3">Update Titles</button>
+                            </form>
                         </div>
                     </div>
                 </div>
@@ -487,176 +315,256 @@ $p = $stmt->fetch(PDO::FETCH_ASSOC);
         </div>
 
         <div class="tab-pane fade" id="proj-pane">
-            <div class="card mb-4 border-primary border-2">
-                <div class="card-header bg-white text-primary fw-bold">EDIT HEADER SECTION PROJECT</div>
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Header & List</span>
+                    <button class="btn btn-sm btn-primary" onclick="openProjModal()"><i class="bi bi-plus-lg"></i> Add New Project</button>
+                </div>
                 <div class="card-body">
                     <form method="POST">
-                        <div class="row">
-                            <div class="col-md-6 form-floating mb-2"><input type="text" class="form-control" name="project_title" value="<?= htmlspecialchars($p['project_title']) ?>"><label>Judul Section (ID)</label></div>
-                            <div class="col-md-6 form-floating mb-2"><input type="text" class="form-control" name="project_title_en" value="<?= htmlspecialchars($p['project_title_en']) ?>"><label>Judul Section (EN)</label></div>
-                            <div class="col-md-6 form-floating mb-2"><textarea class="form-control" name="project_desc" style="height:80px"><?= htmlspecialchars($p['project_desc']) ?></textarea><label>Sub Judul (ID)</label></div>
-                            <div class="col-md-6 form-floating mb-2"><textarea class="form-control" name="project_desc_en" style="height:80px"><?= htmlspecialchars($p['project_desc_en']) ?></textarea><label>Sub Judul (EN)</label></div>
-                        </div>
-                        <button type="submit" name="save_project_text" class="btn btn-sm btn-primary w-100 fw-bold">UPDATE HEADER PROJECT</button>
-                    </form>
-                </div>
-            </div>
-            <div class="card mb-4 border-primary border-2">
-                <div class="card-header bg-primary text-white d-flex align-items-center gap-2"><i class="bi bi-plus-circle-fill"></i> <span>TAMBAH PROJECT BARU</span></div>
-                <div class="card-body">
-                    <form method="POST" enctype="multipart/form-data">
-                        <div class="row g-3">
-                            <div class="col-md-8 form-floating"><input type="text" name="title" class="form-control" placeholder="Title" required><label>Nama Project</label></div>
-                            <div class="col-md-4 form-floating">
-                                <select name="category" class="form-select"><option value="Work">Work Project</option><option value="Personal">Personal Project</option></select>
-                                <label>Kategori Project</label>
-                            </div>
-                            <div class="col-md-6 form-floating"><input type="text" name="tech_stack" class="form-control" placeholder="Tech" required><label>Tech Stack</label></div>
-                            <div class="col-md-6 form-floating"><input type="text" name="link_demo" class="form-control" placeholder="Link"><label>Link Website / Demo</label></div>
-                            <div class="col-12"><label class="small fw-bold text-muted mb-1">Cover Image</label><input type="file" name="image" class="form-control" required></div>
-                            <div class="col-md-6"><label class="small fw-bold text-muted mb-1">Deskripsi (Indo)</label><textarea id="summernote_proj_id" name="description" class="form-control" required></textarea></div>
-                            <div class="col-md-6"><label class="small fw-bold text-muted mb-1">Description (English)</label><textarea id="summernote_proj_en" name="description_en" class="form-control"></textarea></div>
-                            <div class="col-md-6"><label class="small fw-bold text-muted mb-1">Challenge</label><textarea id="summernote_chal" name="challenge" class="form-control"></textarea></div>
-                            <div class="col-md-6"><label class="small fw-bold text-muted mb-1">Impact</label><textarea id="summernote_imp" name="impact" class="form-control"></textarea></div>
-                            <div class="col-12"><button type="submit" name="add_project" class="btn btn-primary w-100 fw-bold py-2"><i class="bi bi-save"></i> SIMPAN PROJECT</button></div>
+                        <div class="row g-2 mb-4">
+                            <div class="col-md-6"><input type="text" name="project_title" class="form-control form-control-sm" value="<?= v($p, 'project_title') ?>"></div>
+                            <div class="col-md-6"><input type="text" name="project_title_en" class="form-control form-control-sm" value="<?= v($p, 'project_title_en') ?>"></div>
+                            <div class="col-md-6"><textarea name="project_desc" class="form-control form-control-sm"><?= v($p, 'project_desc') ?></textarea></div>
+                            <div class="col-md-6"><textarea name="project_desc_en" class="form-control form-control-sm"><?= v($p, 'project_desc_en') ?></textarea></div>
+                            <div class="col-12 text-end"><button type="submit" name="save_project_text" class="btn btn-sm btn-outline-primary">Update Header</button></div>
                         </div>
                     </form>
-                </div>
-            </div>
-            <div class="card shadow-sm">
-                <div class="card-header bg-white fw-bold">DAFTAR PROJECT</div>
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-dark"><tr><th>Cover</th><th>Detail Project</th><th>Kategori</th><th class="text-center">Aksi</th></tr></thead>
-                        <tbody>
-                            <?php 
-                            $stmt = $pdo->query("SELECT * FROM projects ORDER BY id DESC");
-                            while($d = $stmt->fetch(PDO::FETCH_ASSOC)): 
-                            ?>
-                            <tr>
-                                <td width="100"><img src="assets/img/<?=$d['image']?>" width="80" class="rounded border shadow-sm"></td>
-                                <td><div class="fw-bold fs-5 text-primary"><?=$d['title']?></div><div class="text-muted small mb-1"><i class="bi bi-code-slash"></i> <?=$d['tech_stack']?></div></td>
-                                <td><span class="badge bg-light text-dark border px-3 py-2 rounded-pill fw-bold text-uppercase"><?=$d['category']?></span></td>
-                                <td class="text-center">
-                                    <div class="btn-group">
-                                        <button onclick="hapusProject(<?=$d['id']?>)" class="btn btn-sm btn-danger"><i class="bi bi-trash"></i></button>
-                                    </div>
-                                </td>
-                            </tr>
-                            <?php endwhile; ?>
-                        </tbody>
-                    </table>
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-0 table-hover">
+                            <thead class="table-light"><tr><th>Img</th><th>Title</th><th>Stack</th><th>Act</th></tr></thead>
+                            <tbody>
+                                <?php foreach($pdo->query("SELECT * FROM projects ORDER BY id DESC") as $r): ?>
+                                <tr>
+                                    <td width="60"><img src="assets/img/<?= $r['image'] ?>" width="50"></td>
+                                    <td><div class="fw-bold"><?= $r['title'] ?></div><span class="badge bg-light text-dark border"><?= $r['category'] ?></span></td>
+                                    <td class="small text-muted"><?= $r['tech_stack'] ?></td>
+                                    <td>
+                                        <button onclick='editProj(<?= json_encode($r) ?>)' class="btn btn-icon btn-outline-primary btn-sm"><i class="bi bi-pencil"></i></button>
+                                        <a href="?hapus_proj=<?= $r['id'] ?>" class="btn btn-icon btn-outline-danger btn-sm" onclick="return confirm('Del?')"><i class="bi bi-trash"></i></a>
+                                    </td>
+                                </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="tab-pane fade" id="tech-pane">
-            <div class="row">
-                <div class="col-md-4">
-                    <div class="card mb-4 border-warning border-2">
-                        <div class="card-header bg-warning text-dark fw-bold">TAMBAH ICON SKILL</div>
-                        <div class="card-body">
-                            <form method="POST">
-                                <div class="form-floating mb-2"><input type="text" name="tech_name" class="form-control" placeholder="Name" required><label>Nama Skill</label></div>
-                                <div class="form-floating mb-2"><select name="tech_category" class="form-select"><option value="Analysis">Analysis</option><option value="Enterprise">Enterprise</option><option value="Development">Development</option></select><label>Kategori</label></div>
-                                <div class="form-floating mb-3"><input type="text" name="tech_icon" class="form-control" placeholder="Icon" required><label>Icon Class (bi-code)</label></div>
-                                <button type="submit" name="add_tech" class="btn btn-warning w-100 fw-bold">TAMBAH</button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-8">
-                    <div class="card"><div class="card-header bg-white fw-bold">DAFTAR SKILL</div><div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead class="table-dark"><tr><th>Icon</th><th>Skill</th><th>Kategori</th><th>Aksi</th></tr></thead><tbody>
-                    <?php 
-                    $stmt = $pdo->query("SELECT * FROM tech_stacks ORDER BY category ASC");
-                    while($ts = $stmt->fetch(PDO::FETCH_ASSOC)): 
-                    ?>
-                    <tr><td class="text-center"><i class="<?=$ts['icon']?> fs-5"></i></td><td class="fw-bold"><?=$ts['name']?></td><td><span class="badge bg-secondary"><?=$ts['category']?></span></td><td><a href="admin.php?hapus_tech=<?=$ts['id']?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Hapus?')"><i class="bi bi-trash"></i></a></td></tr>
-                    <?php endwhile; ?>
-                    </tbody></table></div></div>
-                </div>
+        <div class="tab-pane fade" id="time-pane">
+            <button class="btn btn-primary mb-3" onclick="openTimeModal()"><i class="bi bi-plus-lg"></i> Add Experience</button>
+            <div class="card">
+                <table class="table align-middle mb-0 table-hover">
+                    <thead class="table-light"><tr><th>Year</th><th>Role</th><th>Act</th></tr></thead>
+                    <tbody>
+                        <?php foreach($pdo->query("SELECT * FROM timeline ORDER BY sort_date DESC") as $r): ?>
+                        <tr>
+                            <td><span class="badge bg-secondary"><?= $r['year'] ?></span></td>
+                            <td><div class="fw-bold"><?= $r['role'] ?></div><small><?= $r['company'] ?></small></td>
+                            <td>
+                                <button onclick='editTime(<?= json_encode($r) ?>)' class="btn btn-icon btn-outline-primary btn-sm"><i class="bi bi-pencil"></i></button>
+                                <a href="?hapus_time=<?= $r['id'] ?>" class="btn btn-icon btn-outline-danger btn-sm" onclick="return confirm('Del?')"><i class="bi bi-trash"></i></a>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
             </div>
         </div>
 
         <div class="tab-pane fade" id="cert-pane">
-            <div class="card mb-4 border-success border-2">
-                <div class="card-header bg-success text-white fw-bold">TAMBAH SERTIFIKAT</div>
-                <div class="card-body">
-                    <form method="POST" enctype="multipart/form-data">
-                        <div class="row g-2">
-                            <div class="col-md-4 form-floating"><input type="text" name="cert_name" class="form-control" placeholder="Name"><label>Nama Sertifikat</label></div>
-                            <div class="col-md-4 form-floating"><input type="text" name="cert_issuer" class="form-control" placeholder="Issuer"><label>Penerbit</label></div>
-                            <div class="col-md-4 form-floating"><input type="text" name="cert_date" class="form-control" placeholder="Date"><label>Tgl Terbit</label></div>
-                            <div class="col-md-6 form-floating"><input type="text" name="cert_link" class="form-control" placeholder="Link"><label>Link Credential</label></div>
-                            <div class="col-md-6"><input type="file" name="cert_img" class="form-control h-100 pt-3" required></div>
-                            <div class="col-12"><button type="submit" name="add_cert" class="btn btn-success w-100 fw-bold">SIMPAN SERTIFIKAT</button></div>
-                        </div>
-                    </form>
-                </div>
-            </div>
+            <button class="btn btn-success mb-3" onclick="openCertModal()"><i class="bi bi-plus-lg"></i> Add Certificate</button>
             <div class="card">
-                <table class="table table-hover align-middle mb-0"><thead class="table-dark"><tr><th>Logo</th><th>Nama</th><th>Aksi</th></tr></thead><tbody>
-                <?php 
-                $stmt = $pdo->query("SELECT * FROM certifications ORDER BY id DESC");
-                while($c = $stmt->fetch(PDO::FETCH_ASSOC)): 
-                ?>
-                <tr><td width="60"><img src="assets/img/<?=$c['image']?>" width="40"></td><td><b><?=$c['name']?></b><br><small><?=$c['issuer']?></small></td><td><a href="admin.php?hapus_cert=<?=$c['id']?>" class="btn btn-sm btn-danger"><i class="bi bi-trash"></i></a></td></tr>
-                <?php endwhile; ?>
-                </tbody></table>
+                <table class="table align-middle mb-0 table-hover">
+                    <thead class="table-light"><tr><th>Img</th><th>Name</th><th>Act</th></tr></thead>
+                    <tbody>
+                        <?php foreach($pdo->query("SELECT * FROM certifications ORDER BY id DESC") as $r): ?>
+                        <tr>
+                            <td width="50"><img src="assets/img/<?= $r['image'] ?>" width="40"></td>
+                            <td><div class="fw-bold"><?= $r['name'] ?></div><small><?= $r['date_issued'] ?></small></td>
+                            <td>
+                                <button onclick='editCert(<?= json_encode($r) ?>)' class="btn btn-icon btn-outline-primary btn-sm"><i class="bi bi-pencil"></i></button>
+                                <a href="?hapus_cert=<?= $r['id'] ?>" class="btn btn-icon btn-outline-danger btn-sm" onclick="return confirm('Del?')"><i class="bi bi-trash"></i></a>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="tech-pane">
+            <button class="btn btn-warning mb-3" onclick="openTechModal()"><i class="bi bi-plus-lg"></i> Add Skill</button>
+            <div class="card">
+                <table class="table align-middle mb-0 table-hover">
+                    <thead class="table-light"><tr><th>Icon</th><th>Name</th><th>Cat</th><th>Act</th></tr></thead>
+                    <tbody>
+                        <?php foreach($pdo->query("SELECT * FROM tech_stacks ORDER BY category ASC") as $r): ?>
+                        <tr>
+                            <td><i class="<?= $r['icon'] ?>"></i></td>
+                            <td class="fw-bold"><?= $r['name'] ?></td>
+                            <td><span class="badge bg-secondary"><?= $r['category'] ?></span></td>
+                            <td>
+                                <button onclick='editTech(<?= json_encode($r) ?>)' class="btn btn-icon btn-outline-primary btn-sm"><i class="bi bi-pencil"></i></button>
+                                <a href="?hapus_tech=<?= $r['id'] ?>" class="btn btn-icon btn-outline-danger btn-sm" onclick="return confirm('Del?')"><i class="bi bi-trash"></i></a>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
             </div>
         </div>
 
     </div>
 </div>
 
+<div class="modal fade" id="projModal" tabindex="-1"><div class="modal-dialog modal-xl"><div class="modal-content"><form method="POST" enctype="multipart/form-data">
+    <div class="modal-header"><h5 class="modal-title">Project Data</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+        <input type="hidden" name="proj_id" id="p_id"><input type="hidden" name="old_image" id="p_old_img">
+        <div class="row g-3">
+            <div class="col-md-8"><label class="small fw-bold">Title</label><input type="text" name="title" id="p_title" class="form-control" required></div>
+            <div class="col-md-4"><label class="small fw-bold">Category</label><select name="category" id="p_cat" class="form-select"><option value="Work">Work</option><option value="Personal">Personal</option></select></div>
+            <div class="col-md-6"><label class="small fw-bold">Tech Stack</label><input type="text" name="tech_stack" id="p_tech" class="form-control" required></div>
+            <div class="col-md-6"><label class="small fw-bold">Demo Link</label><input type="text" name="link_demo" id="p_link" class="form-control"></div>
+            <div class="col-12"><label class="small fw-bold">Cover Image</label><input type="file" name="image" class="form-control"></div>
+            <div class="col-md-6"><label class="small text-muted fw-bold">Description (Indo)</label><textarea name="description" id="p_desc" class="summernote"></textarea></div>
+            <div class="col-md-6"><label class="small text-muted fw-bold">Description (English)</label><textarea name="description_en" id="p_desc_en" class="summernote"></textarea></div>
+            <div class="col-md-6"><label class="small text-muted fw-bold">Challenge</label><textarea name="challenge" id="p_chal" class="summernote"></textarea></div>
+            <div class="col-md-6"><label class="small text-muted fw-bold">Impact</label><textarea name="impact" id="p_imp" class="summernote"></textarea></div>
+        </div>
+    </div>
+    <div class="modal-footer"><button type="submit" name="save_project" class="btn btn-primary">Save Project</button></div>
+</form></div></div></div>
+
+<div class="modal fade" id="timeModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><form method="POST" enctype="multipart/form-data">
+    <div class="modal-header"><h5 class="modal-title">Journey Data</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+        <input type="hidden" name="time_id" id="t_id"><input type="hidden" name="old_image" id="t_old_img">
+        <div class="row g-2">
+            <div class="col-8"><label>Year</label><input type="text" name="year" id="t_year" class="form-control" required></div>
+            <div class="col-4"><label>Sort Date</label><input type="date" name="sort_date" id="t_date" class="form-control" required></div>
+            <div class="col-12"><label>Role</label><input type="text" name="role" id="t_role" class="form-control" required></div>
+            <div class="col-12"><label>Company</label><input type="text" name="company" id="t_comp" class="form-control" required></div>
+            <div class="col-12"><label>Description</label><textarea name="description" id="t_desc" class="summernote"></textarea></div>
+            <div class="col-12"><label>Image (Optional)</label><input type="file" name="image" class="form-control"></div>
+        </div>
+    </div>
+    <div class="modal-footer"><button type="submit" name="save_timeline" class="btn btn-primary">Save</button></div>
+</form></div></div></div>
+
+<div class="modal fade" id="techModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><form method="POST">
+    <div class="modal-header"><h5 class="modal-title">Skill Data</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+        <input type="hidden" name="tech_id" id="s_id">
+        <div class="mb-3">
+            <label class="fw-bold">Skill Name</label>
+            <input type="text" name="tech_name" id="s_name" class="form-control" placeholder="e.g. PHP" required>
+        </div>
+        <div class="mb-3">
+            <label class="fw-bold">Category</label>
+            <select name="tech_category" id="s_cat" class="form-select">
+                <option value="Analysis">Analysis</option>
+                <option value="Enterprise">Enterprise</option>
+                <option value="Development">Development</option>
+            </select>
+        </div>
+        <div class="mb-2">
+            <label class="fw-bold">Icon Class (Bootstrap Icon)</label>
+            <input type="text" name="tech_icon" id="s_icon" class="form-control" placeholder="e.g. bi-code-slash" required>
+            <div class="form-text">
+                <a href="https://icons.getbootstrap.com/" target="_blank" class="text-decoration-none">
+                    <i class="bi bi-box-arrow-up-right"></i> Lihat Daftar Icon Disini
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="modal-footer"><button type="submit" name="save_tech" class="btn btn-primary">Save Skill</button></div>
+</form></div></div></div>
+
+<div class="modal fade" id="certModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><form method="POST" enctype="multipart/form-data">
+    <div class="modal-header"><h5 class="modal-title">Certificate Data</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+        <input type="hidden" name="cert_id" id="c_id"><input type="hidden" name="old_image" id="c_old_img">
+        <div class="row g-2">
+            <div class="col-6"><label>Name</label><input type="text" name="cert_name" id="c_name" class="form-control" required></div>
+            <div class="col-6"><label>Issuer</label><input type="text" name="cert_issuer" id="c_issuer" class="form-control"></div>
+            <div class="col-6"><label>Date Issued</label><input type="text" name="cert_date" id="c_date" class="form-control"></div>
+            <div class="col-6"><label>Credential Link</label><input type="text" name="cert_link" id="c_link" class="form-control"></div>
+            <div class="col-12"><label>Image</label><input type="file" name="cert_img" class="form-control"></div>
+        </div>
+    </div>
+    <div class="modal-footer"><button type="submit" name="save_cert" class="btn btn-primary">Save</button></div>
+</form></div></div></div>
+
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.js"></script>
-
 <script>
-    var summernoteConfig = {
-        placeholder: 'Ketik deskripsi di sini...',
-        tabsize: 2,
-        height: 150,
-        toolbar: [['style', ['bold', 'italic', 'underline', 'clear']], ['para', ['ul', 'ol', 'paragraph']], ['insert', ['link']], ['view', ['codeview']]]
-    };
+    // Init ALL Summernotes
+    $('.summernote').summernote({ height: 120, toolbar: [['style', ['bold', 'italic', 'underline', 'clear']], ['para', ['ul', 'ol']], ['view', ['codeview']]] });
 
-    $('#summernote').summernote(summernoteConfig);
-    $('#summernote_proj_id').summernote(summernoteConfig);
-    $('#summernote_proj_en').summernote(summernoteConfig);
-    $('#summernote_chal').summernote(summernoteConfig);
-    $('#summernote_imp').summernote(summernoteConfig);
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    if(tab) { const el = document.querySelector(`[data-bs-target="#${tab}"]`); if(el) new bootstrap.Tab(el).show(); }
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const tab = urlParams.get('tab');
-    if(tab){
-        const tabBtn = document.querySelector(`[data-bs-target="#${tab}"]`);
-        if(tabBtn) { const t = new bootstrap.Tab(tabBtn); t.show(); }
+    <?php if(isset($_SESSION['flash_msg'])): ?>
+    Swal.fire({ icon: '<?= $_SESSION['flash_type'] ?>', title: '<?= $_SESSION['flash_msg'] ?>', timer: 1500, showConfirmButton: false, toast: true, position: 'top-end' });
+    <?php unset($_SESSION['flash_msg']); unset($_SESSION['flash_type']); endif; ?>
+
+    // MODAL HANDLERS
+    function openProjModal() { 
+        document.getElementById('p_id').value=''; document.getElementById('p_title').value=''; 
+        $('#p_desc').summernote('code', ''); $('#p_desc_en').summernote('code', ''); 
+        $('#p_chal').summernote('code', ''); $('#p_imp').summernote('code', '');
+        new bootstrap.Modal(document.getElementById('projModal')).show(); 
+    }
+    function editProj(d) {
+        document.getElementById('p_id').value = d.id;
+        document.getElementById('p_old_img').value = d.image;
+        document.getElementById('p_title').value = d.title;
+        document.getElementById('p_cat').value = d.category;
+        document.getElementById('p_tech').value = d.tech_stack;
+        document.getElementById('p_link').value = d.link_demo;
+        $('#p_desc').summernote('code', d.description);
+        $('#p_desc_en').summernote('code', d.description_en);
+        $('#p_chal').summernote('code', d.challenge);
+        $('#p_imp').summernote('code', d.impact);
+        new bootstrap.Modal(document.getElementById('projModal')).show();
     }
 
-    function hapusProject(id) {
-        Swal.fire({
-            title: 'Yakin mau hapus?',
-            text: "Data project ini akan hilang permanen!",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            cancelButtonColor: '#3085d6',
-            confirmButtonText: 'Ya, Hapus!',
-            cancelButtonText: 'Batal'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                window.location.href = "admin.php?hapus_proj=" + id;
-            }
-        })
+    function openTimeModal() { document.getElementById('t_id').value=''; document.getElementById('t_role').value=''; $('#t_desc').summernote('code', ''); new bootstrap.Modal(document.getElementById('timeModal')).show(); }
+    function editTime(d) {
+        document.getElementById('t_id').value = d.id;
+        document.getElementById('t_old_img').value = d.image;
+        document.getElementById('t_year').value = d.year;
+        document.getElementById('t_date').value = d.sort_date;
+        document.getElementById('t_role').value = d.role;
+        document.getElementById('t_comp').value = d.company;
+        $('#t_desc').summernote('code', d.description);
+        new bootstrap.Modal(document.getElementById('timeModal')).show();
+    }
+
+    function openTechModal() { document.getElementById('s_id').value=''; document.getElementById('s_name').value=''; new bootstrap.Modal(document.getElementById('techModal')).show(); }
+    function editTech(d) {
+        document.getElementById('s_id').value = d.id;
+        document.getElementById('s_name').value = d.name;
+        document.getElementById('s_cat').value = d.category;
+        document.getElementById('s_icon').value = d.icon;
+        new bootstrap.Modal(document.getElementById('techModal')).show();
+    }
+
+    function openCertModal() { document.getElementById('c_id').value=''; document.getElementById('c_name').value=''; new bootstrap.Modal(document.getElementById('certModal')).show(); }
+    function editCert(d) {
+        document.getElementById('c_id').value = d.id;
+        document.getElementById('c_old_img').value = d.image;
+        document.getElementById('c_name').value = d.name;
+        document.getElementById('c_issuer').value = d.issuer;
+        document.getElementById('c_date').value = d.date_issued;
+        document.getElementById('c_link').value = d.credential_link;
+        new bootstrap.Modal(document.getElementById('certModal')).show();
     }
 </script>
-
-<?php if(isset($_SESSION['flash_msg'])): ?>
-<script>
-    Swal.fire({ title: 'Sukses!', text: '<?php echo $_SESSION['flash_msg']; ?>', icon: '<?php echo isset($_SESSION['flash_type']) ? $_SESSION['flash_type'] : 'success'; ?>', timer: 3000, showConfirmButton: false });
-</script>
-<?php unset($_SESSION['flash_msg']); unset($_SESSION['flash_type']); endif; ?>
 
 </body>
 </html>

@@ -1,24 +1,18 @@
 # ====================================================
-# 🛡️ 1. SECURITY UTAMA (WAJIB ADA)
+# 🛡️ 1. SECURITY UTAMA
 # ====================================================
 
 # 🚫 MATIKAN FITUR NGINTIP FOLDER
 Options -Indexes
 
-# 🔒 BLOKIR AKSES FILE SENSITIF & JSON CACHE
-# Ini gabungan biar .env, koneksi.php, git, dan file json di cache gak bisa dibuka
-<FilesMatch "^(koneksi\.php|\.env|\.git|composer\.lock|package\.lock)">
+# 🔒 BLOKIR AKSES FILE SENSITIF
+# Blokir koneksi, env, git, dan JSON cache
+<FilesMatch "^(koneksi\.php|\.env|\.git|composer\.lock|package\.lock|\.json)$">
     Order allow,deny
     Deny from all
 </FilesMatch>
 
-# Blokir akses langsung ke file JSON (untuk folder cache)
-<FilesMatch "\.(json)$">
-    Order allow,deny
-    Deny from all
-</FilesMatch>
-
-# 🛡️ TAMENG BROWSER (SECURITY HEADERS)
+# 🛡️ TAMENG BROWSER
 <IfModule mod_headers.c>
     Header set X-Frame-Options "SAMEORIGIN"
     Header set X-Content-Type-Options "nosniff"
@@ -26,21 +20,26 @@ Options -Indexes
 </IfModule>
 
 # ====================================================
-# 🚀 2. URL REWRITE & SYSTEM
+# 🚀 2. URL REWRITE (PRETTY URL)
 # ====================================================
 RewriteEngine On
 
-# ⚠️ PAKSA HTTPS (Aktifkan nanti pas di Hosting)
+# ⚠️ PAKSA HTTPS (Uncomment nanti pas di Hosting)
 # RewriteCond %{HTTPS} off
 # RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
-# PENGECUALIAN: Jangan rewrite folder /apps/ (biar apps lama jalan normal)
-RewriteCond %{REQUEST_URI} !^/apps/
-
-# PRETTY URL: Hapus ekstensi .php di URL
+# 🧹 HAPUS TRAILING SLASH (login/ -> login)
+# Biar gak error CSS/JS karena path yang salah
 RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)/$ /$1 [L,R=301]
+
+# ✨ HILANGKAN EKSTENSI .PHP (UNTUK SEMUA FOLDER TERMASUK APPS)
+# 1. Cek dulu apakah user meminta folder? Kalau bukan...
+RewriteCond %{REQUEST_FILENAME} !-d
+# 2. Cek apakah file .php nya ada?
 RewriteCond %{REQUEST_FILENAME}.php -f
+# 3. Kalau ada, arahkan ke file .php tersebut
 RewriteRule ^(.*)$ $1.php [L]
 
 # 3. Custom Error Page
-ErrorDocument 404 /index.php
+ErrorDocument 404 /portofolio/404.php

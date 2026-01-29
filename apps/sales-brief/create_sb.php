@@ -1,4 +1,5 @@
 <?php
+session_name("SB_APP_SESSION");
 session_start();
 // 1. KONEKSI DATABASE (Wajib ada di sini buat ngecek nomor terakhir)
 $conn = mysqli_connect("localhost", "root", "", "portofolio_db");

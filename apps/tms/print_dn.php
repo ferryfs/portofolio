@@ -1,4 +1,5 @@
 <?php
+session_name("TMS_APP_SESSION");
 session_start();
 include '../../koneksi.php';
 

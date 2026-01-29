@@ -1,4 +1,5 @@
 <?php
+session_name("TMS_APP_SESSION");
 session_start();
 if (!isset($_SESSION['tms_status'])) { header("Location: index.php"); exit(); }
 include '../../koneksi.php';

@@ -1,32 +1,44 @@
 <?php 
+// 🔥 SESSION ISOLATION
+session_name("WMS_APP_SESSION");
 session_start();
 
 // 1. CEK KEAMANAN
 if(!isset($_SESSION['wms_login'])) {
-    header("Location: ../../index.php?err=no_access");
+    header("Location: login.php"); // Redirect ke login lokal
     exit();
 }
 
-include '../../koneksi.php'; 
+include 'koneksi.php'; 
 
-// --- LOGIKA DATA DASHBOARD ---
-$q_open = mysqli_query($conn, "SELECT COUNT(*) as total FROM wms_warehouse_tasks WHERE status = 'OPEN'");
-$d_open = mysqli_fetch_assoc($q_open);
-$total_open = $d_open['total'];
+// --- LOGIKA DATA DASHBOARD (DEFENSIVE CODING) ---
+$total_open = 0; $total_recv = 0; $usage_percent = 0;
 
-$today = date('Y-m-d');
-$q_recv = mysqli_query($conn, "SELECT COUNT(*) as total FROM wms_warehouse_tasks WHERE process_type = 'PUTAWAY' AND DATE(created_at) = '$today'");
-$d_recv = mysqli_fetch_assoc($q_recv);
-$total_recv = $d_recv['total'];
+// Cek tabel sebelum query biar gak error
+$check_table = mysqli_query($conn, "SHOW TABLES LIKE 'wms_warehouse_tasks'");
+if(mysqli_num_rows($check_table) > 0) {
+    // Open Tasks
+    $q_open = mysqli_query($conn, "SELECT COUNT(*) as total FROM wms_warehouse_tasks WHERE status = 'OPEN'");
+    if($q_open) { $d = mysqli_fetch_assoc($q_open); $total_open = $d['total']; }
 
-$q_bin_used = mysqli_query($conn, "SELECT COUNT(DISTINCT lgpla) as used FROM wms_quants");
-$d_bin_used = mysqli_fetch_assoc($q_bin_used);
-$q_bin_all  = mysqli_query($conn, "SELECT COUNT(*) as total FROM wms_storage_bins");
-$d_bin_all  = mysqli_fetch_assoc($q_bin_all);
+    // Today's Receiving
+    $today = date('Y-m-d');
+    $q_recv = mysqli_query($conn, "SELECT COUNT(*) as total FROM wms_warehouse_tasks WHERE process_type = 'PUTAWAY' AND DATE(created_at) = '$today'");
+    if($q_recv) { $d = mysqli_fetch_assoc($q_recv); $total_recv = $d['total']; }
+}
 
-$usage_percent = 0;
-if($d_bin_all['total'] > 0) {
-    $usage_percent = round(($d_bin_used['used'] / $d_bin_all['total']) * 100);
+// Bin Usage
+$check_bins = mysqli_query($conn, "SHOW TABLES LIKE 'wms_storage_bins'");
+if(mysqli_num_rows($check_bins) > 0) {
+    $q_bin_used = mysqli_query($conn, "SELECT COUNT(DISTINCT lgpla) as used FROM wms_quants");
+    $d_bin_used = mysqli_fetch_assoc($q_bin_used);
+    
+    $q_bin_all  = mysqli_query($conn, "SELECT COUNT(*) as total FROM wms_storage_bins");
+    $d_bin_all  = mysqli_fetch_assoc($q_bin_all);
+
+    if($d_bin_all['total'] > 0) {
+        $usage_percent = round(($d_bin_used['used'] / $d_bin_all['total']) * 100);
+    }
 }
 
 $chart_color = '#0d6efd'; 
@@ -78,7 +90,7 @@ if($usage_percent > 90) $chart_color = '#dc3545';
         </a>
         
         <div class="d-flex align-items-center gap-3">
-            <button class="btn btn-outline-info btn-sm rounded-pill px-3" onclick="showGuide()">
+            <button class="btn btn-outline-info btn-sm rounded-pill px-3" onclick="showGuide(true)">
                 <i class="bi bi-question-circle"></i> Help & Legend
             </button>
 
@@ -93,7 +105,7 @@ if($usage_percent > 90) $chart_color = '#dc3545';
                     <?= isset($_SESSION['wms_role']) ? $_SESSION['wms_role'] : 'User' ?>
                 </div>
             </div>
-            <a href="../../logout.php" class="btn btn-outline-light btn-sm rounded-pill px-3">
+            <a href="logout.php" class="btn btn-outline-light btn-sm rounded-pill px-3">
                 <i class="bi bi-power"></i>
             </a>
         </div>
@@ -229,7 +241,7 @@ if($usage_percent > 90) $chart_color = '#dc3545';
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content border-0 shadow-lg rounded-4">
             <div class="modal-header bg-dark text-white">
-                <h5 class="modal-title fw-bold"><i class="bi bi-book-half me-2"></i> Panduan Pengguna WMS & Legenda</h5>
+                <h5 class="modal-title fw-bold"><i class="bi bi-book-half me-2"></i> Panduan Pengguna WMS</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-0">
@@ -247,161 +259,57 @@ if($usage_percent > 90) $chart_color = '#dc3545';
                         <button class="nav-link text-start mb-2" data-bs-toggle="pill" data-bs-target="#guide-out">
                             <i class="bi bi-box-arrow-up me-2"></i> Cara Outbound
                         </button>
-                        <button class="nav-link text-start mb-2" data-bs-toggle="pill" data-bs-target="#guide-rf">
-                            <i class="bi bi-phone me-2"></i> Cara Pakai Scanner
-                        </button>
                     </div>
                     
                     <div class="tab-content p-4 flex-fill" style="overflow-y: auto;">
-                        
                         <div class="tab-pane fade show active" id="guide-intro">
                             <h4 class="fw-bold text-primary mb-3">Selamat Datang di Ekosistem WMS!</h4>
-                            <p>Sistem ini dirancang dengan logika <strong>"Task-Directed"</strong> (Berbasis Tugas). Tidak ada stok yang berubah tanpa konfirmasi dari lapangan.</p>
-
+                            <p>Sistem ini dirancang dengan logika <strong>"Task-Directed"</strong>.</p>
                             <div class="card bg-light border-0 mb-4">
                                 <div class="card-body">
-                                    <h6 class="fw-bold">Flowchart Sederhana:</h6>
+                                    <h6 class="fw-bold">Flowchart:</h6>
                                     <div class="d-flex align-items-center justify-content-around text-center mt-3 text-muted small">
-                                        <div>
-                                            <div class="bg-white p-2 rounded shadow-sm border mb-2"><i class="bi bi-pc-display fs-3 text-primary"></i></div>
-                                            <strong>1. ADMIN</strong><br>Buat Tiket
-                                        </div>
+                                        <div><div class="bg-white p-2 rounded shadow-sm border mb-2"><i class="bi bi-pc-display fs-3 text-primary"></i></div><strong>1. ADMIN</strong><br>Buat Tiket</div>
                                         <i class="bi bi-arrow-right fs-4"></i>
-                                        <div>
-                                            <div class="bg-white p-2 rounded shadow-sm border mb-2"><i class="bi bi-list-task fs-3 text-warning"></i></div>
-                                            <strong>2. SYSTEM</strong><br>Status: OPEN
-                                        </div>
+                                        <div><div class="bg-white p-2 rounded shadow-sm border mb-2"><i class="bi bi-list-task fs-3 text-warning"></i></div><strong>2. SYSTEM</strong><br>Status: OPEN</div>
                                         <i class="bi bi-arrow-right fs-4"></i>
-                                        <div>
-                                            <div class="bg-white p-2 rounded shadow-sm border mb-2"><i class="bi bi-qr-code fs-3 text-dark"></i></div>
-                                            <strong>3. OPERATOR</strong><br>Scan Rak
-                                        </div>
+                                        <div><div class="bg-white p-2 rounded shadow-sm border mb-2"><i class="bi bi-qr-code fs-3 text-dark"></i></div><strong>3. OPERATOR</strong><br>Scan Rak</div>
                                         <i class="bi bi-arrow-right fs-4"></i>
-                                        <div>
-                                            <div class="bg-white p-2 rounded shadow-sm border mb-2"><i class="bi bi-database-check fs-3 text-success"></i></div>
-                                            <strong>4. SELESAI</strong><br>Stok Update
-                                        </div>
+                                        <div><div class="bg-white p-2 rounded shadow-sm border mb-2"><i class="bi bi-database-check fs-3 text-success"></i></div><strong>4. SELESAI</strong><br>Stok Update</div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
                         <div class="tab-pane fade" id="guide-colors">
-                            <h4 class="fw-bold text-primary mb-3">Kamus Warna & Status</h4>
-                            <p>Pahami indikator warna di Monitor dan Dashboard agar tidak salah langkah.</p>
-                            
+                            <h4 class="fw-bold text-primary mb-3">Kamus Warna</h4>
                             <table class="table table-bordered align-middle">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th width="150">Indikator</th>
-                                        <th>Arti & Tindakan</th>
-                                    </tr>
-                                </thead>
                                 <tbody>
-                                    <tr>
-                                        <td><span class="badge bg-warning text-dark w-100 py-2">OPEN</span></td>
-                                        <td>
-                                            <strong>Tugas Baru Dibuat.</strong><br>
-                                            Stok fisik belum bergerak. Menunggu operator Scanner untuk mengerjakan.
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td><span class="badge bg-success w-100 py-2">CONFIRMED</span></td>
-                                        <td>
-                                            <strong>Tugas Selesai.</strong><br>
-                                            Operator sudah scan rak yang benar. Stok di database sudah resmi bertambah/berkurang.
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td><span class="badge bg-danger w-100 py-2">BLOCKED (B6)</span></td>
-                                        <td>
-                                            <strong>Barang Rusak/Ditahan.</strong><br>
-                                            Stok ini ada di gudang tapi tidak bisa dijual (Outbound). Harus dipindah ke area Reject.
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td><span class="badge bg-info text-dark w-100 py-2">QI (Q4)</span></td>
-                                        <td>
-                                            <strong>Quality Inspection.</strong><br>
-                                            Barang baru datang, harus dicek QC dulu sebelum statusnya jadi Available (F1).
-                                        </td>
-                                    </tr>
+                                    <tr><td><span class="badge bg-warning text-dark w-100 py-2">OPEN</span></td><td>Tugas Baru. Stok fisik belum bergerak.</td></tr>
+                                    <tr><td><span class="badge bg-success w-100 py-2">CONFIRMED</span></td><td>Tugas Selesai. Stok database sudah update.</td></tr>
+                                    <tr><td><span class="badge bg-danger w-100 py-2">BLOCKED</span></td><td>Barang Rusak/Ditahan.</td></tr>
                                 </tbody>
                             </table>
                         </div>
 
                         <div class="tab-pane fade" id="guide-in">
-                            <h4 class="fw-bold text-primary mb-3">Panduan Inbound (Barang Masuk)</h4>
-                            
-                            <div class="guide-step active">
-                                <strong>Langkah 1: Terima Dokumen</strong><br>
-                                Klik modul <strong>Inbound</strong>. Pilih Nomor PO (Purchase Order) dari Supplier.
-                            </div>
-                            <div class="guide-step active">
-                                <strong>Langkah 2: Cek Fisik & Input</strong><br>
-                                Hitung barang yang datang. Masukkan jumlahnya di kolom "Received Qty".<br>
-                                <em>Tips: Jangan input melebihi jumlah pesanan.</em>
-                            </div>
-                            <div class="guide-step active">
-                                <strong>Langkah 3: Generate Task</strong><br>
-                                Klik tombol <strong>Save & Generate Task</strong>.<br>
-                                <span class="text-danger small"><i class="bi bi-exclamation-circle"></i> Perhatian: Di tahap ini, stok di menu "Inventory" BELUM bertambah. Ini wajar.</span>
-                            </div>
-                            <div class="guide-step">
-                                <strong>Langkah 4: Serahkan ke Operator</strong><br>
-                                Tugas akan muncul otomatis di layar <strong>RF Scanner</strong> operator untuk ditaruh ke rak (Putaway).
-                            </div>
+                            <h4 class="fw-bold text-primary mb-3">Inbound (Masuk)</h4>
+                            <div class="guide-step active"><strong>1. Terima Dokumen:</strong> Klik Inbound > Pilih PO.</div>
+                            <div class="guide-step active"><strong>2. Cek Fisik:</strong> Input jumlah Received Qty.</div>
+                            <div class="guide-step active"><strong>3. Generate Task:</strong> Klik Save. Tugas akan dikirim ke Scanner.</div>
                         </div>
 
                         <div class="tab-pane fade" id="guide-out">
-                            <h4 class="fw-bold text-primary mb-3">Panduan Outbound (Barang Keluar)</h4>
-                            
-                            <div class="guide-step active">
-                                <strong>Langkah 1: Order Masuk</strong><br>
-                                Klik modul <strong>Outbound</strong>. Pilih Nomor SO (Sales Order).
-                            </div>
-                            <div class="guide-step active">
-                                <strong>Langkah 2: Cek Ketersediaan (FIFO)</strong><br>
-                                Sistem akan otomatis mencari stok dengan prinsip <strong>First In First Out</strong>.
-                            </div>
-                            <div class="guide-step active">
-                                <strong>Langkah 3: Release Task</strong><br>
-                                Jika stok aman, klik <strong>Generate Picking Task</strong>. Tugas akan dikirim ke Scanner Operator.
-                            </div>
+                            <h4 class="fw-bold text-primary mb-3">Outbound (Keluar)</h4>
+                            <div class="guide-step active"><strong>1. Order Masuk:</strong> Klik Outbound > Pilih SO.</div>
+                            <div class="guide-step active"><strong>2. Cek FIFO:</strong> Sistem mencari stok terlama otomatis.</div>
+                            <div class="guide-step active"><strong>3. Release Task:</strong> Klik Generate Picking.</div>
                         </div>
-
-                        <div class="tab-pane fade" id="guide-rf">
-                            <h4 class="fw-bold text-primary mb-3">Cara Menggunakan RF Scanner Simulator</h4>
-                            <p>Gunakan ini di HP atau Tab baru untuk simulasi Operator.</p>
-
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="card mb-3">
-                                        <div class="card-header bg-dark text-white fw-bold">Tampilan Layar</div>
-                                        <div class="card-body bg-secondary text-white">
-                                            <small class="d-block mb-2 text-warning">TASK #1002 - PICKING</small>
-                                            <h5 class="fw-bold">PROD-001 (Indomie)</h5>
-                                            <p>Lokasi: <span class="badge bg-danger fs-6">A-01-01</span></p>
-                                            <input type="text" class="form-control form-control-sm mb-2" placeholder="SCAN BIN...">
-                                            <button class="btn btn-success btn-sm w-100">CONFIRM</button>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <h6 class="fw-bold">Fitur Penting:</h6>
-                                    <ul class="list-unstyled">
-                                        <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i> <strong>Auto-Task:</strong> Tidak perlu milih menu. Tugas OPEN langsung muncul.</li>
-                                        <li class="mb-2"><i class="bi bi-shield-lock text-danger me-2"></i> <strong>Safety Lock:</strong> Jika disuruh ke Rak A, tapi operator scan Rak B, sistem akan ERROR (Menolak).</li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-
                     </div>
                 </div>
             </div>
             <div class="modal-footer bg-light">
-                <button type="button" class="btn btn-primary px-4" data-bs-dismiss="modal">Saya Paham, Tutup Panduan</button>
+                <button type="button" class="btn btn-primary px-4" onclick="finishGuide()">Saya Paham & Mulai Bekerja</button>
             </div>
         </div>
     </div>
@@ -409,24 +317,47 @@ if($usage_percent > 90) $chart_color = '#dc3545';
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-    // SCRIPT POPUP OTOMATIS (TANPA SYARAT)
+    // LOGIC POPUP OTOMATIS
     document.addEventListener("DOMContentLoaded", function() {
         var myModal = new bootstrap.Modal(document.getElementById('guideModal'));
         
-        // Hapus semua ingatan browser biar fresh
-        localStorage.removeItem('wms_guide_hidden');
-        sessionStorage.removeItem('wms_guide_session_shown');
-
-        // LANGSUNG MUNCUL
-        myModal.show();
+        // Cek apakah user sudah melihat guide di sesi ini?
+        if (!sessionStorage.getItem('wms_guide_seen')) {
+            myModal.show();
+        }
     });
 
-    // Fungsi tombol Help manual
-    function showGuide() {
+    // Fungsi tombol "Saya Paham"
+    function finishGuide() {
+        sessionStorage.setItem('wms_guide_seen', 'true');
+        var myModalEl = document.getElementById('guideModal');
+        var modal = bootstrap.Modal.getInstance(myModalEl);
+        modal.hide();
+    }
+
+    // Fungsi tombol Help manual (selalu muncul)
+    function showGuide(force = false) {
         var myModal = new bootstrap.Modal(document.getElementById('guideModal'));
         myModal.show();
     }
 </script>
-
+<script>
+    // Cari semua elemen <a> di halaman ini
+    document.querySelectorAll('a').forEach(function(link) {
+        // Cek dulu, jangan ubah link logout atau yang punya target="_blank"
+        if(link.getAttribute('href') && !link.getAttribute('href').includes('logout') && link.getAttribute('target') !== '_blank') {
+            
+            let urlTujuan = link.getAttribute('href');
+            
+            // Hapus href asli biar gak muncul di pojok
+            link.setAttribute('href', 'javascript:void(0);');
+            
+            // Tambahin fungsi klik manual
+            link.addEventListener('click', function() {
+                window.location.href = urlTujuan;
+            });
+        }
+    });
+</script>
 </body>
 </html>

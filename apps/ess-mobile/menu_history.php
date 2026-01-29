@@ -1,4 +1,5 @@
 <?php
+session_name("ESS_PORTAL_SESSION"); // <--- Kunci harus sama kayak auth.php
 session_start();
 $conn = mysqli_connect("localhost", "root", "", "portofolio_db");
 if(!isset($_SESSION['ess_user'])) { header("Location: landing.php"); exit(); }

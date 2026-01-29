@@ -1,7 +1,14 @@
 <?php
+// 🔥 PENTING: Set nama session UNIK biar gak bentrok sama Admin Portofolio
+session_name("HRIS_APP_SESSION");
 session_start();
+
 // Cek Login Admin
-if(!isset($_SESSION['hris_user'])) { header("Location: login.php"); exit(); }
+if(!isset($_SESSION['hris_user'])) { 
+    header("Location: login.php"); 
+    exit(); 
+}
+
 $nama_admin = $_SESSION['hris_name'];
 ?>
 
@@ -136,6 +143,23 @@ $nama_admin = $_SESSION['hris_name'];
         </div>
 
     </div>
-
+<script>
+    // Cari semua elemen <a> di halaman ini
+    document.querySelectorAll('a').forEach(function(link) {
+        // Cek dulu, jangan ubah link logout atau yang punya target="_blank"
+        if(link.getAttribute('href') && !link.getAttribute('href').includes('logout') && link.getAttribute('target') !== '_blank') {
+            
+            let urlTujuan = link.getAttribute('href');
+            
+            // Hapus href asli biar gak muncul di pojok
+            link.setAttribute('href', 'javascript:void(0);');
+            
+            // Tambahin fungsi klik manual
+            link.addEventListener('click', function() {
+                window.location.href = urlTujuan;
+            });
+        }
+    });
+</script>
 </body>
 </html>

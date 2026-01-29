@@ -1,28 +1,37 @@
 <?php
+// 🔥 SESUAIKAN NAMA SESSION
+session_name("ESS_PORTAL_SESSION");
 session_start();
-// 1. SET WAKTU INDONESIA
+
+// SET TIMEZONE
 date_default_timezone_set('Asia/Jakarta');
 
-// 2. KONEKSI DATABASE
+// KONEKSI DATABASE
 $conn = mysqli_connect("localhost", "root", "", "portofolio_db");
 
-// 3. CEK LOGIN
+// CEK LOGIN
 if(!isset($_SESSION['ess_user'])) {
-    header("Location: landing.php");
+    header("Location: landing.php"); // Atau login.php tergantung nama file
     exit();
 }
 
-// 4. LOGIC TIMEOUT (1 MENIT)
+// LOGIC TIMEOUT (1 MENIT)
 $time_limit = 60;
 if (isset($_SESSION['LAST_ACTIVITY']) && (time() - $_SESSION['LAST_ACTIVITY'] > $time_limit)) {
-    session_unset(); session_destroy(); header("Location: landing.php?msg=timeout"); exit();
+    session_unset(); session_destroy(); 
+    header("Location: landing.php?msg=timeout"); 
+    exit();
 }
 $_SESSION['LAST_ACTIVITY'] = time();
 
-// 5. AMBIL DATA USER
+// AMBIL DATA USER
 $nama_user = $_SESSION['ess_name'];
 $role_user = $_SESSION['ess_role'];
 $nik_user  = $_SESSION['ess_user'];
+
+// ... (SISA KODINGAN DI BAWAH SAMA PERSIS DENGAN PUNYA BOS) ...
+// ... Query Sisa Cuti, Absen, Libur, HTML Tampilan, dll ...
+// ... Pastikan PHP tag penutup ada di akhir file ...
 
 // 6. QUERY SISA KUOTA (Buat Badge Merah)
 $q_user = mysqli_query($conn, "SELECT annual_leave_quota FROM ess_users WHERE employee_id='$nik_user'");
@@ -37,24 +46,22 @@ $data_absen = mysqli_fetch_assoc($cek_absen);
 $status_absen = 'BELUM';
 if ($data_absen) {
     if ($data_absen['check_out_time'] == NULL) {
-        $status_absen = 'SUDAH_MASUK'; // Udah masuk, belum pulang
+        $status_absen = 'SUDAH_MASUK'; 
     } else {
-        $status_absen = 'SELESAI'; // Udah pulang
+        $status_absen = 'SELESAI'; 
     }
 }
 
 // --- 8. LOGIC CEK HARI LIBUR ---
-$day_num = date('N'); // 1-7
+$day_num = date('N'); 
 $is_holiday = false;
 $holiday_reason = "";
 
-// Cek Weekend
 if ($day_num >= 6) { 
     $is_holiday = true; 
     $holiday_reason = "Hari Libur (Weekend)"; 
 }
 
-// Cek Tanggal Merah Database
 $q_libur = mysqli_query($conn, "SELECT description FROM ess_holidays WHERE holiday_date='$today_date'");
 if (mysqli_num_rows($q_libur) > 0) { 
     $d_libur = mysqli_fetch_assoc($q_libur); 
@@ -283,5 +290,23 @@ if (mysqli_num_rows($q_libur) > 0) {
             new bootstrap.Modal(document.getElementById(id)).show();
         }
     </script>
+    <script>
+    // Cari semua elemen <a> di halaman ini
+    document.querySelectorAll('a').forEach(function(link) {
+        // Cek dulu, jangan ubah link logout atau yang punya target="_blank"
+        if(link.getAttribute('href') && !link.getAttribute('href').includes('logout') && link.getAttribute('target') !== '_blank') {
+            
+            let urlTujuan = link.getAttribute('href');
+            
+            // Hapus href asli biar gak muncul di pojok
+            link.setAttribute('href', 'javascript:void(0);');
+            
+            // Tambahin fungsi klik manual
+            link.addEventListener('click', function() {
+                window.location.href = urlTujuan;
+            });
+        }
+    });
+</script>
 </body>
 </html>

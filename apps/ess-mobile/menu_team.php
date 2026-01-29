@@ -1,4 +1,5 @@
 <?php
+session_name("ESS_PORTAL_SESSION"); // <--- Kunci harus sama kayak auth.php
 session_start();
 $conn = mysqli_connect("localhost", "root", "", "portofolio_db");
 date_default_timezone_set('Asia/Jakarta');

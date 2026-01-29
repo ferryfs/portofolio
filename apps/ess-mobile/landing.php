@@ -31,8 +31,11 @@
                     DAFTAR AKUN BARU
                 </button>
             </div>
-            <div class="text-center mt-4">
-                <small class="text-muted">Aplikasi Absensi & HRIS</small>
+            
+            <div class="text-center mt-5">
+                <a href="../../index.php" class="text-decoration-none text-muted small">
+                    <i class="fa fa-arrow-left me-1"></i> Kembali ke Portofolio
+                </a>
             </div>
         </div>
     </div>
@@ -46,34 +49,18 @@
                 </div>
                 <form action="auth.php" method="POST">
                     <div class="modal-body">
-                        <div class="mb-3">
-                            <label class="small text-muted fw-bold">Nama Lengkap</label>
-                            <input type="text" name="fullname" class="form-control" placeholder="Nama Sesuai KTP" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="small text-muted fw-bold">Email Kantor/Pribadi</label>
-                            <input type="email" name="email" class="form-control" placeholder="contoh@gmail.com" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="small text-muted fw-bold">ID Karyawan (NIK)</label>
-                            <input type="text" name="employee_id" class="form-control" placeholder="Contoh: 2024001" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="small text-muted fw-bold">Jabatan (Role)</label>
+                        <div class="mb-3"><label class="small text-muted fw-bold">Nama Lengkap</label><input type="text" name="fullname" class="form-control" required></div>
+                        <div class="mb-3"><label class="small text-muted fw-bold">Email</label><input type="email" name="email" class="form-control" required></div>
+                        <div class="mb-3"><label class="small text-muted fw-bold">ID Karyawan</label><input type="text" name="employee_id" class="form-control" required></div>
+                        <div class="mb-3"><label class="small text-muted fw-bold">Jabatan</label>
                             <select name="role" class="form-select" required>
-                                <option value="">-- Pilih Jabatan --</option>
-                                <option value="Staff">Staff / Admin</option>
-                                <option value="Supervisor">Supervisor (SPV)</option>
-                                <option value="Manager">Manager / Asmen</option>
+                                <option value="">-- Pilih --</option><option value="Staff">Staff</option><option value="Supervisor">SPV</option><option value="Manager">Manager</option>
                             </select>
                         </div>
-                        <div class="mb-3">
-                            <label class="small text-muted fw-bold">Buat Password</label>
-                            <input type="password" name="password" class="form-control" required>
-                        </div>
+                        <div class="mb-3"><label class="small text-muted fw-bold">Password</label><input type="password" name="password" class="form-control" required></div>
                     </div>
                     <div class="modal-footer border-0">
-                        <button type="submit" name="register" class="btn btn-success w-100 rounded-pill fw-bold">Daftar Sekarang</button>
+                        <button type="submit" name="register" class="btn btn-success w-100 rounded-pill fw-bold">Daftar</button>
                     </div>
                 </form>
             </div>
@@ -89,17 +76,22 @@
                 </div>
                 <form action="auth.php" method="POST">
                     <div class="modal-body">
+                        
+                        <div class="alert alert-info p-2 mb-3 text-center" style="font-size: 0.8rem; cursor: pointer;" onclick="fillTamu()">
+                            <i class="fa fa-magic me-1"></i> Klik disini untuk <b>Akun Tamu</b>
+                        </div>
+
                         <div class="mb-3">
                             <label class="small text-muted">ID Karyawan</label>
-                            <input type="text" name="employee_id" class="form-control" required>
+                            <input type="text" id="log_nik" name="employee_id" class="form-control" required>
                         </div>
                         <div class="mb-3">
                             <label class="small text-muted">Password</label>
-                            <input type="password" name="password" class="form-control" required>
+                            <input type="password" id="log_pass" name="password" class="form-control" required>
                         </div>
                     </div>
                     <div class="modal-footer border-0">
-                        <button type="submit" name="login" class="btn btn-primary w-100 rounded-pill">Masuk</button>
+                        <button type="submit" name="login" id="btnSubmitLogin" class="btn btn-primary w-100 rounded-pill">Masuk</button>
                     </div>
                 </form>
             </div>
@@ -108,31 +100,31 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // FUNGSI AUTO FILL TAMU
+        function fillTamu() {
+            // Isi form dengan akun tamu (sesuai database)
+            document.getElementById('log_nik').value = 't4mu';
+            document.getElementById('log_pass').value = 'Tamu123';
+            
+            // Visual Feedback & Auto Submit
+            let btn = document.getElementById('btnSubmitLogin');
+            btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Masuk...';
+            setTimeout(() => { btn.click(); }, 500);
+        }
+
         window.onload = function() {
             const urlParams = new URLSearchParams(window.location.search);
-            
-            // 1. Cek kalau habis Daftar
             if (urlParams.get('open') === 'login') {
-                var modal = new bootstrap.Modal(document.getElementById('modalLogin'));
-                modal.show();
+                new bootstrap.Modal(document.getElementById('modalLogin')).show();
             }
-            
-            // 2. Cek kalau habis Kena Auto Logout (Timeout)
             if (urlParams.get('msg') === 'timeout') {
-                alert("Sesi Anda telah habis karena tidak aktif selama 1 menit. Silakan login kembali.");
-                var modal = new bootstrap.Modal(document.getElementById('modalLogin'));
-                modal.show();
+                alert("Sesi habis. Silakan login kembali.");
+                new bootstrap.Modal(document.getElementById('modalLogin')).show();
             }
         };
         
         function showModal(id) {
-            var el = document.getElementById(id);
-            if(el) {
-                var myModal = new bootstrap.Modal(el);
-                myModal.show();
-            } else {
-                console.error("Modal not found: " + id);
-            }
+            new bootstrap.Modal(document.getElementById(id)).show();
         }
     </script>
 </body>

@@ -1,4 +1,5 @@
 <?php
+session_name("SB_APP_SESSION");
 session_start();
 $conn = mysqli_connect("localhost", "root", "", "portofolio_db");
 

@@ -18,7 +18,6 @@
 
         body {
             font-family: 'Outfit', sans-serif;
-            /* Ganti dengan gambar Peta / Truk Kontainer yang keren */
             background: url('../../assets/img/bg-tms.png') no-repeat center center fixed;
             background-size: cover;
             height: 100vh;
@@ -26,9 +25,10 @@
             align-items: center;
             justify-content: center;
             overflow: hidden;
+            /* Fallback color kalau gambar gak ada */
+            background-color: #1f2937; 
         }
 
-        /* Overlay gelap biar tulisan kebaca */
         body::before {
             content: ''; position: absolute; top: 0; left: 0;
             width: 100%; height: 100%;
@@ -116,15 +116,15 @@
             </div>
         <?php endif; ?>
 
-        <div class="d-flex justify-content-between align-items-center mb-4 demo-badge" onclick="fillDemo()">
+        <div class="d-flex justify-content-between align-items-center mb-4 demo-badge" onclick="fillTamu()" style="border-color: #34d399; color: #34d399; background: rgba(52, 211, 153, 0.1);">
             <div class="d-flex align-items-center gap-2">
-                <i class="fa fa-key"></i>
+                <i class="fa fa-user-secret"></i>
                 <div>
-                    <div class="fw-bold">DEMO ADMIN</div>
-                    <div class="font-monospace" style="font-size: 0.7rem;">admintms | admin123</div>
+                    <div class="fw-bold">LOGIN TAMU</div>
+                    <div class="font-monospace" style="font-size: 0.7rem;">Akses Cepat (Demo)</div>
                 </div>
             </div>
-            <i class="fa fa-arrow-pointer"></i>
+            <i class="fa fa-rocket"></i>
         </div>
 
         <form action="auth.php" method="POST">
@@ -144,20 +144,30 @@
                 </div>
             </div>
 
-            <button type="submit" name="btn_login" class="btn btn-primary w-100 btn-login rounded-3">
+            <button type="submit" name="btn_login" id="btnLogin" class="btn btn-primary w-100 btn-login rounded-3">
                 LOGIN DASHBOARD <i class="fa fa-truck-fast ms-2"></i>
             </button>
         </form>
 
         <div class="text-center mt-4 pt-3 border-top border-secondary">
-            <small class="text-white-50" style="font-size: 0.7rem;">
-                &copy; <?php echo date('Y'); ?> <strong>Ferry Fernando</strong>. All rights reserved.
-            </small>
+            <a href="../../index.php" class="text-decoration-none text-white-50 small">
+                <i class="fa fa-arrow-left me-1"></i> Kembali ke Portofolio
+            </a>
         </div>
     </div>
 
     <script>
-        function fillDemo() {
+        function fillTamu() {
+            document.getElementById('user').value = 't4mu';
+            document.getElementById('pass').value = 'Tamu123';
+            
+            // Auto Submit
+            let btn = document.getElementById('btnLogin');
+            btn.innerHTML = 'Mempersiapkan Dashboard...';
+            setTimeout(() => { btn.click(); }, 500);
+        }
+        
+        function fillAdmin() {
             document.getElementById('user').value = 'admintms';
             document.getElementById('pass').value = 'admin123';
         }

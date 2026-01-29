@@ -1,4 +1,13 @@
 <?php
+// 🔥 1. PASANG SESSION DI PALING ATAS
+session_name("WMS_APP_SESSION");
+session_start();
+
+// 🔥 2. CEK KEAMANAN (Opsional tapi PENTING)
+// Biar orang gak bisa buka file ini langsung lewat URL tanpa login
+if(!isset($_SESSION['wms_login'])) {
+    exit("Akses Ditolak. Silakan Login.");
+}
 include '../../koneksi.php';
 header("Content-Type: application/vnd.ms-excel");
 header("Content-Disposition: attachment; filename=Stock_Report_".date('Ymd').".xls");

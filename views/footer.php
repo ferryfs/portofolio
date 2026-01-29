@@ -21,5 +21,23 @@ foreach($timelineData as $row) { $temp_careers[$row['company']][] = $row; }
 
 <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
 <script src="assets/js/main.js"></script>
+<script>
+    // Cari semua elemen <a> di halaman ini
+    document.querySelectorAll('a').forEach(function(link) {
+        // Cek dulu, jangan ubah link logout atau yang punya target="_blank"
+        if(link.getAttribute('href') && !link.getAttribute('href').includes('logout') && link.getAttribute('target') !== '_blank') {
+            
+            let urlTujuan = link.getAttribute('href');
+            
+            // Hapus href asli biar gak muncul di pojok
+            link.setAttribute('href', 'javascript:void(0);');
+            
+            // Tambahin fungsi klik manual
+            link.addEventListener('click', function() {
+                window.location.href = urlTujuan;
+            });
+        }
+    });
+</script>
 </body>
 </html>

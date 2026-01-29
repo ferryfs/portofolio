@@ -39,13 +39,11 @@
             transition: 0.3s;
         }
         .btn-login:hover { background-color: #334155; }
-        
-        /* Tombol Demo Keren */
         .btn-demo {
             background-color: #e0f2fe;
             color: #0284c7;
             border: 1px dashed #0284c7;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             font-weight: 600;
         }
         .btn-demo:hover { background-color: #bae6fd; }
@@ -62,8 +60,8 @@
         <div class="alert alert-primary d-flex align-items-center mb-4" role="alert" style="font-size: 0.85rem;">
             <i class="fa fa-info-circle fa-lg me-3"></i>
             <div>
-                <strong>Akses Demo:</strong><br>
-                User: <code>adminhr</code> | Pass: <code>admin123</code>
+                <strong>Akses Demo (Tamu):</strong><br>
+                User: <code>guest</code> | Pass: <code>tamu123</code>
             </div>
             <button onclick="fillDemo()" class="btn btn-sm btn-demo ms-auto">Auto Fill</button>
         </div>
@@ -87,17 +85,23 @@
         </form>
         
         <div class="text-center mt-4">
-            <small class="text-muted" style="font-size: 0.75rem;">
-                <i class="fa fa-shield-alt me-1"></i> Secure Corporate Access
-            </small>
+            <a href="../../index.php" class="text-decoration-none text-muted small">
+                 <i class="fa fa-arrow-left me-1"></i> Kembali ke Web Utama
+            </a>
         </div>
     </div>
 
     <script>
-        // Fitur Auto Fill biar rekruter seneng
         function fillDemo() {
-            document.getElementById('user').value = 'adminhr';
-            document.getElementById('pass').value = 'admin123';
+            // 🔥 DISINI KUNCINYA:
+            // Tombol ini mengisi akun 'guest', BUKAN 'adminhr'
+            document.getElementById('user').value = 'guest';
+            document.getElementById('pass').value = 'tamu123';
+            
+            // Visual feedback
+            let btn = document.querySelector('.btn-demo');
+            btn.innerHTML = '<i class="fa fa-check"></i> Terisi!';
+            setTimeout(() => { btn.innerHTML = 'Auto Fill'; }, 1000);
         }
     </script>
 

@@ -1,37 +1,57 @@
 <?php
+// 🔥 SESSION KHUSUS WMS
+session_name("WMS_APP_SESSION");
 session_start();
 
-// PERBAIKAN 1: Include langsung nama filenya karena satu folder
 include 'koneksi.php'; 
 
+// Helper IP
+function getUserIP() {
+    return $_SERVER['HTTP_CLIENT_IP'] ?? $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'];
+}
+
 if(isset($_POST['btn_login'])) {
-    $user = mysqli_real_escape_string($conn, $_POST['username']);
-    $pass = md5($_POST['password']); 
+    $user = trim($_POST['username']);
+    $pass = trim($_POST['password']);
 
-    // Cek User
-    $q = mysqli_query($conn, "SELECT * FROM wms_users WHERE username='$user' AND password='$pass'");
-    $cek = mysqli_num_rows($q);
+    // Pakai Prepared Statement (Anti SQL Injection)
+    $stmt = $conn->prepare("SELECT * FROM wms_users WHERE username = ?");
+    $stmt->bind_param("s", $user);
+    $stmt->execute();
+    $result = $stmt->get_result();
 
-    if($cek > 0) {
-        $data = mysqli_fetch_assoc($q);
+    if($result->num_rows > 0) {
+        $data = $result->fetch_assoc();
+        $db_pass = $data['password'];
+        $login_sukses = false;
 
-        // SET SESSION
-        $_SESSION['wms_login'] = true;
-        $_SESSION['wms_user_id'] = $data['user_id'];
-        $_SESSION['wms_fullname'] = $data['fullname'];
-        $_SESSION['wms_role'] = $data['role'];
-        $_SESSION['wms_count'] = $data['login_count'] + 1; 
+        // Cek Password (Prioritas Bcrypt)
+        if (password_verify($pass, $db_pass)) {
+            $login_sukses = true;
+        } elseif (md5($pass) === $db_pass) {
+            $login_sukses = true; // Fallback untuk user lama (jika ada)
+        }
 
-        // UPDATE COUNTER
-        mysqli_query($conn, "UPDATE wms_users SET login_count = login_count + 1, last_login = NOW() WHERE user_id = '{$data['user_id']}'");
+        if ($login_sukses) {
+            // 🔥 CATAT IP & UPDATE LOGIN
+            $ip = getUserIP();
+            $uid = $data['user_id'];
+            $conn->query("UPDATE wms_users SET login_count = login_count + 1, last_login = NOW(), last_ip = '$ip' WHERE user_id = '$uid'");
 
-        // PERBAIKAN 2: Redirect Sukses
-        // Karena auth.php dan index.php (dashboard) ada di folder yang SAMA, langsung aja panggil index.php
-        header("Location: index.php"); 
-    } else {
-        // PERBAIKAN 3: Redirect Gagal
-        // Kalau gagal, harus mundur 2 folder ke belakang (ke root portofolio) buat balik ke login page
-        header("Location: ../../index.php?err=1");
+            // SET SESSION
+            $_SESSION['wms_login']    = true;
+            $_SESSION['wms_user_id']  = $data['user_id'];
+            $_SESSION['wms_fullname'] = $data['fullname'];
+            $_SESSION['wms_role']     = $data['role'];
+            $_SESSION['wms_count']    = $data['login_count'] + 1;
+
+            header("Location: index.php");
+            exit();
+        }
     }
+    
+    // Login Gagal
+    header("Location: login.php?err=1");
+    exit();
 }
 ?>
