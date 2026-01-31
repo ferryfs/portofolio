@@ -1,76 +1,71 @@
 <?php
+session_name("PORTFOLIO_CMS_SESSION");
 session_start();
-if (!isset($_SESSION['status']) || $_SESSION['status'] != "login") { 
-    header("Location: login.php"); 
-    exit(); 
-}
-include 'koneksi.php'; 
+if (!isset($_SESSION['status']) || $_SESSION['status'] != "login") { header("Location: login.php"); exit(); }
 
-$id = $_GET['id'];
-$d = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM projects WHERE id='$id'"));
+// LOAD KONEKSI PDO
+require_once __DIR__ . '/koneksi.php';
 
-// HELPER
-function setFlash($msg, $type='success') {
-    $_SESSION['flash_msg'] = $msg;
-    $_SESSION['flash_type'] = $type;
-}
-function purify($text) {
-    return strip_tags($text, '<ul><ol><li><b><strong><i><em><u><br><p>');
-}
-function clearCache($file) {
-    $path = "cache/" . $file . ".json";
-    if (file_exists($path)) unlink($path);
-}
+$id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+$stmt = $pdo->prepare("SELECT * FROM projects WHERE id = ?");
+$stmt->execute([$id]);
+$d = $stmt->fetch(PDO::FETCH_ASSOC);
+if (!$d) { header("Location: admin.php"); exit(); }
 
-// LOGIC UPDATE
+function purify($text) { return strip_tags($text ?? '', '<ul><ol><li><b><strong><i><em><u><br><p>'); }
+function setFlash($msg, $type='success') { $_SESSION['flash_msg'] = $msg; $_SESSION['flash_type'] = $type; }
+
 if(isset($_POST['update'])){
-    $title = mysqli_real_escape_string($conn, $_POST['title']);
+    $title = trim($_POST['title']);
     $cat = $_POST['category'];
-    $tech = mysqli_real_escape_string($conn, $_POST['tech_stack']);
-    $link = mysqli_real_escape_string($conn, $_POST['link_demo']);
+    $comp_ref = ($cat == 'Personal') ? '' : trim($_POST['company_ref']);
+    $tech = trim($_POST['tech_stack']);
+    $link = trim($_POST['link_demo']);
+    $desc = purify($_POST['description']);
+    $desc_en = purify($_POST['description_en']);
+    $chal = purify($_POST['challenge']);
+    $imp = purify($_POST['impact']);
     
-    // Sanitize Deskripsi
-    $desc = mysqli_real_escape_string($conn, purify($_POST['description']));
-    $desc_en = mysqli_real_escape_string($conn, purify($_POST['description_en']));
-    $chal = mysqli_real_escape_string($conn, purify($_POST['challenge'])); // 🔥 Update
-    $imp = mysqli_real_escape_string($conn, purify($_POST['impact'])); // 🔥 Update
-    
-    // Logic Gambar
-    $img_sql = ""; 
+    // Logic Image with MIME validation
+    $sql = "UPDATE projects SET title=?, category=?, company_ref=?, tech_stack=?, link_demo=?, description=?, description_en=?, challenge=?, impact=? WHERE id=?";
+    $params = [$title, $cat, $comp_ref, $tech, $link, $desc, $desc_en, $chal, $imp, $id];
+
     if(!empty($_FILES['image']['name'])) {
-        $img_name = "proj_" . time() . ".jpg";
+        // 🛡️ VALIDASI MIME TYPE
+        $allowed_types = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+        $max_size = 5 * 1024 * 1024; // 5MB
         
-        // Hapus gambar lama
-        if(!empty($d['image']) && $d['image'] != 'default.jpg' && file_exists('assets/img/'.$d['image'])) {
-            unlink('assets/img/'.$d['image']);
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = finfo_file($finfo, $_FILES['image']['tmp_name']);
+        finfo_close($finfo);
+        
+        if (in_array($mime, $allowed_types) && $_FILES['image']['size'] <= $max_size) {
+            $new_img = "proj_" . time() . "_" . uniqid() . ".jpg";
+            if(move_uploaded_file($_FILES['image']['tmp_name'], 'assets/img/' . $new_img)) {
+                if(!empty($d['image']) && $d['image'] != 'default.jpg' && file_exists('assets/img/'.$d['image'])) @unlink('assets/img/'.$d['image']);
+                
+                // Update dengan gambar baru
+                $sql = "UPDATE projects SET title=?, category=?, company_ref=?, tech_stack=?, link_demo=?, description=?, description_en=?, challenge=?, impact=?, image=? WHERE id=?";
+                $params = [$title, $cat, $comp_ref, $tech, $link, $desc, $desc_en, $chal, $imp, $new_img, $id];
+            }
+        } else {
+            setFlash('Format gambar tidak didukung atau ukuran terlalu besar (max 5MB)', 'error');
+            header("Location: edit_project.php?id=" . urlencode($id));
+            exit();
         }
-        
-        // Upload baru
-        move_uploaded_file($_FILES['image']['tmp_name'], 'assets/img/' . $img_name);
-        $img_sql = ", image='$img_name'";
     }
 
-    $query = "UPDATE projects SET 
-              title='$title', 
-              category='$cat', 
-              tech_stack='$tech', 
-              link_demo='$link', 
-              description='$desc', 
-              description_en='$desc_en',
-              challenge='$chal',
-              impact='$imp'
-              $img_sql 
-              WHERE id='$id'";
-    
-    if(mysqli_query($conn, $query)) {
-        setFlash('Project Berhasil Diupdate!');
-        clearCache('projects'); 
-    } else {
-        setFlash('Gagal: '.mysqli_error($conn), 'error');
+    try {
+        $pdo->prepare($sql)->execute($params);
+        setFlash('Project Updated!');
+    } catch(PDOException $e) {
+        error_log("DB Error: " . $e->getMessage());
+        setFlash('Terjadi kesalahan saat menyimpan', 'error');
     }
     header("Location: admin.php?tab=proj-pane"); exit();
 }
 ?>
+
 <!doctype html>
 <html lang="id">
 <head>
@@ -90,78 +85,54 @@ if(isset($_POST['update'])){
             <div class="card-body p-4">
                 <form method="POST" enctype="multipart/form-data">
                     <div class="row g-3">
-                        <div class="col-md-8">
-                            <label class="fw-bold small text-muted">Nama Project</label>
-                            <input type="text" name="title" class="form-control" value="<?=$d['title']?>" required>
-                        </div>
+                        <div class="col-md-8"><label class="fw-bold small">Nama Project</label><input type="text" name="title" class="form-control" value="<?=$d['title']?>" required></div>
                         <div class="col-md-4">
-                            <label class="fw-bold small text-muted">Kategori</label>
-                            <select name="category" class="form-select">
-                                <option value="Work" <?=($d['category']=='Work')?'selected':''?>>Work Project</option>
-                                <option value="Personal" <?=($d['category']=='Personal')?'selected':''?>>Personal Project</option>
+                            <label class="fw-bold small">Kategori</label>
+                            <select name="category" id="cat_select" class="form-select" onchange="toggleComp()">
+                                <option value="Work" <?=($d['category']=='Work')?'selected':''?>>Work</option>
+                                <option value="Personal" <?=($d['category']=='Personal')?'selected':''?>>Personal</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-12" id="comp_box" style="display: <?=($d['category']=='Personal')?'none':'block'?>;">
+                            <label class="fw-bold small text-primary">Related Company</label>
+                            <select name="company_ref" class="form-select bg-light">
+                                <option value="">-- Select Company --</option>
+                                <?php 
+                                $qComp = $pdo->query("SELECT DISTINCT company FROM timeline ORDER BY sort_date DESC");
+                                while($row = $qComp->fetch(PDO::FETCH_ASSOC)):
+                                ?>
+                                <option value="<?=$row['company']?>" <?=($d['company_ref'] == $row['company'])?'selected':''?>><?=$row['company']?></option>
+                                <?php endwhile; ?>
                             </select>
                         </div>
 
-                        <div class="col-md-6">
-                            <label class="fw-bold small text-muted">Tech Stack</label>
-                            <input type="text" name="tech_stack" class="form-control" value="<?=$d['tech_stack']?>" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="fw-bold small text-muted">Link Demo / Web</label>
-                            <input type="text" name="link_demo" class="form-control" value="<?=$d['link_demo']?>">
-                        </div>
+                        <div class="col-12"><label class="fw-bold small">Tech Stack</label><input type="text" name="tech_stack" class="form-control" value="<?=$d['tech_stack']?>"></div>
+                        <div class="col-12"><label class="fw-bold small">Link Demo</label><input type="text" name="link_demo" class="form-control" value="<?=$d['link_demo']?>"></div>
+                        
+                        <div class="col-12 mt-3"><label class="fw-bold small">Image</label><br>
+                        <img src="assets/img/<?=$d['image']?>" width="100" class="mb-2 rounded">
+                        <input type="file" name="image" class="form-control"></div>
 
-                        <div class="col-md-6">
-                            <label class="fw-bold small text-muted mb-1">Deskripsi (Indo)</label>
-                            <textarea id="summernote_id" name="description" required><?=$d['description']?></textarea>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="fw-bold small text-muted mb-1">Description (English)</label>
-                            <textarea id="summernote_en" name="description_en"><?=$d['description_en']?></textarea>
-                        </div>
+                        <div class="col-md-6"><textarea id="sn1" name="description"><?=$d['description']?></textarea></div>
+                        <div class="col-md-6"><textarea id="sn2" name="description_en"><?=$d['description_en']?></textarea></div>
+                        <div class="col-md-6"><textarea id="sn3" name="challenge"><?=$d['challenge']?></textarea></div>
+                        <div class="col-md-6"><textarea id="sn4" name="impact"><?=$d['impact']?></textarea></div>
 
-                        <div class="col-md-6">
-                            <label class="fw-bold small text-muted mb-1">Challenge / Tantangan</label>
-                            <textarea id="summernote_chal" name="challenge"><?=$d['challenge']?></textarea>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="fw-bold small text-muted mb-1">Impact / Hasil</label>
-                            <textarea id="summernote_imp" name="impact"><?=$d['impact']?></textarea>
-                        </div>
-
-                        <div class="col-12 mt-3">
-                            <label class="fw-bold small text-muted">Cover Image</label>
-                            <div class="d-flex align-items-center gap-3 mt-1">
-                                <img src="assets/img/<?=$d['image']?>" width="100" class="rounded border p-1 shadow-sm">
-                                <div class="w-100">
-                                    <input type="file" name="image" class="form-control">
-                                    <small class="text-muted" style="font-size:11px">*Biarkan kosong jika tidak ingin ganti gambar</small>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="col-12 mt-4">
-                            <button type="submit" name="update" class="btn btn-primary text-white w-100 fw-bold py-2">UPDATE PROJECT</button>
-                        </div>
+                        <div class="col-12 mt-4"><button type="submit" name="update" class="btn btn-primary w-100 fw-bold">UPDATE PROJECT</button></div>
                     </div>
                 </form>
             </div>
         </div>
     </div>
-
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.js"></script>
-
     <script>
-        var config = {
-            tabsize: 2, height: 150,
-            toolbar: [['style', ['bold', 'italic', 'underline', 'clear']], ['para', ['ul', 'ol', 'paragraph']], ['view', ['codeview']]]
-        };
-        $('#summernote_id').summernote(config);
-        $('#summernote_en').summernote(config);
-        $('#summernote_chal').summernote(config);
-        $('#summernote_imp').summernote(config);
+        $('textarea').summernote({ height: 100 });
+        function toggleComp() {
+            let cat = document.getElementById('cat_select').value;
+            document.getElementById('comp_box').style.display = (cat === 'Personal') ? 'none' : 'block';
+        }
     </script>
 </body>
 </html>

@@ -1,78 +1,55 @@
-<div class="project-col" data-aos="fade-up">
-    <div class="project-card h-100 d-flex flex-column">
+<div class="flex-none w-[300px] md:w-[360px] snap-center group" 
+     onclick="showProjectDetail(<?php echo $d['id']; ?>)">
+    
+    <div class="bg-gray-800/80 backdrop-blur-sm h-full rounded-[2rem] border border-white/10 overflow-hidden relative shadow-lg hover:shadow-2xl hover:shadow-accent/20 transition-all duration-300 hover:-translate-y-2 flex flex-col cursor-pointer group-hover:border-accent/30">
         
-        <div class="project-img-box" style="height: 200px; overflow: hidden; position: relative;">
-            <img src="assets/img/<?php echo $row['image']; ?>" alt="Project Image" 
-                 style="width: 100%; height: 100%; object-fit: cover;">
+        <div class="relative h-48 overflow-hidden bg-gray-900 flex-none">
+            <?php 
+                // Logic Image URL vs Local
+                $imgSrc = 'assets/img/default.jpg';
+                if(!empty($d['image_url'])) { $imgSrc = $d['image_url']; }
+                elseif(!empty($d['image'])) { $imgSrc = 'assets/img/'.$d['image']; }
+            ?>
+            <img src="<?php echo $imgSrc; ?>" class="w-full h-full object-cover transform group-hover:scale-105 transition duration-700 opacity-90 group-hover:opacity-100" loading="lazy">
             
-            <div style="position: absolute; top: 10px; right: 10px;">
-                <?php if($row['category'] == 'work'): ?>
-                    <span class="badge bg-primary shadow">🏢 Work</span>
-                <?php else: ?>
-                    <span class="badge bg-success shadow">🚀 Personal</span>
-                <?php endif; ?>
+            <div class="absolute top-4 right-4 z-20">
+                <span class="backdrop-blur-md bg-black/60 border border-white/20 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm">
+                    <?php echo $d['category']; ?>
+                </span>
             </div>
+            
+            <div class="absolute inset-0 bg-gradient-to-t from-gray-900 via-transparent to-transparent opacity-60"></div>
         </div>
 
-        <div class="p-4 d-flex flex-column flex-grow-1">
+        <div class="p-6 flex flex-col flex-1 border-t border-white/5">
+            <h3 class="text-lg font-bold text-white mb-3 group-hover:text-accent transition-colors line-clamp-2 leading-tight">
+                <?php echo $d['title']; ?>
+            </h3>
             
-            <h5 class="fw-bold text-white mb-2" style="font-size: 1.1rem;">
-                <?php echo $row['title']; ?>
-            </h5>
-            
-            <div class="mb-3">
+            <div class="flex flex-wrap gap-2 mb-4">
                 <?php 
-                $techs = explode(',', $row['tech_stack']);
-                foreach($techs as $t) {
-                    // Pakai style inline biar warnanya PASTI keluar
-                    echo '<span class="badge bg-dark border border-secondary me-1 mb-1 fw-normal" 
-                          style="font-size: 0.7rem; color: #cbd5e1;">'.trim($t).'</span>';
-                }
+                if(!empty($d['tech_stack'])) { 
+                    $stacks = explode(',', $d['tech_stack']);
+                    $count = 0;
+                    foreach($stacks as $t): 
+                        if(trim($t) == '' || $count >= 3) continue; 
+                ?>
+                    <span class="text-[10px] font-semibold bg-gray-700/50 text-gray-300 px-2.5 py-1 rounded-lg border border-white/5">
+                        <?php echo trim($t); ?>
+                    </span>
+                <?php 
+                        $count++; 
+                    endforeach; 
+                    if(count($stacks) > 3) echo '<span class="text-[10px] text-gray-500 py-1 px-1">+ '.(count($stacks)-3).'</span>';
+                } 
                 ?>
             </div>
-            
-            <p class="text-muted small mb-4 flex-grow-1" style="line-height: 1.5; color: #94a3b8 !important;">
-                <?php 
-                // Potong teks kalau kepanjangan
-                $desc = $row['description'];
-                echo (strlen($desc) > 90) ? substr($desc, 0, 90) . '...' : $desc; 
-                ?>
-            </p>
-            
-            <div class="d-flex gap-2 mt-auto pt-3 border-top border-secondary">
-                
-                <?php if(!empty($row['link_demo']) && $row['link_demo'] != '#'): ?>
-                    <a href="<?php echo $row['link_demo']; ?>" target="_blank" 
-                       class="btn btn-sm w-100 fw-bold text-white shadow-sm"
-                       style="background: var(--accent); border: none; padding: 8px 0;">
-                        <i class="bi bi-play-circle-fill me-1"></i> Demo
-                    </a>
-                <?php else: ?>
-                    <button class="btn btn-sm w-100 text-muted border-secondary" disabled 
-                            style="background: rgba(255,255,255,0.05); cursor: not-allowed;">
-                        <i class="bi bi-lock-fill me-1"></i> Private
-                    </button>
-                <?php endif; ?>
 
-                <?php 
-                // Cek apakah ada file/link case study
-                $has_case = ($row['link_case'] != '#' && !empty($row['link_case']));
-                
-                if($has_case): 
-                    // Cek apakah itu Link URL atau File Upload
-                    $case_url = (strpos($row['link_case'], 'http') !== false) 
-                                ? $row['link_case'] 
-                                : 'assets/docs/'.$row['link_case'];
-                ?>
-                    <a href="<?php echo $case_url; ?>" target="_blank" 
-                       class="btn btn-sm w-100 fw-bold"
-                       style="background: transparent; border: 1px solid var(--accent); color: var(--accent); padding: 8px 0;">
-                        <i class="bi bi-file-earmark-richtext me-1"></i> Detail
-                    </a>
-                <?php endif; ?>
-
+            <div class="mt-auto flex items-center justify-between border-t border-white/5 pt-4">
+                <span class="text-accent text-xs font-bold uppercase tracking-wider flex items-center gap-2 group-hover:gap-3 transition-all">
+                    View Case Study <i class="bi bi-arrow-right"></i>
+                </span>
             </div>
-
         </div>
     </div>
 </div>

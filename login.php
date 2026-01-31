@@ -1,6 +1,6 @@
 <?php
 // 1. ISOLASI SESSION (PENTING BUAT HOSTING)
-// Kita kasih nama khusus biar gak bentrok sama session project lain
+// Kita kasih nama khusus biar ga bentrok sama session project lain
 session_name("PORTFOLIO_CMS_SESSION");
 session_start();
 
@@ -58,7 +58,7 @@ if (isset($_POST['login'])) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body { 
-            background-color: #0f172a; 
+            background-color: #00abbb; 
             color: white; 
             display: flex; 
             align-items: center; 
@@ -69,14 +69,14 @@ if (isset($_POST['login'])) {
         .card-login { 
             width: 100%; 
             max-width: 400px; 
-            background: #1e293b; 
-            border: 1px solid #334155; 
+            background: #ffffff; 
+            border: 1px solid #0067f7f7; 
             border-radius: 16px; 
             overflow: hidden;
         }
         .form-control {
-            background-color: #0f172a;
-            border: 1px solid #334155;
+            background-color: #ffffff;
+            border: 1px solid #004eba;
             color: white;
             padding: 12px;
         }
@@ -126,6 +126,12 @@ if (isset($_POST['login'])) {
             </form>
         </div>
     </div>
-
+    <script>
+        // Hapus history pas nyampe login page
+        // Jadi user gak bisa tekan 'Forward' buat balik ke admin
+        if (window.history.replaceState) {
+            window.history.replaceState(null, null, window.location.href);
+        }
+    </script>
 </body>
 </html>

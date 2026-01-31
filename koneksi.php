@@ -1,32 +1,23 @@
 <?php
-// DETEKSI SERVER
-$server_name = $_SERVER['SERVER_NAME'];
+// ⚠️ DEPRECATED BUT MAINTAINED FOR BACKWARD COMPATIBILITY
+// File ini masih digunakan oleh apps/ (TMS, WMS, dll)
+// Jangan akses langsung, gunakan melalui include/require saja
 
-if ($server_name == 'localhost') {
-    // 🏠 SETTINGAN LOCALHOST (XAMPP)
-    $host = "localhost";
-    $user = "root";
-    $pass = "";
-    $db   = "portofolio_db"; // Sesuaikan nama DB lokal
-} else {
-    // 🌐 SETTINGAN HOSTING (Nanti diisi pas udah beli hosting)
-    $host = "localhost"; // Biasanya tetap localhost
-    $user = "u123456_user_hosting"; // Nanti dapet dari cPanel
-    $pass = "password_hosting_yang_rumit";
-    $db   = "u123456_nama_db_hosting";
+if (basename($_SERVER['PHP_SELF']) === 'koneksi.php') {
+    // Direct access di-block
+    header("Location: index.php");
+    exit();
 }
 
-$conn = mysqli_connect($host, $user, $pass, $db);
+// Load PDO configuration
+require_once __DIR__ . '/config/database.php';
 
-if (!$conn) {
-    die("Koneksi Database Gagal: " . mysqli_connect_error());
-}
+// 🛡️ BACKWARD COMPATIBILITY LAYER
+// Untuk legacy code yang masih pakai MySQLi-style:
+// Gunakan $pdo untuk prepared statements, bukan $conn
 
-// DEFINISI BASE URL (PENTING BUAT LINK & GAMBAR)
-// Biar gak usah ngetik http://localhost/portofolio manual
-if ($server_name == 'localhost') {
-    define('BASE_URL', 'http://localhost/portofolio/');
-} else {
-    define('BASE_URL', 'https://ferryfernando.com/'); // Ganti nama domain lu nanti
-}
+// Jangan buat $conn variable untuk avoid confusion
+// Apps harus upgrade ke PDO prepared statements
+
+error_log("DEPRECATED: koneksi.php masih diakses oleh: " . $_SERVER['PHP_SELF']);
 ?>

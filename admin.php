@@ -1,183 +1,202 @@
 <?php
+session_name("PORTFOLIO_CMS_SESSION");
 session_start();
 
-// 1. CEK LOGIN
+// Security Headers
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Pragma: no-cache");
+
+// Cek Login
 if (!isset($_SESSION['status']) || $_SESSION['status'] != "login") { 
     header("Location: login.php"); exit(); 
 }
 
-// 2. KONEKSI
-require_once __DIR__ . '/config/database.php';
+// LOAD KONEKSI PDO
+require_once __DIR__ . '/koneksi.php';
 
-// HELPER FUNCTIONS
+// HELPER
 function purify($text) { return strip_tags($text ?? '', '<ul><ol><li><b><strong><i><em><u><br><p>'); }
 function setFlash($msg, $type='success') { $_SESSION['flash_msg'] = $msg; $_SESSION['flash_type'] = $type; }
 function v($arr, $key) { return htmlspecialchars($arr[$key] ?? ''); }
 
-// ==========================================
-// 🟢 LOGIC PHP (DATABASE ACTIONS)
-// ==========================================
 try {
-    // 1. PROFILE & HERO
+    // ==========================================
+    // 1. PROFILE & HERO ACTIONS
+    // ==========================================
     if (isset($_POST['save_hero'])) {
-        $pdo->prepare("UPDATE profile SET hero_pre=?, hero_pre_en=?, hero_greeting=?, hero_greeting_en=?, hero_title=?, hero_title_en=?, hero_desc=?, hero_desc_en=?, cv_link=? WHERE id=1")
-            ->execute([$_POST['hero_pre'], $_POST['hero_pre_en'], $_POST['hero_greeting'], $_POST['hero_greeting_en'], $_POST['hero_title'], $_POST['hero_title_en'], $_POST['hero_desc'], $_POST['hero_desc_en'], $_POST['cv_link']]);
+        $sql = "UPDATE profile SET hero_pre=?, hero_pre_en=?, hero_greeting=?, hero_greeting_en=?, hero_title=?, hero_title_en=?, hero_desc=?, hero_desc_en=?, cv_link=? WHERE id=1";
+        $pdo->prepare($sql)->execute([$_POST['hero_pre'], $_POST['hero_pre_en'], $_POST['hero_greeting'], $_POST['hero_greeting_en'], $_POST['hero_title'], $_POST['hero_title_en'], $_POST['hero_desc'], $_POST['hero_desc_en'], $_POST['cv_link']]);
         setFlash('Hero Updated!'); header("Location: admin.php?tab=prof-pane"); exit();
     }
+
     if (isset($_POST['save_labels'])) {
-        $pdo->prepare("UPDATE profile SET label_about=?, label_about_en=?, about_title=?, about_title_en=?, label_skills=?, label_skills_en=?, title_skills=?, title_skills_en=?, title_contact_1=?, title_contact_1_en=?, title_contact_2=?, title_contact_2_en=? WHERE id=1")
-            ->execute([$_POST['label_about'], $_POST['label_about_en'], $_POST['about_title'], $_POST['about_title_en'], $_POST['label_skills'], $_POST['label_skills_en'], $_POST['title_skills'], $_POST['title_skills_en'], $_POST['title_contact_1'], $_POST['title_contact_1_en'], $_POST['title_contact_2'], $_POST['title_contact_2_en']]);
+        $sql = "UPDATE profile SET label_about=?, label_about_en=?, about_title=?, about_title_en=?, label_skills=?, label_skills_en=?, title_skills=?, title_skills_en=?, title_contact_1=?, title_contact_1_en=?, title_contact_2=?, title_contact_2_en=? WHERE id=1";
+        $pdo->prepare($sql)->execute([$_POST['label_about'], $_POST['label_about_en'], $_POST['about_title'], $_POST['about_title_en'], $_POST['label_skills'], $_POST['label_skills_en'], $_POST['title_skills'], $_POST['title_skills_en'], $_POST['title_contact_1'], $_POST['title_contact_1_en'], $_POST['title_contact_2'], $_POST['title_contact_2_en']]);
         setFlash('Labels Updated!'); header("Location: admin.php?tab=prof-pane"); exit();
     }
+
     if (isset($_POST['save_bento'])) {
-        $pdo->prepare("UPDATE profile SET bento_title_1=?, bento_desc_1=?, bento_desc_1_en=?, bento_title_2=?, bento_desc_2=?, bento_desc_2_en=?, bento_title_3=?, bento_desc_3=?, bento_desc_3_en=? WHERE id=1")
-            ->execute([$_POST['bento_title_1'], $_POST['bento_desc_1'], $_POST['bento_desc_1_en'], $_POST['bento_title_2'], $_POST['bento_desc_2'], $_POST['bento_desc_2_en'], $_POST['bento_title_3'], $_POST['bento_desc_3'], $_POST['bento_desc_3_en']]);
+        $sql = "UPDATE profile SET bento_title_1=?, bento_desc_1=?, bento_desc_1_en=?, bento_title_2=?, bento_desc_2=?, bento_desc_2_en=?, bento_title_3=?, bento_desc_3=?, bento_desc_3_en=? WHERE id=1";
+        $pdo->prepare($sql)->execute([$_POST['bento_title_1'], $_POST['bento_desc_1'], $_POST['bento_desc_1_en'], $_POST['bento_title_2'], $_POST['bento_desc_2'], $_POST['bento_desc_2_en'], $_POST['bento_title_3'], $_POST['bento_desc_3'], $_POST['bento_desc_3_en']]);
         setFlash('Bento Grid Updated!'); header("Location: admin.php?tab=prof-pane"); exit();
     }
+
     if (isset($_POST['save_contact'])) {
         $pdo->prepare("UPDATE profile SET email=?, whatsapp=?, linkedin=? WHERE id=1")->execute([$_POST['email'], $_POST['whatsapp'], $_POST['linkedin']]);
         setFlash('Contact Updated!'); header("Location: admin.php?tab=prof-pane"); exit();
     }
+
     if (isset($_POST['save_images'])) {
         $q = $pdo->query("SELECT * FROM profile WHERE id=1")->fetch(PDO::FETCH_ASSOC);
+        
         function uploadImg($file, $old) {
             if(!empty($file['name'])){
+                // 🛡️ VALIDASI MIME TYPE
+                $allowed_types = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+                $max_size = 5 * 1024 * 1024; // 5MB
+                
+                // Cek MIME type
+                $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                $mime = finfo_file($finfo, $file['tmp_name']);
+                finfo_close($finfo);
+                
+                if (!in_array($mime, $allowed_types)) {
+                    return $old; // Reject non-image files
+                }
+                
+                // Cek size
+                if ($file['size'] > $max_size) {
+                    return $old; // Reject oversized files
+                }
+                
                 $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
-                $new = time() . "_" . uniqid() . "." . $ext;
+                $new = time() . "_" . uniqid() . ".jpg";
                 if(move_uploaded_file($file['tmp_name'], 'assets/img/' . $new)) {
-                    if($old && $old != 'default.jpg' && file_exists('assets/img/'.$old)) unlink('assets/img/'.$old);
+                    if($old && $old != 'default.jpg' && file_exists('assets/img/'.$old)) @unlink('assets/img/'.$old);
                     return $new;
                 }
             } return $old;
         }
+
         $pic = uploadImg($_FILES['profile_pic'], $q['profile_pic'] ?? '');
         $img1 = uploadImg($_FILES['about_img_1'], $q['about_img_1'] ?? '');
         $img2 = uploadImg($_FILES['about_img_2'], $q['about_img_2'] ?? '');
         $img3 = uploadImg($_FILES['about_img_3'], $q['about_img_3'] ?? '');
+
         $pdo->prepare("UPDATE profile SET profile_pic=?, about_img_1=?, about_img_2=?, about_img_3=? WHERE id=1")->execute([$pic, $img1, $img2, $img3]);
         setFlash('Images Uploaded!'); header("Location: admin.php?tab=prof-pane"); exit();
     }
 
-    // 2. PROJECTS (FULL)
+    // ==========================================
+    // 2. PROJECT ACTIONS
+    // ==========================================
     if (isset($_POST['save_project_text'])) {
         $pdo->prepare("UPDATE profile SET project_title=?, project_title_en=?, project_desc=?, project_desc_en=? WHERE id=1")->execute([$_POST['project_title'], $_POST['project_title_en'], $_POST['project_desc'], $_POST['project_desc_en']]);
         setFlash('Project Header Updated!'); header("Location: admin.php?tab=proj-pane"); exit();
     }
+
     if (isset($_POST['save_project'])) { 
-        $is_update = !empty($_POST['proj_id']);
-        $img_name = $_POST['old_image'] ?? "default.jpg";
+        $img_name = "default.jpg";
         if(!empty($_FILES['image']['name'])) {
             $ext = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
-            $new_img = "proj_" . time() . "." . $ext;
-            if(move_uploaded_file($_FILES['image']['tmp_name'], 'assets/img/' . $new_img)){
-                $img_name = $new_img;
-                if($is_update && $_POST['old_image'] != 'default.jpg' && file_exists('assets/img/'.$_POST['old_image'])) unlink('assets/img/'.$_POST['old_image']);
-            }
+            $new_img = "proj_" . time() . "_" . uniqid() . "." . $ext;
+            if(move_uploaded_file($_FILES['image']['tmp_name'], 'assets/img/' . $new_img)) $img_name = $new_img;
         }
-        if ($is_update) {
-            $sql = "UPDATE projects SET title=?, category=?, tech_stack=?, description=?, description_en=?, challenge=?, impact=?, link_demo=?, image=? WHERE id=?";
-            $params = [$_POST['title'], $_POST['category'], $_POST['tech_stack'], purify($_POST['description']), purify($_POST['description_en']), purify($_POST['challenge']), purify($_POST['impact']), $_POST['link_demo'], $img_name, $_POST['proj_id']];
-            $msg = "Project Updated!";
-        } else {
-            $sql = "INSERT INTO projects (title, category, tech_stack, description, description_en, challenge, impact, link_demo, image) VALUES (?,?,?,?,?,?,?,?,?)";
-            $params = [$_POST['title'], $_POST['category'], $_POST['tech_stack'], purify($_POST['description']), purify($_POST['description_en']), purify($_POST['challenge']), purify($_POST['impact']), $_POST['link_demo'], $img_name];
-            $msg = "Project Added!";
-        }
-        $pdo->prepare($sql)->execute($params);
-        setFlash($msg); header("Location: admin.php?tab=proj-pane"); exit();
+
+        $title = trim($_POST['title']);
+        $cat = $_POST['category'];
+        $comp_ref = ($cat == 'Personal') ? '' : trim($_POST['company_ref']); // Logic Company Ref
+        
+        $sql = "INSERT INTO projects (title, category, company_ref, tech_stack, description, description_en, challenge, impact, link_demo, image) VALUES (?,?,?,?,?,?,?,?,?,?)";
+        $pdo->prepare($sql)->execute([$title, $cat, $comp_ref, $_POST['tech_stack'], purify($_POST['description']), purify($_POST['description_en']), purify($_POST['challenge']), purify($_POST['impact']), $_POST['link_demo'], $img_name]);
+        
+        setFlash("Project Added!"); header("Location: admin.php?tab=proj-pane"); exit();
     }
+
     if (isset($_GET['hapus_proj'])) {
         $id = $_GET['hapus_proj'];
-        $d = $pdo->query("SELECT image FROM projects WHERE id=$id")->fetch();
-        if($d && $d['image'] != 'default.jpg' && file_exists('assets/img/'.$d['image'])) unlink('assets/img/'.$d['image']);
+        $stmt = $pdo->prepare("SELECT image FROM projects WHERE id=?");
+        $stmt->execute([$id]);
+        $d = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if($d && $d['image'] != 'default.jpg' && file_exists('assets/img/'.$d['image'])) @unlink('assets/img/'.$d['image']);
+        
         $pdo->prepare("DELETE FROM projects WHERE id=?")->execute([$id]);
         setFlash('Project Deleted!'); header("Location: admin.php?tab=proj-pane"); exit();
     }
 
-    // 3. JOURNEY
+    // ==========================================
+    // 3. JOURNEY ACTIONS
+    // ==========================================
     if (isset($_POST['save_timeline'])) {
-        $is_update = !empty($_POST['time_id']);
-        $img_name = $_POST['old_image'] ?? "";
+        $img_name = "";
         if(!empty($_FILES['image']['name'])) {
             $ext = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
-            $new_img = "cartoon_" . time() . "." . $ext;
-            if(move_uploaded_file($_FILES['image']['tmp_name'], 'assets/img/' . $new_img)){
-                $img_name = $new_img;
-                if($is_update && !empty($_POST['old_image']) && file_exists('assets/img/'.$_POST['old_image'])) unlink('assets/img/'.$_POST['old_image']);
-            }
+            $new_img = "cartoon_" . time() . "_" . uniqid() . "." . $ext;
+            if(move_uploaded_file($_FILES['image']['tmp_name'], 'assets/img/' . $new_img)) $img_name = $new_img;
         }
-        if ($is_update) {
-            $sql = "UPDATE timeline SET year=?, sort_date=?, role=?, company=?, description=?, image=? WHERE id=?";
-            $params = [$_POST['year'], $_POST['sort_date'], $_POST['role'], $_POST['company'], purify($_POST['description']), $img_name, $_POST['time_id']];
-            $msg = "Timeline Updated!";
-        } else {
-            $sql = "INSERT INTO timeline (year, sort_date, role, company, description, image) VALUES (?,?,?,?,?,?)";
-            $params = [$_POST['year'], $_POST['sort_date'], $_POST['role'], $_POST['company'], purify($_POST['description']), $img_name];
-            $msg = "Timeline Added!";
-        }
-        $pdo->prepare($sql)->execute($params);
-        setFlash($msg); header("Location: admin.php?tab=time-pane"); exit();
+        
+        $sql = "INSERT INTO timeline (year, sort_date, role, company, description, image) VALUES (?,?,?,?,?,?)";
+        $pdo->prepare($sql)->execute([$_POST['year'], $_POST['sort_date'], $_POST['role'], $_POST['company'], purify($_POST['description']), $img_name]);
+        
+        setFlash("Timeline Added!"); header("Location: admin.php?tab=time-pane"); exit();
     }
+
     if (isset($_GET['hapus_time'])) {
         $id = $_GET['hapus_time'];
-        $d = $pdo->query("SELECT image FROM timeline WHERE id=$id")->fetch();
-        if($d && !empty($d['image']) && file_exists('assets/img/'.$d['image'])) unlink('assets/img/'.$d['image']);
+        $stmt = $pdo->prepare("SELECT image FROM timeline WHERE id=?");
+        $stmt->execute([$id]);
+        $d = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if($d && !empty($d['image']) && file_exists('assets/img/'.$d['image'])) @unlink('assets/img/'.$d['image']);
+
         $pdo->prepare("DELETE FROM timeline WHERE id=?")->execute([$id]);
         setFlash('Timeline Deleted!'); header("Location: admin.php?tab=time-pane"); exit();
     }
 
-    // 4. SKILLS (FIX: NO LINK FIELD)
+    // ==========================================
+    // 4. SKILLS ACTIONS
+    // ==========================================
     if (isset($_POST['save_tech'])) {
-        if (!empty($_POST['tech_id'])) {
-            $pdo->prepare("UPDATE tech_stacks SET name=?, category=?, icon=? WHERE id=?")->execute([$_POST['tech_name'], $_POST['tech_category'], $_POST['tech_icon'], $_POST['tech_id']]);
-            $msg = "Skill Updated!";
-        } else {
-            $pdo->prepare("INSERT INTO tech_stacks (name, category, icon) VALUES (?,?,?)")->execute([$_POST['tech_name'], $_POST['tech_category'], $_POST['tech_icon']]);
-            $msg = "Skill Added!";
-        }
-        setFlash($msg); header("Location: admin.php?tab=tech-pane"); exit();
+        $pdo->prepare("INSERT INTO tech_stacks (name, category, icon) VALUES (?,?,?)")->execute([$_POST['tech_name'], $_POST['tech_category'], $_POST['tech_icon']]);
+        setFlash("Skill Added!"); header("Location: admin.php?tab=tech-pane"); exit();
     }
     if (isset($_GET['hapus_tech'])) {
         $pdo->prepare("DELETE FROM tech_stacks WHERE id=?")->execute([$_GET['hapus_tech']]);
         setFlash('Skill Deleted!'); header("Location: admin.php?tab=tech-pane"); exit();
     }
 
-    // 5. CERTIFICATES
+    // ==========================================
+    // 5. CERTIFICATE ACTIONS
+    // ==========================================
     if (isset($_POST['save_cert'])) {
-        $is_update = !empty($_POST['cert_id']);
-        $img_name = $_POST['old_image'] ?? "default_cert.png";
+        $img_name = "default_cert.png";
         if (!empty($_FILES['cert_img']['name'])) {
             $ext = pathinfo($_FILES['cert_img']['name'], PATHINFO_EXTENSION);
-            $new_img = "cert_" . time() . "." . $ext;
-            if(move_uploaded_file($_FILES['cert_img']['tmp_name'], 'assets/img/' . $new_img)){
-                $img_name = $new_img;
-                if($is_update && !empty($_POST['old_image']) && file_exists('assets/img/'.$_POST['old_image'])) unlink('assets/img/'.$_POST['old_image']);
-            }
+            $new_img = "cert_" . time() . "_" . uniqid() . "." . $ext;
+            if(move_uploaded_file($_FILES['cert_img']['tmp_name'], 'assets/img/' . $new_img)) $img_name = $new_img;
         }
-        if ($is_update) {
-            $sql = "UPDATE certifications SET name=?, issuer=?, date_issued=?, credential_link=?, image=? WHERE id=?";
-            $params = [$_POST['cert_name'], $_POST['cert_issuer'], $_POST['cert_date'], $_POST['cert_link'], $img_name, $_POST['cert_id']];
-            $msg = "Certificate Updated!";
-        } else {
-            $sql = "INSERT INTO certifications (name, issuer, date_issued, credential_link, image) VALUES (?,?,?,?,?)";
-            $params = [$_POST['cert_name'], $_POST['cert_issuer'], $_POST['cert_date'], $_POST['cert_link'], $img_name];
-            $msg = "Certificate Added!";
-        }
-        $pdo->prepare($sql)->execute($params);
-        setFlash($msg); header("Location: admin.php?tab=cert-pane"); exit();
+        $pdo->prepare("INSERT INTO certifications (name, issuer, date_issued, credential_link, image) VALUES (?,?,?,?,?)")
+            ->execute([$_POST['cert_name'], $_POST['cert_issuer'], $_POST['cert_date'], $_POST['cert_link'], $img_name]);
+        setFlash("Certificate Added!"); header("Location: admin.php?tab=cert-pane"); exit();
     }
     if (isset($_GET['hapus_cert'])) {
         $id = $_GET['hapus_cert'];
-        $d = $pdo->query("SELECT image FROM certifications WHERE id=$id")->fetch();
-        if($d && !empty($d['image']) && file_exists('assets/img/'.$d['image'])) unlink('assets/img/'.$d['image']);
+        $stmt = $pdo->prepare("SELECT image FROM certifications WHERE id=?");
+        $stmt->execute([$id]);
+        $d = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if($d && !empty($d['image']) && file_exists('assets/img/'.$d['image'])) @unlink('assets/img/'.$d['image']);
+        
         $pdo->prepare("DELETE FROM certifications WHERE id=?")->execute([$id]);
         setFlash('Certificate Deleted!'); header("Location: admin.php?tab=cert-pane"); exit();
     }
 
 } catch (PDOException $e) { setFlash("DB Error: " . $e->getMessage(), 'error'); }
 
+// AMBIL DATA PROFILE UTAMA
 $stmt = $pdo->query("SELECT * FROM profile LIMIT 1");
-$p = $stmt->fetch(PDO::FETCH_ASSOC); if (!$p) $p = [];
+$p = $stmt->fetch(PDO::FETCH_ASSOC);
 ?>
 
 <!doctype html>
@@ -201,7 +220,6 @@ $p = $stmt->fetch(PDO::FETCH_ASSOC); if (!$p) $p = [];
         .form-floating label { color: #94a3b8; }
         .table img { object-fit: cover; border-radius: 6px; }
         .btn-icon { width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; }
-        .note-modal-backdrop { z-index: 1040 !important; }
     </style>
 </head>
 <body>
@@ -217,6 +235,11 @@ $p = $stmt->fetch(PDO::FETCH_ASSOC); if (!$p) $p = [];
 </nav>
 
 <div class="container pb-5">
+    
+    <?php if(isset($_SESSION['flash_msg'])): ?>
+    <script>Swal.fire({ icon: '<?= $_SESSION['flash_type'] ?>', title: '<?= $_SESSION['flash_msg'] ?>', timer: 1500, showConfirmButton: false, toast: true, position: 'top-end' });</script>
+    <?php unset($_SESSION['flash_msg']); unset($_SESSION['flash_type']); endif; ?>
+
     <ul class="nav nav-pills mb-4 bg-white p-2 rounded shadow-sm d-flex flex-nowrap overflow-auto" id="adminTab" role="tablist">
         <li class="nav-item"><button class="nav-link active" data-bs-target="#prof-pane" data-bs-toggle="tab">👤 Profile</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-target="#proj-pane" data-bs-toggle="tab">📁 Projects</button></li>
@@ -321,8 +344,8 @@ $p = $stmt->fetch(PDO::FETCH_ASSOC); if (!$p) $p = [];
                     <button class="btn btn-sm btn-primary" onclick="openProjModal()"><i class="bi bi-plus-lg"></i> Add New Project</button>
                 </div>
                 <div class="card-body">
-                    <form method="POST">
-                        <div class="row g-2 mb-4">
+                    <form method="POST" class="mb-4">
+                        <div class="row g-2">
                             <div class="col-md-6"><input type="text" name="project_title" class="form-control form-control-sm" value="<?= v($p, 'project_title') ?>"></div>
                             <div class="col-md-6"><input type="text" name="project_title_en" class="form-control form-control-sm" value="<?= v($p, 'project_title_en') ?>"></div>
                             <div class="col-md-6"><textarea name="project_desc" class="form-control form-control-sm"><?= v($p, 'project_desc') ?></textarea></div>
@@ -332,19 +355,31 @@ $p = $stmt->fetch(PDO::FETCH_ASSOC); if (!$p) $p = [];
                     </form>
                     <div class="table-responsive">
                         <table class="table align-middle mb-0 table-hover">
-                            <thead class="table-light"><tr><th>Img</th><th>Title</th><th>Stack</th><th>Act</th></tr></thead>
+                            <thead class="table-light"><tr><th>Img</th><th>Title</th><th>Category</th><th>Company</th><th>Act</th></tr></thead>
                             <tbody>
-                                <?php foreach($pdo->query("SELECT * FROM projects ORDER BY id DESC") as $r): ?>
+                                <?php 
+                                $stmt = $pdo->query("SELECT * FROM projects ORDER BY id DESC");
+                                while($r = $stmt->fetch(PDO::FETCH_ASSOC)): 
+                                ?>
                                 <tr>
                                     <td width="60"><img src="assets/img/<?= $r['image'] ?>" width="50"></td>
-                                    <td><div class="fw-bold"><?= $r['title'] ?></div><span class="badge bg-light text-dark border"><?= $r['category'] ?></span></td>
-                                    <td class="small text-muted"><?= $r['tech_stack'] ?></td>
                                     <td>
-                                        <button onclick='editProj(<?= json_encode($r) ?>)' class="btn btn-icon btn-outline-primary btn-sm"><i class="bi bi-pencil"></i></button>
+                                        <div class="fw-bold"><?= $r['title'] ?></div>
+                                    </td>
+                                    <td><span class="badge bg-light text-dark border"><?= $r['category'] ?></span></td>
+                                    <td>
+                                        <?php if(!empty($r['company_ref'])): ?>
+                                            <span class="badge bg-info text-white"><?= $r['company_ref'] ?></span>
+                                        <?php else: ?>
+                                            <span class="text-muted small">-</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <a href="edit_project.php?id=<?= $r['id'] ?>" class="btn btn-icon btn-outline-primary btn-sm"><i class="bi bi-pencil"></i></a>
                                         <a href="?hapus_proj=<?= $r['id'] ?>" class="btn btn-icon btn-outline-danger btn-sm" onclick="return confirm('Del?')"><i class="bi bi-trash"></i></a>
                                     </td>
                                 </tr>
-                                <?php endforeach; ?>
+                                <?php endwhile; ?>
                             </tbody>
                         </table>
                     </div>
@@ -358,16 +393,19 @@ $p = $stmt->fetch(PDO::FETCH_ASSOC); if (!$p) $p = [];
                 <table class="table align-middle mb-0 table-hover">
                     <thead class="table-light"><tr><th>Year</th><th>Role</th><th>Act</th></tr></thead>
                     <tbody>
-                        <?php foreach($pdo->query("SELECT * FROM timeline ORDER BY sort_date DESC") as $r): ?>
+                        <?php 
+                        $stmt = $pdo->query("SELECT * FROM timeline ORDER BY sort_date DESC");
+                        while($r = $stmt->fetch(PDO::FETCH_ASSOC)): 
+                        ?>
                         <tr>
                             <td><span class="badge bg-secondary"><?= $r['year'] ?></span></td>
                             <td><div class="fw-bold"><?= $r['role'] ?></div><small><?= $r['company'] ?></small></td>
                             <td>
-                                <button onclick='editTime(<?= json_encode($r) ?>)' class="btn btn-icon btn-outline-primary btn-sm"><i class="bi bi-pencil"></i></button>
+                                <a href="edit_timeline.php?id=<?= $r['id'] ?>" class="btn btn-icon btn-outline-primary btn-sm"><i class="bi bi-pencil"></i></a>
                                 <a href="?hapus_time=<?= $r['id'] ?>" class="btn btn-icon btn-outline-danger btn-sm" onclick="return confirm('Del?')"><i class="bi bi-trash"></i></a>
                             </td>
                         </tr>
-                        <?php endforeach; ?>
+                        <?php endwhile; ?>
                     </tbody>
                 </table>
             </div>
@@ -379,16 +417,18 @@ $p = $stmt->fetch(PDO::FETCH_ASSOC); if (!$p) $p = [];
                 <table class="table align-middle mb-0 table-hover">
                     <thead class="table-light"><tr><th>Img</th><th>Name</th><th>Act</th></tr></thead>
                     <tbody>
-                        <?php foreach($pdo->query("SELECT * FROM certifications ORDER BY id DESC") as $r): ?>
+                        <?php 
+                        $stmt = $pdo->query("SELECT * FROM certifications ORDER BY id DESC");
+                        while($r = $stmt->fetch(PDO::FETCH_ASSOC)): 
+                        ?>
                         <tr>
                             <td width="50"><img src="assets/img/<?= $r['image'] ?>" width="40"></td>
                             <td><div class="fw-bold"><?= $r['name'] ?></div><small><?= $r['date_issued'] ?></small></td>
                             <td>
-                                <button onclick='editCert(<?= json_encode($r) ?>)' class="btn btn-icon btn-outline-primary btn-sm"><i class="bi bi-pencil"></i></button>
                                 <a href="?hapus_cert=<?= $r['id'] ?>" class="btn btn-icon btn-outline-danger btn-sm" onclick="return confirm('Del?')"><i class="bi bi-trash"></i></a>
                             </td>
                         </tr>
-                        <?php endforeach; ?>
+                        <?php endwhile; ?>
                     </tbody>
                 </table>
             </div>
@@ -400,17 +440,19 @@ $p = $stmt->fetch(PDO::FETCH_ASSOC); if (!$p) $p = [];
                 <table class="table align-middle mb-0 table-hover">
                     <thead class="table-light"><tr><th>Icon</th><th>Name</th><th>Cat</th><th>Act</th></tr></thead>
                     <tbody>
-                        <?php foreach($pdo->query("SELECT * FROM tech_stacks ORDER BY category ASC") as $r): ?>
+                        <?php 
+                        $stmt = $pdo->query("SELECT * FROM tech_stacks ORDER BY category ASC");
+                        while($r = $stmt->fetch(PDO::FETCH_ASSOC)): 
+                        ?>
                         <tr>
                             <td><i class="<?= $r['icon'] ?>"></i></td>
                             <td class="fw-bold"><?= $r['name'] ?></td>
                             <td><span class="badge bg-secondary"><?= $r['category'] ?></span></td>
                             <td>
-                                <button onclick='editTech(<?= json_encode($r) ?>)' class="btn btn-icon btn-outline-primary btn-sm"><i class="bi bi-pencil"></i></button>
                                 <a href="?hapus_tech=<?= $r['id'] ?>" class="btn btn-icon btn-outline-danger btn-sm" onclick="return confirm('Del?')"><i class="bi bi-trash"></i></a>
                             </td>
                         </tr>
-                        <?php endforeach; ?>
+                        <?php endwhile; ?>
                     </tbody>
                 </table>
             </div>
@@ -420,19 +462,38 @@ $p = $stmt->fetch(PDO::FETCH_ASSOC); if (!$p) $p = [];
 </div>
 
 <div class="modal fade" id="projModal" tabindex="-1"><div class="modal-dialog modal-xl"><div class="modal-content"><form method="POST" enctype="multipart/form-data">
-    <div class="modal-header"><h5 class="modal-title">Project Data</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-header"><h5 class="modal-title">Add New Project</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
     <div class="modal-body">
-        <input type="hidden" name="proj_id" id="p_id"><input type="hidden" name="old_image" id="p_old_img">
         <div class="row g-3">
-            <div class="col-md-8"><label class="small fw-bold">Title</label><input type="text" name="title" id="p_title" class="form-control" required></div>
-            <div class="col-md-4"><label class="small fw-bold">Category</label><select name="category" id="p_cat" class="form-select"><option value="Work">Work</option><option value="Personal">Personal</option></select></div>
-            <div class="col-md-6"><label class="small fw-bold">Tech Stack</label><input type="text" name="tech_stack" id="p_tech" class="form-control" required></div>
-            <div class="col-md-6"><label class="small fw-bold">Demo Link</label><input type="text" name="link_demo" id="p_link" class="form-control"></div>
+            <div class="col-md-8"><label class="small fw-bold">Title</label><input type="text" name="title" class="form-control" required></div>
+            <div class="col-md-4">
+                <label class="small fw-bold">Category</label>
+                <select name="category" id="cat_select_add" class="form-select" onchange="toggleAddComp()">
+                    <option value="Work">Work</option>
+                    <option value="Personal">Personal</option>
+                </select>
+            </div>
+            
+            <div class="col-12" id="comp_box_add">
+                <label class="small fw-bold text-primary">Related Company (from Timeline)</label>
+                <select name="company_ref" class="form-select bg-light">
+                    <option value="">-- Select Company --</option>
+                    <?php 
+                    $stmt = $pdo->query("SELECT DISTINCT company FROM timeline ORDER BY sort_date DESC");
+                    while($c = $stmt->fetch(PDO::FETCH_ASSOC)): 
+                    ?>
+                    <option value="<?= $c['company'] ?>"><?= $c['company'] ?></option>
+                    <?php endwhile; ?>
+                </select>
+            </div>
+
+            <div class="col-md-6"><label class="small fw-bold">Tech Stack</label><input type="text" name="tech_stack" class="form-control" required></div>
+            <div class="col-md-6"><label class="small fw-bold">Demo Link</label><input type="text" name="link_demo" class="form-control"></div>
             <div class="col-12"><label class="small fw-bold">Cover Image</label><input type="file" name="image" class="form-control"></div>
-            <div class="col-md-6"><label class="small text-muted fw-bold">Description (Indo)</label><textarea name="description" id="p_desc" class="summernote"></textarea></div>
-            <div class="col-md-6"><label class="small text-muted fw-bold">Description (English)</label><textarea name="description_en" id="p_desc_en" class="summernote"></textarea></div>
-            <div class="col-md-6"><label class="small text-muted fw-bold">Challenge</label><textarea name="challenge" id="p_chal" class="summernote"></textarea></div>
-            <div class="col-md-6"><label class="small text-muted fw-bold">Impact</label><textarea name="impact" id="p_imp" class="summernote"></textarea></div>
+            <div class="col-md-6"><label class="small fw-bold">Description (Indo)</label><textarea name="description" class="summernote"></textarea></div>
+            <div class="col-md-6"><label class="small fw-bold">Description (English)</label><textarea name="description_en" class="summernote"></textarea></div>
+            <div class="col-md-6"><label class="small fw-bold">Challenge</label><textarea name="challenge" class="summernote"></textarea></div>
+            <div class="col-md-6"><label class="small fw-bold">Impact</label><textarea name="impact" class="summernote"></textarea></div>
         </div>
     </div>
     <div class="modal-footer"><button type="submit" name="save_project" class="btn btn-primary">Save Project</button></div>
@@ -441,13 +502,12 @@ $p = $stmt->fetch(PDO::FETCH_ASSOC); if (!$p) $p = [];
 <div class="modal fade" id="timeModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><form method="POST" enctype="multipart/form-data">
     <div class="modal-header"><h5 class="modal-title">Journey Data</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
     <div class="modal-body">
-        <input type="hidden" name="time_id" id="t_id"><input type="hidden" name="old_image" id="t_old_img">
         <div class="row g-2">
-            <div class="col-8"><label>Year</label><input type="text" name="year" id="t_year" class="form-control" required></div>
-            <div class="col-4"><label>Sort Date</label><input type="date" name="sort_date" id="t_date" class="form-control" required></div>
-            <div class="col-12"><label>Role</label><input type="text" name="role" id="t_role" class="form-control" required></div>
-            <div class="col-12"><label>Company</label><input type="text" name="company" id="t_comp" class="form-control" required></div>
-            <div class="col-12"><label>Description</label><textarea name="description" id="t_desc" class="summernote"></textarea></div>
+            <div class="col-8"><label>Year</label><input type="text" name="year" class="form-control" required></div>
+            <div class="col-4"><label>Sort Date</label><input type="date" name="sort_date" class="form-control" required></div>
+            <div class="col-12"><label>Role</label><input type="text" name="role" class="form-control" required></div>
+            <div class="col-12"><label>Company</label><input type="text" name="company" class="form-control" required></div>
+            <div class="col-12"><label>Description</label><textarea name="description" class="summernote"></textarea></div>
             <div class="col-12"><label>Image (Optional)</label><input type="file" name="image" class="form-control"></div>
         </div>
     </div>
@@ -457,28 +517,14 @@ $p = $stmt->fetch(PDO::FETCH_ASSOC); if (!$p) $p = [];
 <div class="modal fade" id="techModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><form method="POST">
     <div class="modal-header"><h5 class="modal-title">Skill Data</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
     <div class="modal-body">
-        <input type="hidden" name="tech_id" id="s_id">
-        <div class="mb-3">
-            <label class="fw-bold">Skill Name</label>
-            <input type="text" name="tech_name" id="s_name" class="form-control" placeholder="e.g. PHP" required>
-        </div>
+        <div class="mb-3"><label class="fw-bold">Skill Name</label><input type="text" name="tech_name" class="form-control" required></div>
         <div class="mb-3">
             <label class="fw-bold">Category</label>
-            <select name="tech_category" id="s_cat" class="form-select">
-                <option value="Analysis">Analysis</option>
-                <option value="Enterprise">Enterprise</option>
-                <option value="Development">Development</option>
+            <select name="tech_category" class="form-select">
+                <option value="Analysis">Analysis</option><option value="Enterprise">Enterprise</option><option value="Development">Development</option>
             </select>
         </div>
-        <div class="mb-2">
-            <label class="fw-bold">Icon Class (Bootstrap Icon)</label>
-            <input type="text" name="tech_icon" id="s_icon" class="form-control" placeholder="e.g. bi-code-slash" required>
-            <div class="form-text">
-                <a href="https://icons.getbootstrap.com/" target="_blank" class="text-decoration-none">
-                    <i class="bi bi-box-arrow-up-right"></i> Lihat Daftar Icon Disini
-                </a>
-            </div>
-        </div>
+        <div class="mb-2"><label class="fw-bold">Icon Class</label><input type="text" name="tech_icon" class="form-control" required></div>
     </div>
     <div class="modal-footer"><button type="submit" name="save_tech" class="btn btn-primary">Save Skill</button></div>
 </form></div></div></div>
@@ -486,12 +532,11 @@ $p = $stmt->fetch(PDO::FETCH_ASSOC); if (!$p) $p = [];
 <div class="modal fade" id="certModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><form method="POST" enctype="multipart/form-data">
     <div class="modal-header"><h5 class="modal-title">Certificate Data</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
     <div class="modal-body">
-        <input type="hidden" name="cert_id" id="c_id"><input type="hidden" name="old_image" id="c_old_img">
         <div class="row g-2">
-            <div class="col-6"><label>Name</label><input type="text" name="cert_name" id="c_name" class="form-control" required></div>
-            <div class="col-6"><label>Issuer</label><input type="text" name="cert_issuer" id="c_issuer" class="form-control"></div>
-            <div class="col-6"><label>Date Issued</label><input type="text" name="cert_date" id="c_date" class="form-control"></div>
-            <div class="col-6"><label>Credential Link</label><input type="text" name="cert_link" id="c_link" class="form-control"></div>
+            <div class="col-6"><label>Name</label><input type="text" name="cert_name" class="form-control" required></div>
+            <div class="col-6"><label>Issuer</label><input type="text" name="cert_issuer" class="form-control"></div>
+            <div class="col-6"><label>Date Issued</label><input type="text" name="cert_date" class="form-control"></div>
+            <div class="col-6"><label>Credential Link</label><input type="text" name="cert_link" class="form-control"></div>
             <div class="col-12"><label>Image</label><input type="file" name="cert_img" class="form-control"></div>
         </div>
     </div>
@@ -502,69 +547,19 @@ $p = $stmt->fetch(PDO::FETCH_ASSOC); if (!$p) $p = [];
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.js"></script>
 <script>
-    // Init ALL Summernotes
     $('.summernote').summernote({ height: 120, toolbar: [['style', ['bold', 'italic', 'underline', 'clear']], ['para', ['ul', 'ol']], ['view', ['codeview']]] });
-
     const tab = new URLSearchParams(window.location.search).get('tab');
     if(tab) { const el = document.querySelector(`[data-bs-target="#${tab}"]`); if(el) new bootstrap.Tab(el).show(); }
 
-    <?php if(isset($_SESSION['flash_msg'])): ?>
-    Swal.fire({ icon: '<?= $_SESSION['flash_type'] ?>', title: '<?= $_SESSION['flash_msg'] ?>', timer: 1500, showConfirmButton: false, toast: true, position: 'top-end' });
-    <?php unset($_SESSION['flash_msg']); unset($_SESSION['flash_type']); endif; ?>
+    function openProjModal() { new bootstrap.Modal(document.getElementById('projModal')).show(); }
+    function openTimeModal() { new bootstrap.Modal(document.getElementById('timeModal')).show(); }
+    function openTechModal() { new bootstrap.Modal(document.getElementById('techModal')).show(); }
+    function openCertModal() { new bootstrap.Modal(document.getElementById('certModal')).show(); }
 
-    // MODAL HANDLERS
-    function openProjModal() { 
-        document.getElementById('p_id').value=''; document.getElementById('p_title').value=''; 
-        $('#p_desc').summernote('code', ''); $('#p_desc_en').summernote('code', ''); 
-        $('#p_chal').summernote('code', ''); $('#p_imp').summernote('code', '');
-        new bootstrap.Modal(document.getElementById('projModal')).show(); 
-    }
-    function editProj(d) {
-        document.getElementById('p_id').value = d.id;
-        document.getElementById('p_old_img').value = d.image;
-        document.getElementById('p_title').value = d.title;
-        document.getElementById('p_cat').value = d.category;
-        document.getElementById('p_tech').value = d.tech_stack;
-        document.getElementById('p_link').value = d.link_demo;
-        $('#p_desc').summernote('code', d.description);
-        $('#p_desc_en').summernote('code', d.description_en);
-        $('#p_chal').summernote('code', d.challenge);
-        $('#p_imp').summernote('code', d.impact);
-        new bootstrap.Modal(document.getElementById('projModal')).show();
-    }
-
-    function openTimeModal() { document.getElementById('t_id').value=''; document.getElementById('t_role').value=''; $('#t_desc').summernote('code', ''); new bootstrap.Modal(document.getElementById('timeModal')).show(); }
-    function editTime(d) {
-        document.getElementById('t_id').value = d.id;
-        document.getElementById('t_old_img').value = d.image;
-        document.getElementById('t_year').value = d.year;
-        document.getElementById('t_date').value = d.sort_date;
-        document.getElementById('t_role').value = d.role;
-        document.getElementById('t_comp').value = d.company;
-        $('#t_desc').summernote('code', d.description);
-        new bootstrap.Modal(document.getElementById('timeModal')).show();
-    }
-
-    function openTechModal() { document.getElementById('s_id').value=''; document.getElementById('s_name').value=''; new bootstrap.Modal(document.getElementById('techModal')).show(); }
-    function editTech(d) {
-        document.getElementById('s_id').value = d.id;
-        document.getElementById('s_name').value = d.name;
-        document.getElementById('s_cat').value = d.category;
-        document.getElementById('s_icon').value = d.icon;
-        new bootstrap.Modal(document.getElementById('techModal')).show();
-    }
-
-    function openCertModal() { document.getElementById('c_id').value=''; document.getElementById('c_name').value=''; new bootstrap.Modal(document.getElementById('certModal')).show(); }
-    function editCert(d) {
-        document.getElementById('c_id').value = d.id;
-        document.getElementById('c_old_img').value = d.image;
-        document.getElementById('c_name').value = d.name;
-        document.getElementById('c_issuer').value = d.issuer;
-        document.getElementById('c_date').value = d.date_issued;
-        document.getElementById('c_link').value = d.credential_link;
-        new bootstrap.Modal(document.getElementById('certModal')).show();
+    function toggleAddComp() {
+        let cat = document.getElementById('cat_select_add').value;
+        document.getElementById('comp_box_add').style.display = (cat === 'Personal') ? 'none' : 'block';
     }
 </script>
-
 </body>
 </html>

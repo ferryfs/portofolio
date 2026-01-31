@@ -127,5 +127,11 @@
             new bootstrap.Modal(document.getElementById(id)).show();
         }
     </script>
+        <script>
+        // Biar history browser bersih, jadi user gak bisa tekan Forward balik ke dalam
+        if (window.history.replaceState) {
+            window.history.replaceState(null, null, window.location.href);
+        }
+    </script>
 </body>
 </html>

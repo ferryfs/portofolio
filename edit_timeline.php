@@ -1,70 +1,86 @@
 <?php
+session_name("PORTFOLIO_CMS_SESSION");
 session_start();
+
 // Security Check
 if (!isset($_SESSION['status']) || $_SESSION['status'] != "login") { 
-    header("Location: login.php"); 
-    exit(); 
-}
-include 'koneksi.php'; 
-
-$id = $_GET['id'];
-$d = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM timeline WHERE id='$id'"));
-
-// ==========================================
-// 🛡️ HELPER FUNCTIONS
-// ==========================================
-function setFlash($msg, $type='success') {
-    $_SESSION['flash_msg'] = $msg;
-    $_SESSION['flash_type'] = $type;
+    header("Location: login.php"); exit(); 
 }
 
-function purify($text) {
-    // Izinkan tag HTML dasar untuk Summernote
-    return strip_tags($text, '<ul><ol><li><b><strong><i><em><u><br><p>');
-}
+// LOAD KONEKSI PDO
+// (Pastikan file koneksi.php lu udah nge-load config/database.php yang menghasilkan $pdo)
+require_once __DIR__ . '/koneksi.php';
 
-function clearCache($file) {
-    $path = "cache/" . $file . ".json";
-    if (file_exists($path)) unlink($path);
-}
+// Validasi ID
+$id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+if ($id <= 0) { header("Location: admin.php"); exit(); }
 
-// ==========================================
-// 🟢 LOGIC UPDATE
-// ==========================================
+// Ambil Data Lama (PDO)
+$stmt = $pdo->prepare("SELECT * FROM timeline WHERE id = ?");
+$stmt->execute([$id]);
+$d = $stmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$d) { header("Location: admin.php"); exit(); }
+
+// Helper
+function purify($text) { return strip_tags($text ?? '', '<ul><ol><li><b><strong><i><em><u><br><p>'); }
+function setFlash($msg, $type='success') { $_SESSION['flash_msg'] = $msg; $_SESSION['flash_type'] = $type; }
+
+// LOGIC UPDATE
 if(isset($_POST['update'])){
-    $year = mysqli_real_escape_string($conn, $_POST['year']);
-    $s_date = mysqli_real_escape_string($conn, $_POST['sort_date']); 
-    $role = mysqli_real_escape_string($conn, $_POST['role']);
-    $comp = mysqli_real_escape_string($conn, $_POST['company']);
-    
-    // Security Sanitize
-    $desc = mysqli_real_escape_string($conn, purify($_POST['description']));
-    
-    $img_sql = ""; 
-    if(!empty($_FILES['image']['name'])) {
-        $img_name = "cartoon_" . time() . ".png";
+    try {
+        $year = trim($_POST['year']);
+        $s_date = $_POST['sort_date'];
+        $role = trim($_POST['role']);
+        $comp = trim($_POST['company']);
+        $desc = purify($_POST['description']);
         
-        // Hapus yang lama (Path Root)
-        if(!empty($d['image']) && file_exists('assets/img/'.$d['image'])) {
-            unlink('assets/img/'.$d['image']);
+        // Logic Update Gambar dengan MIME validation
+        $sql = "UPDATE timeline SET year=?, sort_date=?, role=?, company=?, description=? WHERE id=?";
+        $params = [$year, $s_date, $role, $comp, $desc, $id];
+
+        if(!empty($_FILES['image']['name'])) {
+            // 🛡️ VALIDASI MIME TYPE
+            $allowed_types = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+            $max_size = 5 * 1024 * 1024; // 5MB
+            
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $mime = finfo_file($finfo, $_FILES['image']['tmp_name']);
+            finfo_close($finfo);
+            
+            if (in_array($mime, $allowed_types) && $_FILES['image']['size'] <= $max_size) {
+                $new_img = "cartoon_" . time() . "_" . uniqid() . ".jpg";
+                
+                if(move_uploaded_file($_FILES['image']['tmp_name'], 'assets/img/' . $new_img)) {
+                    // Hapus gambar lama
+                    if(!empty($d['image']) && file_exists('assets/img/'.$d['image'])) {
+                        @unlink('assets/img/'.$d['image']);
+                    }
+                    
+                    // Update Query + Image
+                    $sql = "UPDATE timeline SET year=?, sort_date=?, role=?, company=?, description=?, image=? WHERE id=?";
+                    $params = [$year, $s_date, $role, $comp, $desc, $new_img, $id];
+                }
+            } else {
+                setFlash('Format gambar tidak didukung atau ukuran terlalu besar (max 5MB)', 'error');
+                header("Location: edit_timeline.php?id=" . urlencode($id));
+                exit();
+            }
         }
         
-        // Upload ke folder (Path Root)
-        move_uploaded_file($_FILES['image']['tmp_name'], 'assets/img/' . $img_name);
-        $img_sql = ", image='$img_name'";
+        // Eksekusi PDO
+        $pdo->prepare($sql)->execute($params);
+        
+        setFlash('Timeline berhasil diupdate!');
+        header("Location: admin.php?tab=time-pane");
+        exit();
+        
+    } catch (PDOException $e) {
+        setFlash('Error Database: ' . $e->getMessage(), 'error');
     }
-
-    $query = "UPDATE timeline SET year='$year', sort_date='$s_date', role='$role', company='$comp', description='$desc' $img_sql WHERE id='$id'";
-    
-    if(mysqli_query($conn, $query)) {
-        setFlash('Timeline Berhasil Diupdate!');
-        clearCache('timeline'); // 🧹 BERSIHKAN CACHE
-    } else {
-        setFlash('Gagal: '.mysqli_error($conn), 'error');
-    }
-    header("Location: admin.php?tab=time-pane"); exit();
 }
 ?>
+
 <!doctype html>
 <html lang="id">
 <head>
@@ -79,7 +95,7 @@ if(isset($_POST['update'])){
         <div class="card col-md-8 mx-auto shadow border-0 rounded-4">
             <div class="card-header bg-info text-white fw-bold p-3 d-flex justify-content-between align-items-center">
                 <span>✏️ Edit Career Journey</span>
-                <a href="admin" class="btn btn-sm btn-light text-info fw-bold">Kembali</a>
+                <a href="admin.php?tab=time-pane" class="btn btn-sm btn-light text-info fw-bold">Kembali</a>
             </div>
             <div class="card-body p-4">
                 <form method="POST" enctype="multipart/form-data">
@@ -102,7 +118,7 @@ if(isset($_POST['update'])){
                         </div>
                         
                         <div class="col-12 mb-4">
-                            <label class="fw-bold small text-muted mb-1">Deskripsi</label>
+                            <label class="fw-bold small text-muted mb-1">Deskripsi & Jobdesc</label>
                             <textarea id="summernote" name="description" required><?=$d['description']?></textarea>
                         </div>
 
@@ -133,14 +149,8 @@ if(isset($_POST['update'])){
     <script>
         $('#summernote').summernote({
             placeholder: 'Tulis deskripsi...',
-            tabsize: 2,
-            height: 200,
-            toolbar: [
-                ['style', ['bold', 'italic', 'underline', 'clear']],
-                ['para', ['ul', 'ol', 'paragraph']],
-                ['insert', ['link']],
-                ['view', ['codeview']]
-            ]
+            tabsize: 2, height: 200,
+            toolbar: [['style', ['bold', 'italic', 'underline', 'clear']], ['para', ['ul', 'ol', 'paragraph']]]
         });
     </script>
 </body>
