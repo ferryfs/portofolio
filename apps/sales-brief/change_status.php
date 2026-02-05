@@ -1,31 +1,41 @@
 <?php
+// apps/sales-brief/change_status.php (PDO SECURE)
 session_name("SB_APP_SESSION");
 session_start();
-$conn = mysqli_connect("localhost", "root", "", "portofolio_db");
+require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/../../config/security.php';
 
 if(!isset($_SESSION['sb_user'])) { header("Location: index.php"); exit(); }
 
-if(isset($_GET['id']) && isset($_GET['action'])) {
-    $id = $_GET['id'];
-    $action = $_GET['action'];
+// Hanya terima POST
+if($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    header("Location: index.php");
+    exit();
+}
 
-    // --- SKENARIO 1: APPROVE ---
-    if($action == 'approve') {
-        // Update status jadi Approved
-        mysqli_query($conn, "UPDATE sales_briefs SET status = 'Approved' WHERE id = '$id'");
-        
-        // Balik ke halaman View (mode approval)
-        header("Location: view_sb.php?id=$id&source=approval");
-    } 
+// Verify CSRF
+if (!verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+    die('Security Alert: Invalid Request (CSRF).');
+}
+
+if(isset($_POST['id']) && isset($_POST['action'])) {
+    $id = sanitizeInt($_POST['id']);
+    $action = sanitizeInput($_POST['action']);
     
-    // --- SKENARIO 2: REOPEN ---
+    if ($id === false) die('Invalid ID');
+
+    if($action == 'approve') {
+        safeQuery($pdo, "UPDATE sales_briefs SET status = 'Approved' WHERE id = ?", [$id]);
+        logSecurityEvent('SB Approved: ' . $id . ' by ' . $_SESSION['sb_user'], 'INFO');
+        header("Location: view_sb.php?id=" . $id . "&source=approval");
+    } 
     elseif($action == 'reopen') {
-        // 1. Update Status jadi 'Reopened'
-        // 2. Tambah counter reopen_count + 1 (Supaya limit 1x bekerja)
-        mysqli_query($conn, "UPDATE sales_briefs SET status = 'Reopened', reopen_count = reopen_count + 1 WHERE id = '$id'");
-        
-        // Redirect ke menu Informasi Promo (Sesuai Request)
+        // Increment Reopen Count
+        safeQuery($pdo, "UPDATE sales_briefs SET status = 'Reopened', reopen_count = reopen_count + 1 WHERE id = ?", [$id]);
+        logSecurityEvent('SB Reopened: ' . $id . ' by ' . $_SESSION['sb_user'], 'INFO');
         header("Location: informasi_promo.php");
     }
+} else {
+    header("Location: index.php");
 }
 ?>

@@ -11,8 +11,9 @@ if (!isset($_SESSION['status']) || $_SESSION['status'] != "login") {
     header("Location: login.php"); exit(); 
 }
 
-// LOAD KONEKSI PDO
+// LOAD KONEKSI PDO & SECURITY HELPERS
 require_once __DIR__ . '/koneksi.php';
+require_once __DIR__ . '/config/security.php';
 
 // HELPER
 function purify($text) { return strip_tags($text ?? '', '<ul><ol><li><b><strong><i><em><u><br><p>'); }
@@ -49,42 +50,58 @@ try {
     if (isset($_POST['save_images'])) {
         $q = $pdo->query("SELECT * FROM profile WHERE id=1")->fetch(PDO::FETCH_ASSOC);
         
-        function uploadImg($file, $old) {
-            if(!empty($file['name'])){
-                // 🛡️ VALIDASI MIME TYPE
-                $allowed_types = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-                $max_size = 5 * 1024 * 1024; // 5MB
-                
-                // Cek MIME type
-                $finfo = finfo_open(FILEINFO_MIME_TYPE);
-                $mime = finfo_file($finfo, $file['tmp_name']);
-                finfo_close($finfo);
-                
-                if (!in_array($mime, $allowed_types)) {
-                    return $old; // Reject non-image files
+        // Using centralized security.php handleFileUpload
+        $pic = $q['profile_pic'] ?? 'default.jpg';
+        $img1 = $q['about_img_1'] ?? 'default.jpg';
+        $img2 = $q['about_img_2'] ?? 'default.jpg';
+        $img3 = $q['about_img_3'] ?? 'default.jpg';
+        
+        // Upload profile picture
+        if(!empty($_FILES['profile_pic']['name'])) {
+            $upload = handleFileUpload($_FILES['profile_pic'], 'assets/img/');
+            if($upload['success']) {
+                if($q['profile_pic'] && $q['profile_pic'] != 'default.jpg' && file_exists('assets/img/'.$q['profile_pic'])) {
+                    @unlink('assets/img/'.$q['profile_pic']);
                 }
-                
-                // Cek size
-                if ($file['size'] > $max_size) {
-                    return $old; // Reject oversized files
+                $pic = $upload['filename'];
+            }
+        }
+        
+        // Upload about image 1
+        if(!empty($_FILES['about_img_1']['name'])) {
+            $upload = handleFileUpload($_FILES['about_img_1'], 'assets/img/');
+            if($upload['success']) {
+                if($q['about_img_1'] && $q['about_img_1'] != 'default.jpg' && file_exists('assets/img/'.$q['about_img_1'])) {
+                    @unlink('assets/img/'.$q['about_img_1']);
                 }
-                
-                $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
-                $new = time() . "_" . uniqid() . ".jpg";
-                if(move_uploaded_file($file['tmp_name'], 'assets/img/' . $new)) {
-                    if($old && $old != 'default.jpg' && file_exists('assets/img/'.$old)) @unlink('assets/img/'.$old);
-                    return $new;
+                $img1 = $upload['filename'];
+            }
+        }
+        
+        // Upload about image 2
+        if(!empty($_FILES['about_img_2']['name'])) {
+            $upload = handleFileUpload($_FILES['about_img_2'], 'assets/img/');
+            if($upload['success']) {
+                if($q['about_img_2'] && $q['about_img_2'] != 'default.jpg' && file_exists('assets/img/'.$q['about_img_2'])) {
+                    @unlink('assets/img/'.$q['about_img_2']);
                 }
-            } return $old;
+                $img2 = $upload['filename'];
+            }
+        }
+        
+        // Upload about image 3
+        if(!empty($_FILES['about_img_3']['name'])) {
+            $upload = handleFileUpload($_FILES['about_img_3'], 'assets/img/');
+            if($upload['success']) {
+                if($q['about_img_3'] && $q['about_img_3'] != 'default.jpg' && file_exists('assets/img/'.$q['about_img_3'])) {
+                    @unlink('assets/img/'.$q['about_img_3']);
+                }
+                $img3 = $upload['filename'];
+            }
         }
 
-        $pic = uploadImg($_FILES['profile_pic'], $q['profile_pic'] ?? '');
-        $img1 = uploadImg($_FILES['about_img_1'], $q['about_img_1'] ?? '');
-        $img2 = uploadImg($_FILES['about_img_2'], $q['about_img_2'] ?? '');
-        $img3 = uploadImg($_FILES['about_img_3'], $q['about_img_3'] ?? '');
-
         $pdo->prepare("UPDATE profile SET profile_pic=?, about_img_1=?, about_img_2=?, about_img_3=? WHERE id=1")->execute([$pic, $img1, $img2, $img3]);
-        setFlash('Images Uploaded!'); header("Location: admin.php?tab=prof-pane"); exit();
+        setFlash('Images Uploaded!'); logSecurityEvent('Profile images updated', 'INFO'); header("Location: admin.php?tab=prof-pane"); exit();
     }
 
     // ==========================================
@@ -98,9 +115,10 @@ try {
     if (isset($_POST['save_project'])) { 
         $img_name = "default.jpg";
         if(!empty($_FILES['image']['name'])) {
-            $ext = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
-            $new_img = "proj_" . time() . "_" . uniqid() . "." . $ext;
-            if(move_uploaded_file($_FILES['image']['tmp_name'], 'assets/img/' . $new_img)) $img_name = $new_img;
+            $upload = handleFileUpload($_FILES['image'], 'assets/img/');
+            if($upload['success']) {
+                $img_name = $upload['filename'];
+            }
         }
 
         $title = trim($_POST['title']);
@@ -110,19 +128,37 @@ try {
         $sql = "INSERT INTO projects (title, category, company_ref, tech_stack, description, description_en, challenge, impact, link_demo, image) VALUES (?,?,?,?,?,?,?,?,?,?)";
         $pdo->prepare($sql)->execute([$title, $cat, $comp_ref, $_POST['tech_stack'], purify($_POST['description']), purify($_POST['description_en']), purify($_POST['challenge']), purify($_POST['impact']), $_POST['link_demo'], $img_name]);
         
+        logSecurityEvent('Project created: ' . $title, 'INFO');
         setFlash("Project Added!"); header("Location: admin.php?tab=proj-pane"); exit();
     }
 
-    if (isset($_GET['hapus_proj'])) {
-        $id = $_GET['hapus_proj'];
+    if (isset($_POST['delete_project'])) {
+        if (!verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+            setFlash('Invalid request. CSRF token mismatch.', 'error');
+            header("Location: admin.php?tab=proj-pane");
+            exit();
+        }
+        
+        $id = sanitizeInt($_POST['project_id'] ?? 0);
+        if ($id === false || $id <= 0) {
+            setFlash('Invalid project ID.', 'error');
+            header("Location: admin.php?tab=proj-pane");
+            exit();
+        }
+        
         $stmt = $pdo->prepare("SELECT image FROM projects WHERE id=?");
         $stmt->execute([$id]);
         $d = $stmt->fetch(PDO::FETCH_ASSOC);
         
-        if($d && $d['image'] != 'default.jpg' && file_exists('assets/img/'.$d['image'])) @unlink('assets/img/'.$d['image']);
+        if($d && $d['image'] != 'default.jpg' && file_exists('assets/img/'.$d['image'])) {
+            @unlink('assets/img/'.$d['image']);
+        }
         
         $pdo->prepare("DELETE FROM projects WHERE id=?")->execute([$id]);
-        setFlash('Project Deleted!'); header("Location: admin.php?tab=proj-pane"); exit();
+        logSecurityEvent('Project deleted: ID ' . $id, 'INFO');
+        setFlash('Project Deleted!');
+        header("Location: admin.php?tab=proj-pane");
+        exit();
     }
 
     // ==========================================
@@ -131,27 +167,46 @@ try {
     if (isset($_POST['save_timeline'])) {
         $img_name = "";
         if(!empty($_FILES['image']['name'])) {
-            $ext = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
-            $new_img = "cartoon_" . time() . "_" . uniqid() . "." . $ext;
-            if(move_uploaded_file($_FILES['image']['tmp_name'], 'assets/img/' . $new_img)) $img_name = $new_img;
+            $upload = handleFileUpload($_FILES['image'], 'assets/img/');
+            if($upload['success']) {
+                $img_name = $upload['filename'];
+            }
         }
         
         $sql = "INSERT INTO timeline (year, sort_date, role, company, description, image) VALUES (?,?,?,?,?,?)";
         $pdo->prepare($sql)->execute([$_POST['year'], $_POST['sort_date'], $_POST['role'], $_POST['company'], purify($_POST['description']), $img_name]);
         
+        logSecurityEvent('Timeline added: ' . $_POST['role'], 'INFO');
         setFlash("Timeline Added!"); header("Location: admin.php?tab=time-pane"); exit();
     }
 
-    if (isset($_GET['hapus_time'])) {
-        $id = $_GET['hapus_time'];
+    if (isset($_POST['delete_timeline'])) {
+        if (!verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+            setFlash('Invalid request. CSRF token mismatch.', 'error');
+            header("Location: admin.php?tab=time-pane");
+            exit();
+        }
+        
+        $id = sanitizeInt($_POST['timeline_id'] ?? 0);
+        if ($id === false || $id <= 0) {
+            setFlash('Invalid timeline ID.', 'error');
+            header("Location: admin.php?tab=time-pane");
+            exit();
+        }
+        
         $stmt = $pdo->prepare("SELECT image FROM timeline WHERE id=?");
         $stmt->execute([$id]);
         $d = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if($d && !empty($d['image']) && file_exists('assets/img/'.$d['image'])) @unlink('assets/img/'.$d['image']);
+        if($d && !empty($d['image']) && file_exists('assets/img/'.$d['image'])) {
+            @unlink('assets/img/'.$d['image']);
+        }
 
         $pdo->prepare("DELETE FROM timeline WHERE id=?")->execute([$id]);
-        setFlash('Timeline Deleted!'); header("Location: admin.php?tab=time-pane"); exit();
+        logSecurityEvent('Timeline deleted: ID ' . $id, 'INFO');
+        setFlash('Timeline Deleted!');
+        header("Location: admin.php?tab=time-pane");
+        exit();
     }
 
     // ==========================================
@@ -161,9 +216,25 @@ try {
         $pdo->prepare("INSERT INTO tech_stacks (name, category, icon) VALUES (?,?,?)")->execute([$_POST['tech_name'], $_POST['tech_category'], $_POST['tech_icon']]);
         setFlash("Skill Added!"); header("Location: admin.php?tab=tech-pane"); exit();
     }
-    if (isset($_GET['hapus_tech'])) {
-        $pdo->prepare("DELETE FROM tech_stacks WHERE id=?")->execute([$_GET['hapus_tech']]);
-        setFlash('Skill Deleted!'); header("Location: admin.php?tab=tech-pane"); exit();
+    if (isset($_POST['delete_tech'])) {
+        if (!verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+            setFlash('Invalid request. CSRF token mismatch.', 'error');
+            header("Location: admin.php?tab=tech-pane");
+            exit();
+        }
+        
+        $id = sanitizeInt($_POST['tech_id'] ?? 0);
+        if ($id === false || $id <= 0) {
+            setFlash('Invalid tech ID.', 'error');
+            header("Location: admin.php?tab=tech-pane");
+            exit();
+        }
+        
+        $pdo->prepare("DELETE FROM tech_stacks WHERE id=?")->execute([$id]);
+        logSecurityEvent('Tech skill deleted: ID ' . $id, 'INFO');
+        setFlash('Skill Deleted!');
+        header("Location: admin.php?tab=tech-pane");
+        exit();
     }
 
     // ==========================================
@@ -180,16 +251,33 @@ try {
             ->execute([$_POST['cert_name'], $_POST['cert_issuer'], $_POST['cert_date'], $_POST['cert_link'], $img_name]);
         setFlash("Certificate Added!"); header("Location: admin.php?tab=cert-pane"); exit();
     }
-    if (isset($_GET['hapus_cert'])) {
-        $id = $_GET['hapus_cert'];
+    if (isset($_POST['delete_cert'])) {
+        if (!verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+            setFlash('Invalid request. CSRF token mismatch.', 'error');
+            header("Location: admin.php?tab=cert-pane");
+            exit();
+        }
+        
+        $id = sanitizeInt($_POST['cert_id'] ?? 0);
+        if ($id === false || $id <= 0) {
+            setFlash('Invalid certificate ID.', 'error');
+            header("Location: admin.php?tab=cert-pane");
+            exit();
+        }
+        
         $stmt = $pdo->prepare("SELECT image FROM certifications WHERE id=?");
         $stmt->execute([$id]);
         $d = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if($d && !empty($d['image']) && file_exists('assets/img/'.$d['image'])) @unlink('assets/img/'.$d['image']);
+        if($d && !empty($d['image']) && file_exists('assets/img/'.$d['image'])) {
+            @unlink('assets/img/'.$d['image']);
+        }
         
         $pdo->prepare("DELETE FROM certifications WHERE id=?")->execute([$id]);
-        setFlash('Certificate Deleted!'); header("Location: admin.php?tab=cert-pane"); exit();
+        logSecurityEvent('Certificate deleted: ID ' . $id, 'INFO');
+        setFlash('Certificate Deleted!');
+        header("Location: admin.php?tab=cert-pane");
+        exit();
     }
 
 } catch (PDOException $e) { setFlash("DB Error: " . $e->getMessage(), 'error'); }
@@ -376,7 +464,11 @@ $p = $stmt->fetch(PDO::FETCH_ASSOC);
                                     </td>
                                     <td>
                                         <a href="edit_project.php?id=<?= $r['id'] ?>" class="btn btn-icon btn-outline-primary btn-sm"><i class="bi bi-pencil"></i></a>
-                                        <a href="?hapus_proj=<?= $r['id'] ?>" class="btn btn-icon btn-outline-danger btn-sm" onclick="return confirm('Del?')"><i class="bi bi-trash"></i></a>
+                                        <form method="POST" style="display:inline;" onsubmit="return confirm('Delete this project?')">
+                                            <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
+                                            <input type="hidden" name="project_id" value="<?= $r['id'] ?>">
+                                            <button type="submit" name="delete_project" class="btn btn-icon btn-outline-danger btn-sm" title="Delete"><i class="bi bi-trash"></i></button>
+                                        </form>
                                     </td>
                                 </tr>
                                 <?php endwhile; ?>
@@ -402,7 +494,11 @@ $p = $stmt->fetch(PDO::FETCH_ASSOC);
                             <td><div class="fw-bold"><?= $r['role'] ?></div><small><?= $r['company'] ?></small></td>
                             <td>
                                 <a href="edit_timeline.php?id=<?= $r['id'] ?>" class="btn btn-icon btn-outline-primary btn-sm"><i class="bi bi-pencil"></i></a>
-                                <a href="?hapus_time=<?= $r['id'] ?>" class="btn btn-icon btn-outline-danger btn-sm" onclick="return confirm('Del?')"><i class="bi bi-trash"></i></a>
+                                <form method="POST" style="display:inline;" onsubmit="return confirm('Delete this experience?')">
+                                    <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
+                                    <input type="hidden" name="timeline_id" value="<?= $r['id'] ?>">
+                                    <button type="submit" name="delete_timeline" class="btn btn-icon btn-outline-danger btn-sm" title="Delete"><i class="bi bi-trash"></i></button>
+                                </form>
                             </td>
                         </tr>
                         <?php endwhile; ?>
@@ -425,7 +521,11 @@ $p = $stmt->fetch(PDO::FETCH_ASSOC);
                             <td width="50"><img src="assets/img/<?= $r['image'] ?>" width="40"></td>
                             <td><div class="fw-bold"><?= $r['name'] ?></div><small><?= $r['date_issued'] ?></small></td>
                             <td>
-                                <a href="?hapus_cert=<?= $r['id'] ?>" class="btn btn-icon btn-outline-danger btn-sm" onclick="return confirm('Del?')"><i class="bi bi-trash"></i></a>
+                                <form method="POST" style="display:inline;" onsubmit="return confirm('Delete this certificate?')">
+                                    <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
+                                    <input type="hidden" name="cert_id" value="<?= $r['id'] ?>">
+                                    <button type="submit" name="delete_cert" class="btn btn-icon btn-outline-danger btn-sm" title="Delete"><i class="bi bi-trash"></i></button>
+                                </form>
                             </td>
                         </tr>
                         <?php endwhile; ?>
@@ -449,7 +549,11 @@ $p = $stmt->fetch(PDO::FETCH_ASSOC);
                             <td class="fw-bold"><?= $r['name'] ?></td>
                             <td><span class="badge bg-secondary"><?= $r['category'] ?></span></td>
                             <td>
-                                <a href="?hapus_tech=<?= $r['id'] ?>" class="btn btn-icon btn-outline-danger btn-sm" onclick="return confirm('Del?')"><i class="bi bi-trash"></i></a>
+                                <form method="POST" style="display:inline;" onsubmit="return confirm('Delete this skill?')">
+                                    <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
+                                    <input type="hidden" name="tech_id" value="<?= $r['id'] ?>">
+                                    <button type="submit" name="delete_tech" class="btn btn-icon btn-outline-danger btn-sm" title="Delete"><i class="bi bi-trash"></i></button>
+                                </form>
                             </td>
                         </tr>
                         <?php endwhile; ?>

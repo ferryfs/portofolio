@@ -1,76 +1,93 @@
 <?php
-// 🔥 1. PASANG SESSION DI PALING ATAS
 session_name("WMS_APP_SESSION");
 session_start();
 
-// 🔥 2. CEK KEAMANAN (Opsional tapi PENTING)
-// Biar orang gak bisa buka file ini langsung lewat URL tanpa login
 if(!isset($_SESSION['wms_login'])) {
     exit("Akses Ditolak. Silakan Login.");
 }
 include '../../koneksi.php';
+require_once __DIR__ . '/../../config/security.php';
 
 // --- LOGIC CRUD PRODUK ---
 if(isset($_POST['save_product'])) {
     $uuid = $_POST['product_uuid'] ?: "PROD-" . rand(1000,9999);
-    $code = $_POST['product_code'];
-    $desc = $_POST['description'];
-    $uom  = $_POST['base_uom'];
+    $code = trim($_POST['product_code']);
+    $desc = trim($_POST['description']);
+    $uom  = trim($_POST['base_uom']);
     
     // Cek Edit atau Baru
     if($_POST['is_edit'] == '1') {
-        $sql = "UPDATE wms_products SET product_code='$code', description='$desc', base_uom='$uom' WHERE product_uuid='$uuid'";
+        $stmt = $conn->prepare("UPDATE wms_products SET product_code=?, description=?, base_uom=? WHERE product_uuid=?");
+        $stmt->bind_param("ssss", $code, $desc, $uom, $uuid);
+        $stmt->execute();
         $msg = "✅ Product Updated: $code";
         
-        // [LOG] MENCATAT UPDATE PRODUK
         catat_log($conn, 'ADMIN', 'UPDATE', 'PRODUCT', "Mengubah data produk: $code ($desc)");
         
     } else {
-        $sql = "INSERT INTO wms_products VALUES ('$uuid', '$code', '$desc', '$uom', 'PAL', 50)"; 
+        $stmt = $conn->prepare("INSERT INTO wms_products VALUES (?, ?, ?, ?, 'PAL', 50)");
+        $stmt->bind_param("ssss", $uuid, $code, $desc, $uom);
+        $stmt->execute();
         $msg = "✅ Product Created: $code";
         
-        // [LOG] MENCATAT PRODUK BARU
         catat_log($conn, 'ADMIN', 'CREATE', 'PRODUCT', "Menambah produk baru: $code ($desc)");
     }
-    mysqli_query($conn, $sql);
 }
 
-if(isset($_GET['del_prod'])) {
-    $id = $_GET['del_prod'];
+if(isset($_POST['delete_product'])) {
+    if (!verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+        die('Invalid CSRF token');
+    }
+    
+    $id = sanitizeInt($_POST['product_id']);
+    if($id === false) die("Invalid product ID");
     
     // Ambil kode produk dulu sebelum dihapus (buat isi log)
-    $cek = mysqli_fetch_assoc(mysqli_query($conn, "SELECT product_code FROM wms_products WHERE product_uuid='$id'"));
-    $kode_lama = $cek['product_code'];
+    $cek_stmt = $conn->prepare("SELECT product_code FROM wms_products WHERE product_uuid=?");
+    $cek_stmt->bind_param("s", $_POST['product_id']);
+    $cek_stmt->execute();
+    $result = $cek_stmt->get_result();
+    $cek = mysqli_fetch_assoc($result);
+    $kode_lama = $cek['product_code'] ?? $id;
     
-    mysqli_query($conn, "DELETE FROM wms_products WHERE product_uuid='$id'");
+    $stmt = $conn->prepare("DELETE FROM wms_products WHERE product_uuid=?");
+    $stmt->bind_param("s", $id);
+    $stmt->execute();
     $msg = "🗑️ Product Deleted.";
     
-    // [LOG] MENCATAT PENGHAPUSAN
+    logSecurityEvent('Product deleted: ' . $kode_lama, 'INFO');
     catat_log($conn, 'ADMIN', 'DELETE', 'PRODUCT', "Menghapus produk: $kode_lama");
 }
 
 // --- LOGIC CRUD BIN ---
 if(isset($_POST['save_bin'])) {
-    $bin  = $_POST['lgpla'];
-    $type = $_POST['lgtyp'];
-    $max  = $_POST['max_weight'];
+    $bin  = trim($_POST['lgpla']);
+    $type = trim($_POST['lgtyp']);
+    $max  = sanitizeInt($_POST['max_weight']);
     
-    $sql = "INSERT INTO wms_storage_bins (lgpla, lgtyp, max_weight) VALUES ('$bin', '$type', '$max') 
-            ON DUPLICATE KEY UPDATE max_weight='$max', lgtyp='$type'";
-    
-    if(mysqli_query($conn, $sql)) {
+    $stmt = $conn->prepare("INSERT INTO wms_storage_bins (lgpla, lgtyp, max_weight) VALUES (?, ?, ?) 
+            ON DUPLICATE KEY UPDATE max_weight=?, lgtyp=?");
+    $stmt->bind_param("sssii", $bin, $type, $max, $max, $type);
+    if($stmt->execute()) {
         $msg = "✅ Bin Saved: $bin";
-        // [LOG] BIN SAVED
         catat_log($conn, 'ADMIN', 'UPSERT', 'BIN', "Menyimpan Bin: $bin (Type: $type)");
     }
 }
 
-if(isset($_GET['del_bin'])) {
-    $id = $_GET['del_bin'];
-    mysqli_query($conn, "DELETE FROM wms_storage_bins WHERE lgpla='$id'");
+if(isset($_POST['delete_bin'])) {
+    if (!verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+        die('Invalid CSRF token');
+    }
+    
+    $id = sanitizeInt($_POST['bin_id']);
+    if($id === false) die("Invalid bin ID");
+    
+    $stmt = $conn->prepare("DELETE FROM wms_storage_bins WHERE lgpla=?");
+    $stmt->bind_param("s", $id);
+    $stmt->execute();
     $msg = "🗑️ Bin Deleted.";
     
-    // [LOG] BIN DELETED
+    logSecurityEvent('Bin deleted: ' . $id, 'INFO');
     catat_log($conn, 'ADMIN', 'DELETE', 'BIN', "Menghapus Bin: $id");
 }
 ?>
@@ -126,7 +143,9 @@ if(isset($_GET['del_bin'])) {
                         </thead>
                         <tbody>
                             <?php 
-                            $q = mysqli_query($conn, "SELECT * FROM wms_products ORDER BY product_code ASC");
+                            $stmt_prod = $conn->prepare("SELECT * FROM wms_products ORDER BY product_code ASC");
+                            $stmt_prod->execute();
+                            $q = $stmt_prod->get_result();
                             while($r = mysqli_fetch_assoc($q)):
                             ?>
                             <tr>
@@ -140,6 +159,7 @@ if(isset($_GET['del_bin'])) {
                                 </td>
                             </tr>
                             <?php endwhile; ?>
+                            <?php $stmt_prod->close(); ?>
                         </tbody>
                     </table>
                 </div>
@@ -164,7 +184,9 @@ if(isset($_GET['del_bin'])) {
                         </thead>
                         <tbody>
                             <?php 
-                            $q = mysqli_query($conn, "SELECT * FROM wms_storage_bins ORDER BY lgpla ASC");
+                            $stmt_bin = $conn->prepare("SELECT * FROM wms_storage_bins ORDER BY lgpla ASC");
+                            $stmt_bin->execute();
+                            $q = $stmt_bin->get_result();
                             while($r = mysqli_fetch_assoc($q)):
                             ?>
                             <tr>
@@ -177,6 +199,7 @@ if(isset($_GET['del_bin'])) {
                                 </td>
                             </tr>
                             <?php endwhile; ?>
+                            <?php $stmt_bin->close(); ?>
                         </tbody>
                     </table>
                 </div>

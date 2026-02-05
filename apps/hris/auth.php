@@ -1,61 +1,60 @@
 <?php
-// 1. ISOLASI SESSION
+// apps/hris/auth.php (PDO VERSION)
+
 session_name("HRIS_APP_SESSION");
 session_start();
 
-// Koneksi Database
-$conn = mysqli_connect("localhost", "root", "", "portofolio_db");
-
-// Fungsi Get Real IP (Biar tembus Proxy/Cloudflare kalau nanti hosting)
-function getUserIP() {
-    if (!empty($_SERVER['HTTP_CLIENT_IP'])) { return $_SERVER['HTTP_CLIENT_IP']; }
-    elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) { return $_SERVER['HTTP_X_FORWARDED_FOR']; }
-    else { return $_SERVER['REMOTE_ADDR']; }
-}
+require_once __DIR__ . '/../../config/database.php'; // $pdo
+require_once __DIR__ . '/../../config/security.php'; // Helper
 
 // --- LOGIN HR ADMIN ---
 if(isset($_POST['login_hr'])) {
-    $user = trim($_POST['username']);
-    $pass = trim($_POST['password']);
+    
+    // Validasi CSRF
+    if (!verifyCSRFToken()) {
+        die("<h3>Akses Ditolak: Token Invalid.</h3><br><a href='login.php'>Kembali</a>");
+    }
 
-    // Cek User
-    $stmt = $conn->prepare("SELECT * FROM hris_admins WHERE username = ?");
-    $stmt->bind_param("s", $user);
-    $stmt->execute();
-    $result = $stmt->get_result();
+    $user = sanitizeInput($_POST['username']);
+    $pass = $_POST['password'];
 
-    if($result->num_rows > 0) {
-        $data = $result->fetch_assoc();
-        
+    // Rate Limiting
+    if (!checkRateLimit($user, 5, 300)) {
+        echo "<script>alert('Terlalu banyak percobaan! Tunggu 5 menit.'); window.location='login.php';</script>";
+        exit();
+    }
+
+    // Ambil User (PDO)
+    $data = safeGetOne($pdo, "SELECT * FROM hris_admins WHERE username = ?", [$user]);
+
+    if ($data) {
         // Verifikasi Password (Bcrypt)
-        if(password_verify($pass, $data['password'])) {
+        if(verifyPassword($pass, $data['password'])) {
+            session_regenerate_id(true);
             
-            // 🔥 FITUR BARU: CATAT IP & WAKTU LOGIN 🔥
-            $ip_address = getUserIP();
-            $user_id = $data['id'];
-            
-            // Update Database: Simpan IP dan Jam Login Sekarang
-            $log_stmt = $conn->prepare("UPDATE hris_admins SET last_ip = ?, last_login = NOW() WHERE id = ?");
-            $log_stmt->bind_param("si", $ip_address, $user_id);
-            $log_stmt->execute();
+            // Catat Login
+            safeQuery($pdo, "UPDATE hris_admins SET last_ip = ?, last_login = NOW() WHERE id = ?", [$_SERVER['REMOTE_ADDR'], $data['id']]);
 
-            // Set Session Login
+            // Set Session
             $_SESSION['hris_status'] = "login_sukses";
             $_SESSION['hris_user'] = $data['username'];
             $_SESSION['hris_name'] = $data['fullname'];
+            $_SESSION['hris_id'] = $data['id'];
             
+            logSecurityEvent("HRIS Login: $user");
             header("Location: index.php");
             exit();
         }
     }
     
-    // Kalau Gagal
-    echo "<script>alert('Akses Ditolak! Username/Password Salah.'); window.location='login.php';</script>";
+    logSecurityEvent("HRIS Login Failed: $user", "WARNING");
+    echo "<script>alert('Username atau Password Salah!'); window.location='login.php';</script>";
 }
 
 // --- LOGOUT ---
 if(isset($_GET['logout'])) {
     session_destroy();
-    header("Location: ../../index.php"); 
+    header("Location: ../../index.php");
+    exit();
 }
 ?>

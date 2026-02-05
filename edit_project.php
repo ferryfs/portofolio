@@ -5,6 +5,7 @@ if (!isset($_SESSION['status']) || $_SESSION['status'] != "login") { header("Loc
 
 // LOAD KONEKSI PDO
 require_once __DIR__ . '/koneksi.php';
+require_once __DIR__ . '/config/security.php';
 
 $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 $stmt = $pdo->prepare("SELECT * FROM projects WHERE id = ?");
@@ -26,30 +27,22 @@ if(isset($_POST['update'])){
     $chal = purify($_POST['challenge']);
     $imp = purify($_POST['impact']);
     
-    // Logic Image with MIME validation
+    // Update dengan image validation via security.php
     $sql = "UPDATE projects SET title=?, category=?, company_ref=?, tech_stack=?, link_demo=?, description=?, description_en=?, challenge=?, impact=? WHERE id=?";
     $params = [$title, $cat, $comp_ref, $tech, $link, $desc, $desc_en, $chal, $imp, $id];
 
     if(!empty($_FILES['image']['name'])) {
-        // 🛡️ VALIDASI MIME TYPE
-        $allowed_types = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-        $max_size = 5 * 1024 * 1024; // 5MB
-        
-        $finfo = finfo_open(FILEINFO_MIME_TYPE);
-        $mime = finfo_file($finfo, $_FILES['image']['tmp_name']);
-        finfo_close($finfo);
-        
-        if (in_array($mime, $allowed_types) && $_FILES['image']['size'] <= $max_size) {
-            $new_img = "proj_" . time() . "_" . uniqid() . ".jpg";
-            if(move_uploaded_file($_FILES['image']['tmp_name'], 'assets/img/' . $new_img)) {
-                if(!empty($d['image']) && $d['image'] != 'default.jpg' && file_exists('assets/img/'.$d['image'])) @unlink('assets/img/'.$d['image']);
-                
-                // Update dengan gambar baru
-                $sql = "UPDATE projects SET title=?, category=?, company_ref=?, tech_stack=?, link_demo=?, description=?, description_en=?, challenge=?, impact=?, image=? WHERE id=?";
-                $params = [$title, $cat, $comp_ref, $tech, $link, $desc, $desc_en, $chal, $imp, $new_img, $id];
+        $upload = handleFileUpload($_FILES['image'], 'assets/img/');
+        if($upload['success']) {
+            if(!empty($d['image']) && $d['image'] != 'default.jpg' && file_exists('assets/img/'.$d['image'])) {
+                @unlink('assets/img/'.$d['image']);
             }
+            
+            // Update dengan gambar baru
+            $sql = "UPDATE projects SET title=?, category=?, company_ref=?, tech_stack=?, link_demo=?, description=?, description_en=?, challenge=?, impact=?, image=? WHERE id=?";
+            $params = [$title, $cat, $comp_ref, $tech, $link, $desc, $desc_en, $chal, $imp, $upload['filename'], $id];
         } else {
-            setFlash('Format gambar tidak didukung atau ukuran terlalu besar (max 5MB)', 'error');
+            setFlash($upload['error'], 'error');
             header("Location: edit_project.php?id=" . urlencode($id));
             exit();
         }
@@ -57,6 +50,7 @@ if(isset($_POST['update'])){
 
     try {
         $pdo->prepare($sql)->execute($params);
+        logSecurityEvent('Project updated: ID ' . $id, 'INFO');
         setFlash('Project Updated!');
     } catch(PDOException $e) {
         error_log("DB Error: " . $e->getMessage());

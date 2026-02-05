@@ -1,90 +1,91 @@
 <?php
-// 🔥 SESSION KHUSUS ESS BIAR GAK BENTROK
+// apps/ess-mobile/auth.php
+
 session_name("ESS_PORTAL_SESSION");
 session_start();
 
-$conn = mysqli_connect("localhost", "root", "", "portofolio_db");
-if (!$conn) { die("Koneksi Gagal: " . mysqli_connect_error()); }
+// Load Config Pusat
+require_once __DIR__ . '/../../config/database.php'; // Memuat $pdo
+require_once __DIR__ . '/../../config/security.php'; // Memuat fungsi security
 
-// Helper IP Address
-function getUserIP() {
-    return $_SERVER['HTTP_CLIENT_IP'] ?? $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'];
-}
-
-// --- 1. REGISTER (DAFTAR BARU - Masih pakai MD5 sementara jika mau konsisten, tapi disarankan ganti hash) ---
+// --- 1. REGISTER ---
 if(isset($_POST['register'])) {
-    $nama  = $_POST['fullname'];
-    $email = $_POST['email'];      
-    $role  = $_POST['role'];       
-    $div   = $_POST['division'];
-    $nik   = $_POST['employee_id'];
-    
-    // Default Password MD5 (Untuk pendaftaran manual)
-    // Kalau mau secure, ganti md5() jadi password_hash()
-    $pass  = md5($_POST['password']); 
+    if (!verifyCSRFToken()) die("CSRF Token Invalid");
 
-    $cek = mysqli_query($conn, "SELECT * FROM ess_users WHERE employee_id='$nik'");
+    $nama  = sanitizeInput($_POST['fullname']);
+    $email = sanitizeInput($_POST['email']);
+    $role  = sanitizeInput($_POST['role']);
+    $div   = sanitizeInput($_POST['division'] ?? 'General');
+    $nik   = sanitizeInput($_POST['employee_id']);
+    $pass  = $_POST['password'];
+
+    // Cek duplikat pakai PDO
+    $cek = safeGetOne($pdo, "SELECT id FROM ess_users WHERE employee_id = ?", [$nik]);
     
-    if(mysqli_num_rows($cek) > 0) {
-        echo "<script>alert('ID Karyawan sudah terdaftar! Silakan Login.'); window.location='landing.php?open=login';</script>";
+    if($cek) {
+        echo "<script>alert('ID Karyawan sudah terdaftar!'); window.location='landing.php';</script>";
     } else {
-        $sql = "INSERT INTO ess_users (fullname, email, division, employee_id, password, role, annual_leave_quota) 
-                VALUES ('$nama', '$email', '$div', '$nik', '$pass', '$role', 12)";
-        if(mysqli_query($conn, $sql)) {
-            echo "<script>alert('Registrasi Berhasil! Anda dapat kuota cuti 12 hari.'); window.location='landing.php?open=login';</script>";
+        $hash = hashPassword($pass);
+        $sql = "INSERT INTO ess_users (fullname, email, division, employee_id, password, role, annual_leave_quota, created_at) VALUES (?, ?, ?, ?, ?, ?, 12, NOW())";
+        
+        if(safeQuery($pdo, $sql, [$nama, $email, $div, $nik, $hash, $role])) {
+            logSecurityEvent("Register Success: $nik");
+            echo "<script>alert('Registrasi Berhasil!'); window.location='landing.php';</script>";
         } else {
-            echo "Error: " . mysqli_error($conn);
+            echo "<script>alert('Gagal Daftar!'); window.location='landing.php';</script>";
         }
     }
 }
 
-// --- 2. LOGIN (SUPPORT MD5 LAMA & BCRYPT BARU) ---
+// --- 2. LOGIN (FIXED) ---
 if(isset($_POST['login'])) {
-    $nik  = trim($_POST['employee_id']);
-    $pass = trim($_POST['password']);
+    // Validasi CSRF
+    if (!verifyCSRFToken()) {
+        die("<h3>Security Alert: Invalid Token.</h3><br><a href='landing.php'>Kembali</a>");
+    }
 
-    // Pakai Prepared Statement (Anti SQL Injection)
-    $stmt = $conn->prepare("SELECT * FROM ess_users WHERE employee_id = ?");
-    $stmt->bind_param("s", $nik);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    
-    if($result->num_rows > 0) {
-        $data = $result->fetch_assoc();
-        $db_pass = $data['password'];
-        $login_sukses = false;
+    $nik  = sanitizeInput($_POST['employee_id']);
+    $pass = $_POST['password'];
 
-        // Cek Password: Bisa MD5 (User Lama) atau Bcrypt (User Baru/Tamu)
-        if (password_verify($pass, $db_pass)) {
-            $login_sukses = true; // Match Bcrypt
-        } elseif (md5($pass) === $db_pass) {
-            $login_sukses = true; // Match MD5
-        }
+    // Rate Limit
+    if (!checkRateLimit($nik)) {
+        echo "<script>alert('Terlalu banyak percobaan! Tunggu 5 menit.'); window.location='landing.php';</script>";
+        exit();
+    }
 
-        if ($login_sukses) {
-            // 🔥 CATAT IP & WAKTU LOGIN
-            $ip = getUserIP();
-            $uid = $data['id'];
-            $conn->query("UPDATE ess_users SET last_ip='$ip', last_login=NOW() WHERE id='$uid'");
+    // Ambil User pakai PDO
+    $user = safeGetOne($pdo, "SELECT * FROM ess_users WHERE employee_id = ? LIMIT 1", [$nik]);
 
-            // Set Session
-            $_SESSION['ess_user'] = $data['employee_id'];
-            $_SESSION['ess_name'] = $data['fullname'];
-            $_SESSION['ess_role'] = $data['role'];
-            $_SESSION['ess_div']  = $data['division'] ?? "General";
+    if ($user) {
+        // Cek Password (Verify Hash)
+        if (verifyPassword($pass, $user['password'])) {
+            
+            // Login Sukses
+            session_regenerate_id(true);
+            $_SESSION['ess_user'] = $user['employee_id'];
+            $_SESSION['ess_name'] = $user['fullname'];
+            $_SESSION['ess_role'] = $user['role'];
+            $_SESSION['ess_div']  = $user['division'];
+            $_SESSION['ess_id']   = $user['id'];
             $_SESSION['LAST_ACTIVITY'] = time();
 
+            // Update Log Login
+            safeQuery($pdo, "UPDATE ess_users SET last_ip = ?, last_login = NOW() WHERE id = ?", [$_SERVER['REMOTE_ADDR'], $user['id']]);
+            
+            logSecurityEvent("Login Success: $nik");
             header("Location: index.php");
             exit();
         }
     }
-    
-    echo "<script>alert('ID Karyawan atau Password Salah!'); window.location='landing.php?open=login';</script>";
+
+    logSecurityEvent("Login Failed: $nik", "WARNING");
+    echo "<script>alert('ID atau Password Salah!'); window.location='landing.php';</script>";
 }
 
 // --- 3. LOGOUT ---
 if(isset($_GET['logout'])) {
     session_destroy();
-    header("Location: ../../index.php"); 
+    header("Location: ../../index.php"); // Balik ke Portfolio Utama
+    exit();
 }
 ?>

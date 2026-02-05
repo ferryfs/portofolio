@@ -1,39 +1,34 @@
 <?php
+// apps/sales-brief/edit_reopen.php (PDO FULL)
+
 session_name("SB_APP_SESSION");
 session_start();
-$conn = mysqli_connect("localhost", "root", "", "portofolio_db");
 
-// 1. Cek Login
+require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/../../config/security.php';
+
 if(!isset($_SESSION['sb_user'])) { header("Location: index.php"); exit(); }
 
-// 2. Cek ID
-if(!isset($_GET['id'])) { header("Location: informasi_promo.php"); exit(); }
-$id = $_GET['id'];
+$id = sanitizeInt($_GET['id']);
+if($id === false) { header("Location: informasi_promo.php"); exit(); }
 
-// 3. Ambil Data Header
-$q_header = mysqli_query($conn, "SELECT * FROM sales_briefs WHERE id = '$id'");
-$d = mysqli_fetch_assoc($q_header);
-
+// 1. AMBIL HEADER
+$d = safeGetOne($pdo, "SELECT * FROM sales_briefs WHERE id=?", [$id]);
 if(!$d) { echo "Data not found!"; exit(); }
 
-// 4. PREPARE DATA UNTUK JS & FORM
-// Decode Selected Items (JSON -> Array)
-$current_items = json_decode($d['selected_items'], true); 
-if(!is_array($current_items)) $current_items = [];
+// Decode JSON items
+$current_items = json_decode($d['selected_items'], true) ?? [];
 
-// Ambil Data Customer Lama
-$q_cust = mysqli_query($conn, "SELECT * FROM sb_customers WHERE sb_id='$id'");
-$cust_data = [];
-while($c = mysqli_fetch_assoc($q_cust)) { 
-    $cust_data[] = $c; 
-}
+// 2. AMBIL CUSTOMER LAMA (Buat di-load ke JS Table)
+$stmt = $pdo->prepare("SELECT * FROM sb_customers WHERE sb_id=?");
+$stmt->execute([$id]);
+$cust_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Edit Reopen | <?php echo $d['sb_number']; ?></title>
   
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -45,7 +40,6 @@ while($c = mysqli_fetch_assoc($q_cust)) {
 
   <style>
       body { font-family: 'Inter', sans-serif; background-color: #f4f6f9; }
-      .nav-pills .nav-link.active { background-color: #007bff !important; color: #fff !important; }
       .card-reopen { border-top: 3px solid #ffc107; }
   </style>
 </head>
@@ -64,10 +58,7 @@ while($c = mysqli_fetch_assoc($q_cust)) {
     <div class="content-header">
       <div class="container-fluid">
         <div class="row mb-2">
-          <div class="col-sm-8">
-            <h1 class="m-0 font-weight-bold text-dark">Edit Proposal (Reopen Mode)</h1>
-            <p class="text-muted small">Anda hanya dapat mengubah data krusial. Field lain dikunci.</p>
-          </div>
+          <div class="col-sm-8"><h1 class="m-0 font-weight-bold text-dark">Edit Proposal (Reopen Mode)</h1><p class="text-muted small">Anda hanya dapat mengubah data krusial. Field lain dikunci.</p></div>
         </div>
       </div>
     </div>
@@ -76,6 +67,7 @@ while($c = mysqli_fetch_assoc($q_cust)) {
       <div class="container-fluid pb-5">
         
         <form action="process_reopen.php" method="POST">
+            <?php echo csrfTokenField(); ?>
             <input type="hidden" name="sb_id" value="<?php echo $id; ?>">
 
             <div class="card card-reopen shadow-sm">
@@ -84,11 +76,11 @@ while($c = mysqli_fetch_assoc($q_cust)) {
                     <div class="row">
                         <div class="col-md-6 form-group">
                             <label>Ref Number</label>
-                            <input type="text" name="ref_number" class="form-control" value="<?php echo $d['ref_number']; ?>">
+                            <input type="text" name="ref_number" class="form-control" value="<?php echo htmlspecialchars($d['ref_number']); ?>">
                         </div>
                         <div class="col-md-6 form-group">
                             <label>Promo Name <span class="text-danger">*</span></label>
-                            <input type="text" name="promo_name" class="form-control" value="<?php echo $d['promo_name']; ?>" required>
+                            <input type="text" name="promo_name" class="form-control" value="<?php echo htmlspecialchars($d['promo_name']); ?>" required>
                         </div>
                         <div class="col-md-6 form-group">
                             <label>Start Date (No Backdate) <span class="text-danger">*</span></label>
@@ -108,7 +100,7 @@ while($c = mysqli_fetch_assoc($q_cust)) {
                     <div class="row">
                         <div class="col-md-4 form-group">
                             <label class="text-muted small text-uppercase">Mechanism</label>
-                            <input type="text" class="form-control form-control-sm" value="<?php echo $d['promo_mechanism']; ?>" disabled>
+                            <input type="text" class="form-control form-control-sm" value="<?php echo htmlspecialchars($d['promo_mechanism']); ?>" disabled>
                         </div>
                         <div class="col-md-4 form-group">
                             <label class="text-muted small text-uppercase">Budget Allocation</label>
@@ -125,15 +117,8 @@ while($c = mysqli_fetch_assoc($q_cust)) {
                         <label>Update Items List</label>
                         <select name="selected_items[]" class="form-control select2" multiple="multiple" style="width: 100%;">
                             <?php 
-                            // Daftar Item Hardcode (Sesuai create_sb.php)
-                            $options = [
-                                "TH-001" => "TH-001 AA (Wood)",
-                                "TH-002" => "TH-002 G (Gloss)",
-                                "TV-200" => "TV-200 (Vinyl 2mm)",
-                                "TV-300" => "TV-300 (Vinyl 3mm)"
-                            ];
+                            $options = ["TH-001" => "TH-001 AA (Wood)", "TH-002" => "TH-002 G (Gloss)", "TV-200" => "TV-200 (Vinyl 2mm)", "TV-300" => "TV-300 (Vinyl 3mm)"];
                             foreach($options as $val => $label) {
-                                // Cek apakah item ini ada di database JSON
                                 $selected = in_array($val, $current_items) ? 'selected' : '';
                                 echo "<option value='$val' $selected>$label</option>";
                             }
@@ -158,9 +143,7 @@ while($c = mysqli_fetch_assoc($q_cust)) {
                     </div>
 
                     <table id="table-customer" class="table table-bordered table-sm">
-                        <thead class="bg-light">
-                            <tr><th>Code</th><th>Name</th><th>Target Qty</th><th>Target Amount</th><th>Action</th></tr>
-                        </thead>
+                        <thead class="bg-light"><tr><th>Code</th><th>Name</th><th>Target Qty</th><th>Target Amount</th><th>Action</th></tr></thead>
                         <tbody></tbody>
                     </table>
 
@@ -192,29 +175,22 @@ while($c = mysqli_fetch_assoc($q_cust)) {
     $(document).ready(function() {
         $('.select2').select2({ theme: 'bootstrap4' });
 
-        // 1. CURRENCY FORMATTER (Buat Input Amount)
         $(document).on('input', '.format-currency', function() {
             var val = $(this).val().replace(/\D/g, ''); 
             if (val !== '') { val = parseInt(val, 10).toLocaleString('id-ID'); }
             $(this).val(val);
         });
 
-        // 2. INIT DATATABLE
         var t = $('#table-customer').DataTable({
             "paging": false, "info": false, "searching": false,
             "language": { "emptyTable": "No customers." }
         });
 
-        // 3. FUNGSI NAMBAH ROW KE TABEL (PENTING BANGET)
         window.addCustomerRow = function(code, name, qty, amt) {
-            // Logic Display Amount (Pakai titik atau tidak)
             var amtDisplay = amt;
             if(!isNaN(amt)) { amtDisplay = parseInt(amt).toLocaleString('id-ID'); }
-            
-            // Clean value for hidden input (Database mau angka murni)
             var amtClean = amtDisplay.toString().replace(/\./g, '');
 
-            // Tambah Row + Hidden Input biar kebaca pas SUBMIT
             t.row.add([
                 code + '<input type="hidden" name="cust_code[]" value="'+code+'">',
                 name + '<input type="hidden" name="cust_name[]" value="'+name+'">',
@@ -224,14 +200,12 @@ while($c = mysqli_fetch_assoc($q_cust)) {
             ]).draw(false);
         };
 
-        // 4. LOAD DATA LAMA DARI PHP KE JS (MAGIC-NYA DI SINI)
-        // Ini loop data dari database dan masukin ke tabel otomatis
+        // LOAD EXISTING DATA
         var existingCust = <?php echo json_encode($cust_data); ?>;
         existingCust.forEach(function(c) {
             addCustomerRow(c.cust_code, c.cust_name, c.target_qty, c.target_amount);
         });
 
-        // 5. BUTTON ADD MANUAL (Kalau user mau nambah cust baru)
         window.addNewRow = function() {
             var code = $('#input_cust_code').val();
             var name = $('#input_cust_name').val();
@@ -241,12 +215,10 @@ while($c = mysqli_fetch_assoc($q_cust)) {
             if(code === "" || name === "") { alert("Code & Name required!"); return; }
             addCustomerRow(code, name, qty, amt);
             
-            // Reset Input
             $('#input_cust_code').val(''); $('#input_cust_name').val('');
             $('#input_target_qty').val(''); $('#input_target_amt').val('');
         };
 
-        // 6. DELETE ROW
         $('#table-customer tbody').on('click', '.remove-row', function () {
             t.row($(this).parents('tr')).remove().draw();
         });

@@ -20,14 +20,30 @@ if(isset($_POST['post_count'])) {
     $diff = $qty_phys - $qty_system;
 
     if($diff != 0) {
-        if($qty_phys == 0) mysqli_query($conn, "DELETE FROM wms_quants WHERE quant_id='$quant_id'");
-        else mysqli_query($conn, "UPDATE wms_quants SET qty='$qty_phys' WHERE quant_id='$quant_id'");
+        if($qty_phys == 0) {
+            $stmt_del = $conn->prepare("DELETE FROM wms_quants WHERE quant_id = ?");
+            $stmt_del->bind_param("s", $quant_id);
+            $stmt_del->execute();
+            $stmt_del->close();
+        } else {
+            $stmt_up = $conn->prepare("UPDATE wms_quants SET qty = ? WHERE quant_id = ?");
+            $stmt_up->bind_param("ds", $qty_phys, $quant_id);
+            $stmt_up->execute();
+            $stmt_up->close();
+        }
 
-        // Log WT (PI_ADJ)
-        mysqli_query($conn, "INSERT INTO wms_warehouse_tasks 
+        // Log WT (PI_ADJ) - prepared
+        $proc = 'PI_ADJ';
+        $src = $bin;
+        $dest = 'DIFFERENCE';
+        $status_task = 'CONFIRMED';
+        $stmt_task = $conn->prepare("INSERT INTO wms_warehouse_tasks 
         (process_type, product_uuid, source_bin, dest_bin, qty, status) 
-        VALUES ('PI_ADJ', '$product_uuid', '$bin', 'DIFFERENCE', '$diff', 'CONFIRMED')");
-        
+        VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt_task->bind_param("ssssds", $proc, $product_uuid, $src, $dest, $diff, $status_task);
+        $stmt_task->execute();
+        $stmt_task->close();
+
         $msg = "Adjustment Posted: Selisih $diff Pcs.";
         $msg_type = "warning";
     } else {
@@ -73,7 +89,9 @@ if(isset($_POST['post_count'])) {
                 </thead>
                 <tbody>
                     <?php 
-                    $q = mysqli_query($conn, "SELECT q.*, p.product_code, p.base_uom FROM wms_quants q JOIN wms_products p ON q.product_uuid = p.product_uuid JOIN wms_storage_bins s ON q.lgpla = s.lgpla WHERE s.lgtyp = '0010' ORDER BY q.lgpla ASC");
+                    $stmt = $conn->prepare("SELECT q.*, p.product_code, p.base_uom FROM wms_quants q JOIN wms_products p ON q.product_uuid = p.product_uuid JOIN wms_storage_bins s ON q.lgpla = s.lgpla WHERE s.lgtyp = '0010' ORDER BY q.lgpla ASC");
+                    $stmt->execute();
+                    $q = $stmt->get_result();
                     while($row = mysqli_fetch_assoc($q)):
                     ?>
                     <form method="POST">

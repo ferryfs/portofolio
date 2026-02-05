@@ -15,17 +15,34 @@ if(isset($_POST['post_transfer'])) {
     $quant_id = $_POST['quant_id'];
     $dest_bin = $_POST['dest_bin'];
 
-    $q_src = mysqli_query($conn, "SELECT * FROM wms_quants WHERE quant_id='$quant_id'");
+    $stmt = $conn->prepare("SELECT * FROM wms_quants WHERE quant_id = ?");
+    $stmt->bind_param("s", $quant_id);
+    $stmt->execute();
+    $q_src = $stmt->get_result();
     $d_src = mysqli_fetch_assoc($q_src);
 
     if($d_src) {
-        // Update Bin Lokasi
-        mysqli_query($conn, "UPDATE wms_quants SET lgpla='$dest_bin' WHERE quant_id='$quant_id'");
-        
-        // Log Task (Internal Movement)
-        mysqli_query($conn, "INSERT INTO wms_warehouse_tasks 
+        // Update Bin Lokasi (prepared)
+        $stmt_up = $conn->prepare("UPDATE wms_quants SET lgpla = ? WHERE quant_id = ?");
+        $stmt_up->bind_param("ss", $dest_bin, $quant_id);
+        $stmt_up->execute();
+        $stmt_up->close();
+
+        // Log Task (Internal Movement) - prepared insert
+        $proc = 'INTERNAL';
+        $product_uuid = $d_src['product_uuid'];
+        $batch = $d_src['batch'];
+        $hu_id = $d_src['hu_id'];
+        $src_bin = $d_src['lgpla'];
+        $qty = floatval($d_src['qty']);
+        $status_task = 'CONFIRMED';
+
+        $stmt_ins = $conn->prepare("INSERT INTO wms_warehouse_tasks 
         (process_type, product_uuid, batch, hu_id, source_bin, dest_bin, qty, status)
-        VALUES ('INTERNAL', '{$d_src['product_uuid']}', '{$d_src['batch']}', '{$d_src['hu_id']}', '{$d_src['lgpla']}', '$dest_bin', '{$d_src['qty']}', 'CONFIRMED')");
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt_ins->bind_param("sssssdss", $proc, $product_uuid, $batch, $hu_id, $src_bin, $dest_bin, $qty, $status_task);
+        $stmt_ins->execute();
+        $stmt_ins->close();
 
         $msg = "✅ Sukses! HU <b>{$d_src['hu_id']}</b> dipindahkan ke $dest_bin.";
         $msg_type = "success";
@@ -37,17 +54,35 @@ if(isset($_POST['post_status_change'])) {
     $quant_id_target = $_POST['quant_id_change'];
     $new_status      = $_POST['new_status'];
 
-    $q_old = mysqli_query($conn, "SELECT * FROM wms_quants WHERE quant_id='$quant_id_target'");
+    $stmt = $conn->prepare("SELECT * FROM wms_quants WHERE quant_id = ?");
+    $stmt->bind_param("s", $quant_id_target);
+    $stmt->execute();
+    $q_old = $stmt->get_result();
     $d_old = mysqli_fetch_assoc($q_old);
 
-    // Update Status
-    $update = mysqli_query($conn, "UPDATE wms_quants SET stock_type='$new_status' WHERE quant_id='$quant_id_target'");
+    // Update Status (prepared)
+    $stmt_up = $conn->prepare("UPDATE wms_quants SET stock_type = ? WHERE quant_id = ?");
+    $stmt_up->bind_param("ss", $new_status, $quant_id_target);
+    $ok = $stmt_up->execute();
+    $stmt_up->close();
     
-    if($update) {
-        // Log Task (Status Change / QC)
-        mysqli_query($conn, "INSERT INTO wms_warehouse_tasks 
+    if($ok) {
+        // Log Task (Status Change / QC) - prepared insert
+        $proc = 'INTERNAL';
+        $product_uuid = $d_old['product_uuid'];
+        $batch = $d_old['batch'];
+        $hu_id = $d_old['hu_id'];
+        $src_info = 'STATUS: ' . $d_old['stock_type'];
+        $dest_info = 'STATUS: ' . $new_status;
+        $qty = floatval($d_old['qty']);
+        $status_task = 'CONFIRMED';
+
+        $stmt_ins = $conn->prepare("INSERT INTO wms_warehouse_tasks 
         (process_type, product_uuid, batch, hu_id, source_bin, dest_bin, qty, status)
-        VALUES ('INTERNAL', '{$d_old['product_uuid']}', '{$d_old['batch']}', '{$d_old['hu_id']}', 'STATUS: {$d_old['stock_type']}', 'STATUS: $new_status', '{$d_old['qty']}', 'CONFIRMED')");
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt_ins->bind_param("sssssdss", $proc, $product_uuid, $batch, $hu_id, $src_info, $dest_info, $qty, $status_task);
+        $stmt_ins->execute();
+        $stmt_ins->close();
 
         $msg = "✅ Status Stok Berhasil Diubah jadi: <b>$new_status</b>";
         $msg_type = "warning";
@@ -89,11 +124,14 @@ if(isset($_POST['post_status_change'])) {
                             <select name="quant_id" class="form-select form-select-sm" required>
                                 <option value="">-- Pilih HU di Rak --</option>
                                 <?php 
-                                $q = mysqli_query($conn, "SELECT q.*, p.product_code, p.base_uom FROM wms_quants q JOIN wms_products p ON q.product_uuid = p.product_uuid ORDER BY q.lgpla ASC");
+                                $stmt = $conn->prepare("SELECT q.*, p.product_code, p.base_uom FROM wms_quants q JOIN wms_products p ON q.product_uuid = p.product_uuid ORDER BY q.lgpla ASC");
+                                $stmt->execute();
+                                $q = $stmt->get_result();
                                 while($row = mysqli_fetch_assoc($q)) {
                                     // FIX: QTY PAKE (float) BIAR GAK JADI FORMAT IDR (50.000)
                                     echo "<option value='".$row['quant_id']."'>[Bin: ".$row['lgpla']."] HU: ".$row['hu_id']." | ".$row['product_code']." | Qty: ". (float)$row['qty'] ." ".$row['base_uom']."</option>";
                                 }
+                                $stmt->close();
                                 ?>
                             </select>
                         </div>
@@ -101,8 +139,11 @@ if(isset($_POST['post_status_change'])) {
                             <label class="fw-bold small">Bin Tujuan</label>
                             <select name="dest_bin" class="form-select form-select-sm" required>
                                 <?php 
-                                $b = mysqli_query($conn, "SELECT lgpla FROM wms_storage_bins ORDER BY lgpla ASC");
+                                $stmt = $conn->prepare("SELECT lgpla FROM wms_storage_bins ORDER BY lgpla ASC");
+                                $stmt->execute();
+                                $b = $stmt->get_result();
                                 while($row = mysqli_fetch_assoc($b)) echo "<option value='".$row['lgpla']."'>".$row['lgpla']."</option>";
+                                $stmt->close();
                                 ?>
                             </select>
                         </div>

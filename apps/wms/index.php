@@ -15,26 +15,48 @@ include 'koneksi.php';
 $total_open = 0; $total_recv = 0; $usage_percent = 0;
 
 // Cek tabel sebelum query biar gak error
-$check_table = mysqli_query($conn, "SHOW TABLES LIKE 'wms_warehouse_tasks'");
+// Check table existence (prepared)
+$stmt = $conn->prepare("SHOW TABLES LIKE 'wms_warehouse_tasks'");
+$stmt->execute();
+$check_table = $stmt->get_result();
 if(mysqli_num_rows($check_table) > 0) {
     // Open Tasks
-    $q_open = mysqli_query($conn, "SELECT COUNT(*) as total FROM wms_warehouse_tasks WHERE status = 'OPEN'");
+    $status_open = 'OPEN';
+    $stmt2 = $conn->prepare("SELECT COUNT(*) as total FROM wms_warehouse_tasks WHERE status = ?");
+    $stmt2->bind_param("s", $status_open);
+    $stmt2->execute();
+    $q_open = $stmt2->get_result();
     if($q_open) { $d = mysqli_fetch_assoc($q_open); $total_open = $d['total']; }
+    $stmt2->close();
 
     // Today's Receiving
     $today = date('Y-m-d');
-    $q_recv = mysqli_query($conn, "SELECT COUNT(*) as total FROM wms_warehouse_tasks WHERE process_type = 'PUTAWAY' AND DATE(created_at) = '$today'");
+    $proc = 'PUTAWAY';
+    $stmt3 = $conn->prepare("SELECT COUNT(*) as total FROM wms_warehouse_tasks WHERE process_type = ? AND DATE(created_at) = ?");
+    $stmt3->bind_param("ss", $proc, $today);
+    $stmt3->execute();
+    $q_recv = $stmt3->get_result();
     if($q_recv) { $d = mysqli_fetch_assoc($q_recv); $total_recv = $d['total']; }
+    $stmt3->close();
 }
 
 // Bin Usage
-$check_bins = mysqli_query($conn, "SHOW TABLES LIKE 'wms_storage_bins'");
+// Bin Usage checks
+$stmt = $conn->prepare("SHOW TABLES LIKE 'wms_storage_bins'");
+$stmt->execute();
+$check_bins = $stmt->get_result();
 if(mysqli_num_rows($check_bins) > 0) {
-    $q_bin_used = mysqli_query($conn, "SELECT COUNT(DISTINCT lgpla) as used FROM wms_quants");
+    $stmt_b1 = $conn->prepare("SELECT COUNT(DISTINCT lgpla) as used FROM wms_quants");
+    $stmt_b1->execute();
+    $q_bin_used = $stmt_b1->get_result();
     $d_bin_used = mysqli_fetch_assoc($q_bin_used);
+    $stmt_b1->close();
     
-    $q_bin_all  = mysqli_query($conn, "SELECT COUNT(*) as total FROM wms_storage_bins");
+    $stmt_b2 = $conn->prepare("SELECT COUNT(*) as total FROM wms_storage_bins");
+    $stmt_b2->execute();
+    $q_bin_all = $stmt_b2->get_result();
     $d_bin_all  = mysqli_fetch_assoc($q_bin_all);
+    $stmt_b2->close();
 
     if($d_bin_all['total'] > 0) {
         $usage_percent = round(($d_bin_used['used'] / $d_bin_all['total']) * 100);

@@ -38,7 +38,9 @@
                 </thead>
                 <tbody>
                     <?php 
-                    $q = mysqli_query($conn, "SELECT * FROM wms_system_logs ORDER BY log_id DESC LIMIT 50");
+                    $stmt = $conn->prepare("SELECT * FROM wms_system_logs ORDER BY log_id DESC LIMIT 50");
+                    $stmt->execute();
+                    $q = $stmt->get_result();
                     if(mysqli_num_rows($q) > 0) {
                         while($row = mysqli_fetch_assoc($q)):
                             // Styling border kiri biar gampang scanning mata
@@ -63,6 +65,7 @@
                         <td class="small text-monospace text-muted"><?= $row['ip_address'] ?></td>
                     </tr>
                     <?php endwhile; 
+                        $stmt->close();
                     } else {
                         echo "<tr><td colspan='6' class='text-center py-4'>Belum ada aktivitas tercatat. Coba lakukan perubahan di Master Data.</td></tr>";
                     }

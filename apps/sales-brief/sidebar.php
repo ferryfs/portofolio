@@ -1,16 +1,13 @@
 <?php
-// Deteksi Nama File
+// apps/sales-brief/sidebar.php
 $page = basename($_SERVER['PHP_SELF']);
 
-// 0. DASHBOARD (Active logic)
+// 0. DASHBOARD
 $is_dash_active = ($page == 'index.php');
 
 // 1. TRADE MARKETING
-// Child: Draft (Sekarang file-nya list_draft.php)
 $is_draft_active = ($page == 'list_draft.php' || $page == 'create_sb.php' || ($page == 'view_sb.php' && (!isset($_GET['source']) || $_GET['source'] == '')));
-// Child: Info Promo
 $is_info_active  = ($page == 'informasi_promo.php' || $page == 'edit_reopen.php');
-// Parent State
 $is_trade_open   = ($is_draft_active || $is_info_active) ? 'menu-open' : '';
 $is_trade_active = ($is_draft_active || $is_info_active) ? 'active' : '';
 

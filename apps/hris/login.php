@@ -1,3 +1,8 @@
+<?php
+session_name("HRIS_APP_SESSION");
+session_start();
+require_once __DIR__ . '/../../config/security.php';
+?>
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -7,45 +12,12 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body {
-            background: #e2e8f0;
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: 'Segoe UI', sans-serif;
-        }
-        .login-card {
-            background: white;
-            padding: 40px;
-            border-radius: 16px;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.1);
-            width: 100%;
-            max-width: 420px;
-        }
-        .brand-logo {
-            font-size: 1.8rem;
-            font-weight: 800;
-            color: #1e293b;
-            margin-bottom: 5px;
-            letter-spacing: -1px;
-        }
-        .btn-login {
-            background-color: #0f172a;
-            border: none;
-            padding: 12px;
-            font-weight: 600;
-            letter-spacing: 1px;
-            transition: 0.3s;
-        }
+        body { background: #e2e8f0; height: 100vh; display: flex; align-items: center; justify-content: center; font-family: 'Segoe UI', sans-serif; }
+        .login-card { background: white; padding: 40px; border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,0.1); width: 100%; max-width: 420px; }
+        .brand-logo { font-size: 1.8rem; font-weight: 800; color: #1e293b; margin-bottom: 5px; letter-spacing: -1px; }
+        .btn-login { background-color: #0f172a; border: none; padding: 12px; font-weight: 600; letter-spacing: 1px; transition: 0.3s; }
         .btn-login:hover { background-color: #334155; }
-        .btn-demo {
-            background-color: #e0f2fe;
-            color: #0284c7;
-            border: 1px dashed #0284c7;
-            font-size: 0.85rem;
-            font-weight: 600;
-        }
+        .btn-demo { background-color: #e0f2fe; color: #0284c7; border: 1px dashed #0284c7; font-size: 0.85rem; font-weight: 600; }
         .btn-demo:hover { background-color: #bae6fd; }
     </style>
 </head>
@@ -67,6 +39,8 @@
         </div>
 
         <form action="auth.php" method="POST">
+            <?php echo csrfTokenField(); ?>
+
             <div class="mb-3">
                 <label class="form-label text-secondary fw-bold small">USERNAME</label>
                 <div class="input-group">
@@ -93,22 +67,12 @@
 
     <script>
         function fillDemo() {
-            // 🔥 DISINI KUNCINYA:
-            // Tombol ini mengisi akun 'guest', BUKAN 'adminhr'
             document.getElementById('user').value = 'guest';
             document.getElementById('pass').value = 'tamu123';
-            
-            // Visual feedback
-            let btn = document.querySelector('.btn-demo');
-            btn.innerHTML = '<i class="fa fa-check"></i> Terisi!';
-            setTimeout(() => { btn.innerHTML = 'Auto Fill'; }, 1000);
+        }
+        if (window.history.replaceState) {
+            window.history.replaceState(null, null, window.location.href);
         }
     </script>
-        <script>
-            // Biar history browser bersih, jadi user gak bisa tekan Forward balik ke dalam
-            if (window.history.replaceState) {
-                window.history.replaceState(null, null, window.location.href);
-            }
-        </script>
 </body>
 </html>

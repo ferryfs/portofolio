@@ -2,10 +2,16 @@
 session_name("SB_APP_SESSION");
 session_start();
 $conn = mysqli_connect("localhost", "root", "", "portofolio_db");
+require_once __DIR__ . '/../../config/security.php';
 if(!isset($_SESSION['sb_user'])) { header("Location: index.php"); exit(); }
 
-$id = $_GET['id'];
-$q = mysqli_query($conn, "SELECT * FROM sales_briefs WHERE id = '$id'");
+$id = sanitizeInt($_GET['id']);
+if($id === false) { header("Location: index.php"); exit(); }
+
+$stmt = $conn->prepare("SELECT * FROM sales_briefs WHERE id = ?");
+$stmt->bind_param("i", $id);
+$stmt->execute();
+$q = $stmt->get_result();
 $d = mysqli_fetch_assoc($q);
 
 // Helper JSON
@@ -125,7 +131,10 @@ function formatList($json) {
                 </thead>
                 <tbody>
                     <?php
-                    $q_tier = mysqli_query($conn, "SELECT * FROM sb_targets WHERE sb_id='$id' ORDER BY tier_level ASC");
+                    $stmt_tier = $conn->prepare("SELECT * FROM sb_targets WHERE sb_id=? ORDER BY tier_level ASC");
+                    $stmt_tier->bind_param("i", $id);
+                    $stmt_tier->execute();
+                    $q_tier = $stmt_tier->get_result();
                     while($t = mysqli_fetch_assoc($q_tier)) {
                         echo "<tr>
                             <td align='center'>Tier {$t['tier_level']}</td>

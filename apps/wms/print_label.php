@@ -9,14 +9,22 @@ if(!isset($_SESSION['wms_login'])) {
     exit("Akses Ditolak. Silakan Login.");
 }
 include '../../koneksi.php';
+require_once __DIR__ . '/../../config/security.php';
 
 // Logic: Ambil HU dari URL kalau ada (pilihan user), kalau ga ada ambil last task
 if(isset($_GET['hu_id'])) {
-    $hu_id = $_GET['hu_id'];
-    $q = mysqli_query($conn, "SELECT q.*, p.product_code, p.description FROM wms_quants q JOIN wms_products p ON q.product_uuid = p.product_uuid WHERE q.hu_id = '$hu_id' LIMIT 1");
+    $hu_id = sanitizeInput($_GET['hu_id']);
+    $stmt = $conn->prepare("SELECT q.*, p.product_code, p.description FROM wms_quants q JOIN wms_products p ON q.product_uuid = p.product_uuid WHERE q.hu_id = ? LIMIT 1");
+    $stmt->bind_param("s", $hu_id);
+    $stmt->execute();
+    $q = $stmt->get_result();
+    $stmt->close();
 } else {
     // Default: Last Task
-    $q = mysqli_query($conn, "SELECT t.*, p.product_code, p.description FROM wms_warehouse_tasks t JOIN wms_products p ON t.product_uuid = p.product_uuid ORDER BY t.tanum DESC LIMIT 1");
+    $stmt = $conn->prepare("SELECT t.*, p.product_code, p.description FROM wms_warehouse_tasks t JOIN wms_products p ON t.product_uuid = p.product_uuid ORDER BY t.tanum DESC LIMIT 1");
+    $stmt->execute();
+    $q = $stmt->get_result();
+    $stmt->close();
 }
 $d = mysqli_fetch_assoc($q);
 ?>

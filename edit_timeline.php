@@ -8,8 +8,8 @@ if (!isset($_SESSION['status']) || $_SESSION['status'] != "login") {
 }
 
 // LOAD KONEKSI PDO
-// (Pastikan file koneksi.php lu udah nge-load config/database.php yang menghasilkan $pdo)
 require_once __DIR__ . '/koneksi.php';
+require_once __DIR__ . '/config/security.php';
 
 // Validasi ID
 $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
@@ -35,34 +35,23 @@ if(isset($_POST['update'])){
         $comp = trim($_POST['company']);
         $desc = purify($_POST['description']);
         
-        // Logic Update Gambar dengan MIME validation
+        // Update dengan image validation via security.php
         $sql = "UPDATE timeline SET year=?, sort_date=?, role=?, company=?, description=? WHERE id=?";
         $params = [$year, $s_date, $role, $comp, $desc, $id];
 
         if(!empty($_FILES['image']['name'])) {
-            // 🛡️ VALIDASI MIME TYPE
-            $allowed_types = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-            $max_size = 5 * 1024 * 1024; // 5MB
-            
-            $finfo = finfo_open(FILEINFO_MIME_TYPE);
-            $mime = finfo_file($finfo, $_FILES['image']['tmp_name']);
-            finfo_close($finfo);
-            
-            if (in_array($mime, $allowed_types) && $_FILES['image']['size'] <= $max_size) {
-                $new_img = "cartoon_" . time() . "_" . uniqid() . ".jpg";
-                
-                if(move_uploaded_file($_FILES['image']['tmp_name'], 'assets/img/' . $new_img)) {
-                    // Hapus gambar lama
-                    if(!empty($d['image']) && file_exists('assets/img/'.$d['image'])) {
-                        @unlink('assets/img/'.$d['image']);
-                    }
-                    
-                    // Update Query + Image
-                    $sql = "UPDATE timeline SET year=?, sort_date=?, role=?, company=?, description=?, image=? WHERE id=?";
-                    $params = [$year, $s_date, $role, $comp, $desc, $new_img, $id];
+            $upload = handleFileUpload($_FILES['image'], 'assets/img/');
+            if($upload['success']) {
+                // Hapus gambar lama
+                if(!empty($d['image']) && file_exists('assets/img/'.$d['image'])) {
+                    @unlink('assets/img/'.$d['image']);
                 }
+                
+                // Update Query + Image
+                $sql = "UPDATE timeline SET year=?, sort_date=?, role=?, company=?, description=?, image=? WHERE id=?";
+                $params = [$year, $s_date, $role, $comp, $desc, $upload['filename'], $id];
             } else {
-                setFlash('Format gambar tidak didukung atau ukuran terlalu besar (max 5MB)', 'error');
+                setFlash($upload['error'], 'error');
                 header("Location: edit_timeline.php?id=" . urlencode($id));
                 exit();
             }
@@ -71,6 +60,7 @@ if(isset($_POST['update'])){
         // Eksekusi PDO
         $pdo->prepare($sql)->execute($params);
         
+        logSecurityEvent('Timeline updated: ID ' . $id, 'INFO');
         setFlash('Timeline berhasil diupdate!');
         header("Location: admin.php?tab=time-pane");
         exit();

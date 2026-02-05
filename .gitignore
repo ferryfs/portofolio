@@ -1,1 +1,3 @@
 apps/api/secrets.php
+logs/
+**/uploads/

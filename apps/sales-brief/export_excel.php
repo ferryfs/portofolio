@@ -1,44 +1,31 @@
 <?php
+// apps/sales-brief/export_excel.php (PDO)
 session_name("SB_APP_SESSION");
-// export_excel.php
 session_start();
-$conn = mysqli_connect("localhost", "root", "", "portofolio_db");
-if(!isset($_SESSION['sb_user'])) { exit(); }
+require_once __DIR__ . '/../../config/database.php';
 
-// Nama File Output
+if(!isset($_SESSION['sb_user'])) exit();
+
 $filename = "Summary_Promo_" . date('Ymd') . ".xls";
-
-// Header biar browser download file excel
 header("Content-Type: application/vnd.ms-excel");
 header("Content-Disposition: attachment; filename=\"$filename\"");
 ?>
-
 <table border="1">
     <thead>
         <tr style="background-color: #f0f0f0; font-weight: bold;">
-            <th>No</th>
-            <th>SB Number</th>
-            <th>Promo Name</th>
-            <th>Start Date</th>
-            <th>End Date</th>
-            <th>Mechanism</th>
-            <th>Budget</th>
-            <th>Status</th>
-            <th>Total Store</th>
+            <th>No</th><th>SB Number</th><th>Promo Name</th><th>Start Date</th><th>End Date</th>
+            <th>Mechanism</th><th>Budget</th><th>Status</th><th>Total Store</th>
         </tr>
     </thead>
     <tbody>
         <?php
-        $q = mysqli_query($conn, "
-            SELECT s.*, COUNT(c.id) as total_store 
-            FROM sales_briefs s 
-            LEFT JOIN sb_customers c ON s.id = c.sb_id 
-            GROUP BY s.id 
-            ORDER BY s.id DESC
-        ");
-        
+        $sql = "SELECT s.*, COUNT(c.id) as total_store 
+                FROM sales_briefs s 
+                LEFT JOIN sb_customers c ON s.id = c.sb_id 
+                GROUP BY s.id ORDER BY s.id DESC";
+        $stmt = $pdo->query($sql);
         $no = 1;
-        while($row = mysqli_fetch_assoc($q)) {
+        while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         ?>
         <tr>
             <td><?php echo $no++; ?></td>

@@ -1,7 +1,11 @@
 <?php
+// apps/sales-brief/list_draft.php (PDO VERSION)
+
 session_name("SB_APP_SESSION");
 session_start();
-$conn = mysqli_connect("localhost", "root", "", "portofolio_db");
+
+require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/../../config/security.php';
 
 // 1. CEK LOGIN
 if(!isset($_SESSION['sb_user'])) {
@@ -9,17 +13,31 @@ if(!isset($_SESSION['sb_user'])) {
     exit();
 }
 
-// 2. LOGIC HAPUS DATA
-if(isset($_GET['delete'])) {
-    $id = $_GET['delete'];
-    // Hapus child tables dulu (Foreign Key constraint)
-    mysqli_query($conn, "DELETE FROM sb_customers WHERE sb_id='$id'");
-    mysqli_query($conn, "DELETE FROM sb_targets WHERE sb_id='$id'");
-    // Baru hapus parent
-    mysqli_query($conn, "DELETE FROM sales_briefs WHERE id='$id'");
+// 2. LOGIC HAPUS DATA (POST dengan CSRF)
+if(isset($_POST['delete_sb'])) {
+    // CSRF Verification
+    if (!verifyCSRFToken()) {
+        die('Security Alert: Invalid Token');
+    }
     
-    // Redirect balik biar bersih URL-nya
-    header("Location: list_draft.php");
+    $id = sanitizeInt($_POST['sb_id']);
+    
+    try {
+        $pdo->beginTransaction();
+        
+        safeQuery($pdo, "DELETE FROM sb_customers WHERE sb_id=?", [$id]);
+        safeQuery($pdo, "DELETE FROM sb_targets WHERE sb_id=?", [$id]);
+        safeQuery($pdo, "DELETE FROM sales_briefs WHERE id=?", [$id]);
+        
+        $pdo->commit();
+        logSecurityEvent('SB deleted: ' . $id, 'INFO');
+        
+        header("Location: list_draft.php");
+        exit();
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        die("Error deleting: " . $e->getMessage());
+    }
 }
 ?>
 
@@ -27,18 +45,14 @@ if(isset($_GET['delete'])) {
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Draft List | Sales Brief</title>
-  
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
       body { font-family: 'Inter', sans-serif; background-color: #f4f6f9; }
-      /* Table Header Clean */
       .table-custom thead th { background-color: #343a40; color: white; border: none; font-size: 0.85rem; text-transform: uppercase; vertical-align: middle; }
       .table-custom tbody td { vertical-align: middle; font-size: 0.9rem; }
-      /* Callout Info */
       .callout-custom { border-left: 4px solid #007bff; background: #fff; padding: 15px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
   </style>
 </head>
@@ -59,7 +73,6 @@ if(isset($_GET['delete'])) {
   <?php include 'sidebar.php'; ?>
 
   <div class="content-wrapper">
-    
     <div class="content-header">
       <div class="container-fluid">
         <div class="row mb-2 align-items-center">
@@ -111,9 +124,10 @@ if(isset($_GET['delete'])) {
                         </thead>
                         <tbody>
                             <?php
-                            $query = mysqli_query($conn, "SELECT * FROM sales_briefs ORDER BY id DESC");
+                            $stmt = $pdo->query("SELECT * FROM sales_briefs ORDER BY id DESC");
+                            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             
-                            if(mysqli_num_rows($query) == 0) {
+                            if(!$rows) {
                             ?>
                                 <tr>
                                     <td colspan="7" class="text-center text-muted py-5">
@@ -124,11 +138,10 @@ if(isset($_GET['delete'])) {
                                 </tr>
                             <?php 
                             } else {
-                                while($row = mysqli_fetch_assoc($query)) {
+                                foreach($rows as $row) {
                                     $start = date('d M Y', strtotime($row['start_date']));
                                     $end   = date('d M Y', strtotime($row['end_date']));
                                     
-                                    // Warna Badge Status
                                     $badge_class = 'secondary';
                                     if($row['status'] == 'Draft') $badge_class = 'warning';
                                     if($row['status'] == 'Approved') $badge_class = 'success';
@@ -140,18 +153,22 @@ if(isset($_GET['delete'])) {
                                             <a href="view_sb.php?id=<?php echo $row['id']; ?>" class="btn btn-default btn-xs border" title="View Detail"><i class="fas fa-eye text-info"></i></a>
                                             
                                             <?php if($row['status'] == 'Draft' || $row['status'] == 'Reopened') { ?>
-                                            <a href="list_draft.php?delete=<?php echo $row['id']; ?>" class="btn btn-default btn-xs border" onclick="return confirm('Yakin hapus data ini?')" title="Hapus"><i class="fas fa-trash text-danger"></i></a>
+                                            <form method="POST" style="display:inline;" onsubmit="return confirm('Yakin hapus data ini?');">
+                                                <?php echo csrfTokenField(); ?>
+                                                <input type="hidden" name="sb_id" value="<?php echo $row['id']; ?>">
+                                                <button type="submit" name="delete_sb" class="btn btn-default btn-xs border" title="Hapus"><i class="fas fa-trash text-danger"></i></button>
+                                            </form>
                                             <?php } else { ?>
                                                 <button class="btn btn-default btn-xs border" disabled><i class="fas fa-lock text-muted"></i></button>
                                             <?php } ?>
                                         </div>
                                     </td>
-                                    <td class="text-primary font-weight-bold"><?php echo $row['sb_number']; ?></td>
-                                    <td class="font-weight-bold text-dark"><?php echo $row['promo_name']; ?></td>
+                                    <td class="text-primary font-weight-bold"><?php echo htmlspecialchars($row['sb_number']); ?></td>
+                                    <td class="font-weight-bold text-dark"><?php echo htmlspecialchars($row['promo_name']); ?></td>
                                     <td class="small text-muted">
                                         <?php echo $start; ?> <span class="text-xs text-secondary">s/d</span> <?php echo $end; ?>
                                     </td>
-                                    <td><span class="badge badge-light border text-dark px-2"><?php echo $row['promo_mechanism']; ?></span></td>
+                                    <td><span class="badge badge-light border text-dark px-2"><?php echo htmlspecialchars($row['promo_mechanism']); ?></span></td>
                                     <td class="font-weight-bold text-success">Rp <?php echo number_format($row['budget_allocation'], 0, ',', '.'); ?></td>
                                     <td><span class="badge badge-<?php echo $badge_class; ?> px-2"><?php echo $row['status']; ?></span></td>
                                 </tr>

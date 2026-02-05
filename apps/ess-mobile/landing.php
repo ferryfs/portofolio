@@ -1,3 +1,9 @@
+<?php
+// Wajib start session di awal buat generate CSRF
+session_name("ESS_PORTAL_SESSION");
+session_start();
+require_once __DIR__ . '/../../config/security.php';
+?>
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -48,6 +54,8 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <form action="auth.php" method="POST">
+                    <?php echo csrfTokenField(); ?>
+                    
                     <div class="modal-body">
                         <div class="mb-3"><label class="small text-muted fw-bold">Nama Lengkap</label><input type="text" name="fullname" class="form-control" required></div>
                         <div class="mb-3"><label class="small text-muted fw-bold">Email</label><input type="email" name="email" class="form-control" required></div>
@@ -75,12 +83,12 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <form action="auth.php" method="POST">
+                    <?php echo csrfTokenField(); ?>
+
                     <div class="modal-body">
-                        
                         <div class="alert alert-info p-2 mb-3 text-center" style="font-size: 0.8rem; cursor: pointer;" onclick="fillTamu()">
                             <i class="fa fa-magic me-1"></i> Klik disini untuk <b>Akun Tamu</b>
                         </div>
-
                         <div class="mb-3">
                             <label class="small text-muted">ID Karyawan</label>
                             <input type="text" id="log_nik" name="employee_id" class="form-control" required>
@@ -100,38 +108,20 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // FUNGSI AUTO FILL TAMU
         function fillTamu() {
-            // Isi form dengan akun tamu (sesuai database)
             document.getElementById('log_nik').value = 't4mu';
-            document.getElementById('log_pass').value = 'Tamu123';
-            
-            // Visual Feedback & Auto Submit
+            document.getElementById('log_pass').value = 'Tamu123'; // Password Tamu
             let btn = document.getElementById('btnSubmitLogin');
             btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Masuk...';
             setTimeout(() => { btn.click(); }, 500);
         }
-
-        window.onload = function() {
-            const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.get('open') === 'login') {
-                new bootstrap.Modal(document.getElementById('modalLogin')).show();
-            }
-            if (urlParams.get('msg') === 'timeout') {
-                alert("Sesi habis. Silakan login kembali.");
-                new bootstrap.Modal(document.getElementById('modalLogin')).show();
-            }
-        };
-        
         function showModal(id) {
             new bootstrap.Modal(document.getElementById(id)).show();
         }
-    </script>
-        <script>
-        // Biar history browser bersih, jadi user gak bisa tekan Forward balik ke dalam
-        if (window.history.replaceState) {
-            window.history.replaceState(null, null, window.location.href);
-        }
+        window.onload = function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('msg') === 'timeout') alert("Sesi habis. Silakan login kembali.");
+        };
     </script>
 </body>
 </html>

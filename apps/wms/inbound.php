@@ -17,8 +17,12 @@ if(isset($_POST['post_gr'])) {
     $vendor    = $_POST['vendor'];
 
     // 1. Ambil Master Data Produk & Konversi
-    $q_prod = mysqli_query($conn, "SELECT * FROM wms_products WHERE product_uuid = '$prod_uuid'");
+    $stmt = $conn->prepare("SELECT * FROM wms_products WHERE product_uuid = ?");
+    $stmt->bind_param("s", $prod_uuid);
+    $stmt->execute();
+    $q_prod = $stmt->get_result();
     $d_prod = mysqli_fetch_assoc($q_prod);
+    $stmt->close();
     
     // Logic Konversi Satuan & Loop
     if($uom_mode == 'PACK') {
@@ -44,23 +48,32 @@ if(isset($_POST['post_gr'])) {
         $hu_id = "HU" . rand(100000,999999); // Generate ID Pallet
         
         // Cari Bin Kosong (Empty Bin Strategy)
-        $cari_bin = mysqli_query($conn, "SELECT b.lgpla FROM wms_storage_bins b LEFT JOIN wms_quants q ON b.lgpla = q.lgpla WHERE b.lgtyp = '0010' AND q.quant_id IS NULL LIMIT 1");
+        $stmt_bin = $conn->prepare("SELECT b.lgpla FROM wms_storage_bins b LEFT JOIN wms_quants q ON b.lgpla = q.lgpla WHERE b.lgtyp = '0010' AND q.quant_id IS NULL LIMIT 1");
+        $stmt_bin->execute();
+        $cari_bin = $stmt_bin->get_result();
         $bin_data = mysqli_fetch_assoc($cari_bin);
 
         if($bin_data) {
             $target_bin = $bin_data['lgpla'];
             
             // Simpan ke Stok (Selalu dalam Base UoM / Pcs)
-            $sql = "INSERT INTO wms_quants (product_uuid, lgpla, batch, qty, gr_date, stock_type, hu_id) 
-                    VALUES ('$prod_uuid', '$target_bin', '$batch', '$qty_save', '$gr_date', '$status', '$hu_id')";
-            
-            if(mysqli_query($conn, $sql)) {
-                // Log Warehouse Task (Activity: PUTAWAY)
-                mysqli_query($conn, "INSERT INTO wms_warehouse_tasks 
+            $stmt_ins = $conn->prepare("INSERT INTO wms_quants (product_uuid, lgpla, batch, qty, gr_date, stock_type, hu_id) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $stmt_ins->bind_param("sssdsis", $prod_uuid, $target_bin, $batch, $qty_save, $gr_date, $status, $hu_id);
+            if($stmt_ins->execute()) {
+                // Log Warehouse Task (Activity: PUTAWAY) - prepared
+                $proc = 'PUTAWAY';
+                $src_info = 'VENDOR: ' . $vendor;
+                $status_task = 'CONFIRMED';
+                $stmt_task = $conn->prepare("INSERT INTO wms_warehouse_tasks 
                 (process_type, product_uuid, batch, hu_id, source_bin, dest_bin, qty, status)
-                VALUES ('PUTAWAY', '$prod_uuid', '$batch', '$hu_id', 'VENDOR: $vendor', '$target_bin', '$qty_save', 'CONFIRMED')");
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt_task->bind_param("ssssssds", $proc, $prod_uuid, $batch, $hu_id, $src_info, $target_bin, $qty_save, $status_task);
+                $stmt_task->execute();
+                $stmt_task->close();
                 $success_count++;
             }
+            $stmt_ins->close();
         }
     }
 
@@ -121,11 +134,14 @@ if(isset($_POST['post_gr'])) {
                     <select name="product_uuid" class="form-select" id="prodSelect" onchange="updateInfo()" required>
                         <option value="">-- Pilih Material --</option>
                         <?php 
-                        $p = mysqli_query($conn, "SELECT * FROM wms_products");
+                        $stmt = $conn->prepare("SELECT * FROM wms_products");
+                        $stmt->execute();
+                        $p = $stmt->get_result();
                         while($row = mysqli_fetch_assoc($p)) {
                             // Simpan data konversi di atribut HTML
                             echo "<option value='".$row['product_uuid']."' data-uom='".$row['base_uom']."' data-pack='".$row['capacity_uom']."' data-conv='".$row['conversion_qty']."'>".$row['product_code']." - ".$row['description']."</option>";
                         }
+                        $stmt->close();
                         ?>
                     </select>
                     <div id="convInfo" class="form-text text-primary fw-bold mt-1"></div>

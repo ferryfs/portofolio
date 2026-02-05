@@ -1,7 +1,10 @@
 <?php
+// apps/sales-brief/approval.php (PDO)
 session_name("SB_APP_SESSION");
 session_start();
-$conn = mysqli_connect("localhost", "root", "", "portofolio_db");
+require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/../../config/security.php';
+
 if(!isset($_SESSION['sb_user'])) { header("Location: index.php"); exit(); }
 ?>
 
@@ -16,7 +19,6 @@ if(!isset($_SESSION['sb_user'])) { header("Location: index.php"); exit(); }
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
       body { font-family: 'Inter', sans-serif; background-color: #f4f6f9; }
-      .nav-pills .nav-link.active, .nav-pills .show > .nav-link { background-color: #007bff !important; color: #fff !important; }
       .table-custom thead th { background-color: #343a40; color: white; border: none; font-size: 0.85rem; vertical-align: middle; }
   </style>
 </head>
@@ -24,12 +26,8 @@ if(!isset($_SESSION['sb_user'])) { header("Location: index.php"); exit(); }
 <div class="wrapper">
 
   <nav class="main-header navbar navbar-expand navbar-white navbar-light border-bottom-0 shadow-sm">
-    <ul class="navbar-nav">
-      <li class="nav-item"><a class="nav-link" data-widget="pushmenu" href="#"><i class="fas fa-bars"></i></a></li>
-    </ul>
-    <ul class="navbar-nav ml-auto">
-        <li class="nav-item"><a class="nav-link text-danger font-weight-bold" href="#">LOGOUT</a></li>
-    </ul>
+    <ul class="navbar-nav"><li class="nav-item"><a class="nav-link" data-widget="pushmenu" href="#"><i class="fas fa-bars"></i></a></li></ul>
+    <ul class="navbar-nav ml-auto"><li class="nav-item"><a class="nav-link text-danger font-weight-bold" href="auth.php?logout=true">LOGOUT</a></li></ul>
   </nav>
 
   <?php include 'sidebar.php'; ?>
@@ -54,18 +52,21 @@ if(!isset($_SESSION['sb_user'])) { header("Location: index.php"); exit(); }
                         </thead>
                         <tbody>
                             <?php
-                            $query = mysqli_query($conn, "SELECT * FROM sales_briefs WHERE status = 'Draft' ORDER BY id DESC");
-                            if(mysqli_num_rows($query) == 0) {
-                                echo '<tr><td colspan="6" class="text-center py-5 text-muted">No pending approvals.</td></tr>';
+                            $stmt = $pdo->prepare("SELECT * FROM sales_briefs WHERE status = ? ORDER BY id DESC");
+                            $stmt->execute(['Draft']);
+                            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                            if(count($rows) == 0) {
+                              echo '<tr><td colspan="6" class="text-center py-5 text-muted">No pending approvals.</td></tr>';
                             } else {
-                                while($row = mysqli_fetch_assoc($query)) {
+                              foreach($rows as $row) {
                             ?>
                                 <tr>
                                     <td class="text-center">
                                         <a href="view_sb.php?id=<?php echo $row['id']; ?>&source=approval" class="btn btn-primary btn-sm font-weight-bold shadow-sm"><i class="fas fa-search mr-1"></i> Review</a>
                                     </td>
-                                    <td class="font-weight-bold"><?php echo $row['sb_number']; ?></td>
-                                    <td><?php echo $row['promo_name']; ?></td>
+                                    <td class="font-weight-bold"><?php echo htmlspecialchars($row['sb_number']); ?></td>
+                                    <td><?php echo htmlspecialchars($row['promo_name']); ?></td>
                                     <td><?php echo $row['start_date']; ?> - <?php echo $row['end_date']; ?></td>
                                     <td class="text-success font-weight-bold">Rp <?php echo number_format($row['budget_allocation'], 0, ',', '.'); ?></td>
                                     <td><span class="badge badge-warning">Waiting Approval</span></td>
@@ -80,7 +81,7 @@ if(!isset($_SESSION['sb_user'])) { header("Location: index.php"); exit(); }
     </section>
   </div>
 </div>
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
 </body>

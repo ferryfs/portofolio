@@ -1,37 +1,35 @@
 <?php
 session_name("SB_APP_SESSION");
 session_start();
-// 1. KONEKSI DATABASE (Wajib ada di sini buat ngecek nomor terakhir)
-$conn = mysqli_connect("localhost", "root", "", "portofolio_db");
-if (!$conn) { die("Koneksi Gagal: " . mysqli_connect_error()); }
+
+// 1. KONEKSI DATABASE
+require_once __DIR__ . '/../../config/database.php'; // $pdo
+require_once __DIR__ . '/../../config/security.php'; // Helper
+
+if(!isset($_SESSION['sb_user'])) { header("Location: landing.php"); exit(); }
 
 // 2. MOCK SESSION
 if(!isset($_SESSION['sb_user'])) { 
     $_SESSION['sb_user'] = 'dev'; $_SESSION['sb_name'] = 'Developer Mode'; $_SESSION['sb_div'] = 'Trade Marketing'; 
 }
 
-// 3. LOGIC AUTO NUMBER (SB-YYYY/MM/XXX)
+// 3. LOGIC AUTO NUMBER (PDO)
 $tahun_ini = date('Y');
-$bulan_ini = date('m'); // 01, 02, ... 12
+$bulan_ini = date('m'); 
 
-// Cek nomor terakhir di bulan & tahun ini
-$cek_last = mysqli_query($conn, "SELECT sb_number FROM sales_briefs 
-                                 WHERE YEAR(created_at) = '$tahun_ini' 
-                                 AND MONTH(created_at) = '$bulan_ini' 
-                                 ORDER BY id DESC LIMIT 1");
+$stmt = $pdo->prepare("SELECT sb_number FROM sales_briefs 
+                       WHERE YEAR(created_at) = ? AND MONTH(created_at) = ? 
+                       ORDER BY id DESC LIMIT 1");
+$stmt->execute([$tahun_ini, $bulan_ini]);
+$row_last = $stmt->fetch(PDO::FETCH_ASSOC);
 
-if(mysqli_num_rows($cek_last) > 0) {
-    // Kalau ada, ambil nomor terakhir
-    $row_last = mysqli_fetch_assoc($cek_last);
-    // Format DB: SB-2025/12/059. Kita ambil 3 digit terakhir
+if($row_last) {
     $last_seq = intval(substr($row_last['sb_number'], -3)); 
     $new_seq  = $last_seq + 1;
 } else {
-    // Kalau bulan baru, reset ke 1
     $new_seq = 1;
 }
 
-// Pad dengan 0 (misal 1 jadi 001, 59 jadi 059)
 $seq_str = str_pad($new_seq, 3, "0", STR_PAD_LEFT);
 $sb_number_auto = "SB-$tahun_ini/$bulan_ini/$seq_str";
 ?>
@@ -52,7 +50,6 @@ $sb_number_auto = "SB-$tahun_ini/$bulan_ini/$seq_str";
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap4.min.css">
 
   <style>
-      /* --- ULTIMATE CORPORATE UI CSS --- */
       body { font-family: 'Inter', sans-serif; background-color: #f0f2f5; color: #343a40; }
       .card-pro { border: none; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); margin-bottom: 20px; background: #fff; overflow: hidden; }
       .card-header-pro { background: #fff; border-bottom: 1px solid #edf2f7; padding: 15px 20px; display: flex; align-items: center; }
@@ -64,12 +61,6 @@ $sb_number_auto = "SB-$tahun_ini/$bulan_ini/$seq_str";
       .select2-container .select2-selection--single { height: 38px !important; display: flex !important; align-items: center !important; justify-content: flex-start !important; }
       .select2-container--bootstrap4 .select2-selection--single .select2-selection__rendered { line-height: 1.5 !important; margin-top: -2px; padding-left: 0 !important; color: #334155; text-align: left !important; width: 100%; }
       .select2-container--bootstrap4 .select2-selection--multiple { min-height: 38px !important; border: 1px solid #cbd5e1 !important; border-radius: 6px !important; display: flex; align-items: center; }
-      .select2-search__field { margin-top: 0 !important; margin-bottom: 0 !important; height: 28px !important; }
-      .select2-container--bootstrap4 .select2-selection--single .select2-selection__placeholder { color: #9ca3af !important; font-style: normal; }
-      .select2-container--bootstrap4 .select2-selection--multiple .select2-search__field::placeholder { color: #9ca3af !important; }
-      .custom-switch .custom-control-label::before { height: 1.5rem; width: 2.75rem; border-radius: 2rem; }
-      .custom-switch .custom-control-label::after { width: calc(1.5rem - 4px); height: calc(1.5rem - 4px); border-radius: 50%; }
-      .custom-switch .custom-control-input:checked ~ .custom-control-label::before { background-color: #10b981; border-color: #10b981; }
       .switch-container { background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px dashed #cbd5e0; }
       .table-pro thead th { background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 0.7rem; text-transform: uppercase; border: 1px solid #e2e8f0; padding: 10px; vertical-align: middle; text-align: center; }
       .table-pro tbody td { vertical-align: middle; font-size: 0.9rem; border: 1px solid #e2e8f0; padding: 5px; }
@@ -86,13 +77,9 @@ $sb_number_auto = "SB-$tahun_ini/$bulan_ini/$seq_str";
 <div class="wrapper">
 
   <nav class="main-header navbar navbar-expand navbar-white navbar-light border-bottom-0 shadow-sm">
-    <ul class="navbar-nav">
-      <li class="nav-item"><a class="nav-link" href="index.php"><i class="fas fa-arrow-left text-dark"></i> <span class="font-weight-bold ml-2 text-dark">Back to List</span></a></li>
-    </ul>
+    <ul class="navbar-nav"><li class="nav-item"><a class="nav-link" href="index.php"><i class="fas fa-arrow-left text-dark"></i> <span class="font-weight-bold ml-2 text-dark">Back to List</span></a></li></ul>
     <ul class="navbar-nav ml-auto">
-      <li class="nav-item d-none d-sm-inline-block">
-        <span class="nav-link font-weight-bold text-dark"><i class="fas fa-user-circle text-primary"></i> <?php echo $_SESSION['sb_name']; ?></span>
-      </li>
+      <li class="nav-item d-none d-sm-inline-block"><span class="nav-link font-weight-bold text-dark"><i class="fas fa-user-circle text-primary"></i> <?php echo $_SESSION['sb_name']; ?></span></li>
     </ul>
   </nav>
 
@@ -112,8 +99,10 @@ $sb_number_auto = "SB-$tahun_ini/$bulan_ini/$seq_str";
 
     <section class="content">
       <div class="container-fluid pb-5">
+        
         <form id="form-sb" action="process_sb.php" method="post" enctype="multipart/form-data">
             
+            <?php echo csrfTokenField(); ?>
             <input type="hidden" name="submit_sb" value="1">
 
             <div class="card card-pro">
@@ -291,9 +280,6 @@ $sb_number_auto = "SB-$tahun_ini/$bulan_ini/$seq_str";
                                         <input type="text" class="form-control border-left-0 text-right font-weight-bold format-currency" name="budget_amount" value="0">
                                     </div>
                                 </div>
-                            
-                                <input type="hidden" name="region[]" value="ALL">
-                                <input type="hidden" name="sales_category[]" value="ALL">
                             </div>
                         </div>
                     </div>
@@ -382,50 +368,30 @@ $sb_number_auto = "SB-$tahun_ini/$bulan_ini/$seq_str";
                     <h3 class="card-title-pro">Store Coverage</h3>
                 </div>
                 <div class="card-body">
-                    
                     <ul class="nav nav-tabs nav-tabs-pro mb-4" id="storeTab" role="tablist">
-                        <li class="nav-item">
-                            <a class="nav-link active" id="manual-tab" data-toggle="tab" href="#manual" role="tab"><i class="fas fa-edit mr-2"></i> Manual Input</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" id="upload-tab" data-toggle="tab" href="#upload" role="tab"><i class="fas fa-cloud-upload-alt mr-2"></i> Upload Excel</a>
-                        </li>
+                        <li class="nav-item"><a class="nav-link active" id="manual-tab" data-toggle="tab" href="#manual" role="tab">Manual Input</a></li>
+                        <li class="nav-item"><a class="nav-link" id="upload-tab" data-toggle="tab" href="#upload" role="tab">Upload Excel</a></li>
                     </ul>
 
                     <div class="tab-content" id="storeTabContent">
                         <div class="tab-pane fade show active" id="manual" role="tabpanel">
-                            <div class="p-3 rounded border mb-4" style="background-color: #f8fafc; border-color: #e2e8f0 !important;">
+                            <div class="p-3 rounded border mb-4" style="background-color: #f8fafc;">
                                 <label class="label-pro text-primary mb-3">Add Customer Data</label>
                                 <div class="row">
-                                    <div class="col-md-3 mb-2">
-                                        <input type="text" id="input_cust_code" class="form-control form-control-sm" placeholder="Customer Code">
-                                    </div>
-                                    <div class="col-md-4 mb-2">
-                                        <input type="text" id="input_cust_name" class="form-control form-control-sm" placeholder="Customer Name">
-                                    </div>
-                                    <div class="col-md-2 mb-2">
-                                        <input type="number" id="input_target_qty" class="form-control form-control-sm text-right input-disabled" placeholder="Target Qty" disabled>
-                                    </div>
-                                    <div class="col-md-2 mb-2">
-                                        <input type="text" id="input_target_amt" class="form-control form-control-sm text-right format-currency input-disabled" value="0" placeholder="Target Amount" disabled>
-                                    </div>
-                                    <div class="col-md-1 mb-2">
-                                        <button type="button" class="btn btn-primary btn-sm btn-block" onclick="addCustomerRow()"><i class="fas fa-plus"></i></button>
-                                    </div>
+                                    <div class="col-md-3 mb-2"><input type="text" id="input_cust_code" class="form-control form-control-sm" placeholder="Customer Code"></div>
+                                    <div class="col-md-4 mb-2"><input type="text" id="input_cust_name" class="form-control form-control-sm" placeholder="Customer Name"></div>
+                                    <div class="col-md-2 mb-2"><input type="number" id="input_target_qty" class="form-control form-control-sm text-right input-disabled" placeholder="Target Qty" disabled></div>
+                                    <div class="col-md-2 mb-2"><input type="text" id="input_target_amt" class="form-control form-control-sm text-right format-currency input-disabled" value="0" placeholder="Target Amount" disabled></div>
+                                    <div class="col-md-1 mb-2"><button type="button" class="btn btn-primary btn-sm btn-block" onclick="addCustomerRow()"><i class="fas fa-plus"></i></button></div>
                                 </div>
                             </div>
                         </div>
-
                         <div class="tab-pane fade" id="upload" role="tabpanel">
                             <div class="bg-white p-4 rounded border mb-4 text-center" style="border-style: dashed !important; border-width: 2px !important;">
                                 <i class="fas fa-file-excel text-success fa-3x mb-3"></i>
                                 <h6 class="font-weight-bold">Import Data</h6>
                                 <div class="d-flex justify-content-center mt-3">
-                                    <a href="#" class="btn btn-outline-secondary btn-sm mr-2"><i class="fas fa-download mr-1"></i> Download Template</a>
-                                    <div class="custom-file text-left" style="max-width: 250px;">
-                                        <input type="file" class="custom-file-input" id="uploadExcel">
-                                        <label class="custom-file-label" for="uploadExcel">Choose file</label>
-                                    </div>
+                                    <a href="#" class="btn btn-outline-secondary btn-sm mr-2">Download Template</a>
                                     <button type="button" class="btn btn-success btn-sm ml-2">Upload</button>
                                 </div>
                             </div>
@@ -436,25 +402,14 @@ $sb_number_auto = "SB-$tahun_ini/$bulan_ini/$seq_str";
                         <table id="table-customer" class="table table-bordered table-hover table-sm w-100 table-pro">
                             <thead class="bg-light text-dark">
                                 <tr>
-                                    <th width="5%" rowspan="2" style="vertical-align: middle;">No</th>
-                                    <th width="15%" rowspan="2" style="vertical-align: middle;">Code</th>
-                                    <th width="25%" rowspan="2" style="vertical-align: middle;">Customer Name</th>
-                                    <th width="20%" colspan="2" class="text-center" style="border-bottom: 1px solid #dee2e6;">Target Minimal</th>
-                                    <th width="20%" colspan="2" class="text-center" style="border-bottom: 1px solid #dee2e6;">Remain Capping</th>
-                                    <th width="5%" rowspan="2" style="vertical-align: middle;">UOM</th>
-                                    <th width="10%" rowspan="2" style="vertical-align: middle;">Action</th>
-                                </tr>
-                                <tr>
-                                    <th>Qty Min</th>
-                                    <th>Amount Min</th>
-                                    <th>Target Qty</th>
-                                    <th>Target Amount</th>
+                                    <th width="5%">No</th><th width="15%">Code</th><th width="25%">Customer Name</th>
+                                    <th width="20%">Target Minimal</th><th width="20%">Remain Capping</th>
+                                    <th width="5%">UOM</th><th width="10%">Action</th>
                                 </tr>
                             </thead>
                             <tbody></tbody>
                         </table>
                     </div>
-
                 </div>
             </div>
 
@@ -527,7 +482,7 @@ $sb_number_auto = "SB-$tahun_ini/$bulan_ini/$seq_str";
         $('.select2').select2({ theme: 'bootstrap4', allowClear: true });
         $('.summernote').summernote({ height: 100, toolbar: [['style', ['bold', 'italic', 'ul']]] });
         bsCustomFileInput.init();
-        // 1. CURRENCY FORMATTER
+        
         $(document).on('input', '.format-currency', function() {
             var val = $(this).val().replace(/\D/g, ''); 
             if (val !== '') { val = parseInt(val, 10).toLocaleString('id-ID'); }
@@ -535,7 +490,7 @@ $sb_number_auto = "SB-$tahun_ini/$bulan_ini/$seq_str";
         });
         $(document).on('focus', '.format-currency', function() { if ($(this).val() === '0') $(this).val(''); });
         $(document).on('blur', '.format-currency', function() { if ($(this).val() === '') $(this).val('0'); });
-        // 2. CONSIGNMENT LOGIC
+
         $('#is-consigment').change(function() {
             var isConsign = $(this).is(':checked');
             if(isConsign) {
@@ -554,7 +509,7 @@ $sb_number_auto = "SB-$tahun_ini/$bulan_ini/$seq_str";
                 $('#target_by').val(null).trigger('change').prop('disabled', false);
             }
         });
-        // 3. LOGIC CAPPING
+
         function updateCappingLogic() {
             var isCapping = $('#capping-promo').is(':checked');
             var targetBy = $('#target_by').val();
@@ -574,7 +529,7 @@ $sb_number_auto = "SB-$tahun_ini/$bulan_ini/$seq_str";
             }
         }
         $('#capping-promo, #target_by').change(updateCappingLogic);
-        // 4. HIERARCHY LOGIC
+
         $('#product_type').change(function() {
             var val = $(this).val();
             if(val && val.length > 0) { $('#box-category').slideDown(); } 
@@ -591,13 +546,13 @@ $sb_number_auto = "SB-$tahun_ini/$bulan_ini/$seq_str";
             if($(this).val() && $(this).val().length > 0) { $('#box-item').slideDown(); } 
             else { $('#box-item').slideUp(); }
         });
-        // 5. MIX ITEM LOGIC
+
         $('#is-mix-item').change(function() {
             var label = $('#label-mandatory');
             if($(this).is(':checked')) { label.html('Have / Must Buy (Optional)'); } 
             else { label.html('Have / Must Buy (Mandatory Item) <span class="asterisk">*</span>'); }
         });
-        // 6. PROMO TYPE LOGIC
+
         $('#pilihan-promo').change(function() {
             var val = $(this).val();
             if(val == '4' || val == '20') { 
@@ -606,7 +561,7 @@ $sb_number_auto = "SB-$tahun_ini/$bulan_ini/$seq_str";
                 $('.col-discount').show(); $('#div-kelipatan').hide();
             }
         });
-        // 7. TARGET TABLE LOGIC
+
         function toggleTableTarget() {
             var targetBy = $('#target_by').val();
             if(!targetBy) return;
@@ -620,11 +575,12 @@ $sb_number_auto = "SB-$tahun_ini/$bulan_ini/$seq_str";
         }
         $('#target_by').change(toggleTableTarget);
         toggleTableTarget();
-        // 8. CUSTOMER TABLE LOGIC
+
         var t = $('#table-customer').DataTable({
             "paging": false, "info": false, "searching": false,
             "language": { "emptyTable": "No customers added yet." }
         });
+
         window.addCustomerRow = function() {
             var code = $('#input_cust_code').val();
             var name = $('#input_cust_name').val();
@@ -634,12 +590,14 @@ $sb_number_auto = "SB-$tahun_ini/$bulan_ini/$seq_str";
             var minQty = $('input[name="jml_min_qty[]"]').eq(0).val() || 0;
             var minAmt = $('input[name="jml_min_amount[]"]').eq(0).val() || 0;
             var uom    = $('#uom').val() || '-';
+
             if(code === "" || name === "") { alert("Please fill Code and Name!"); return; }
             if(isCapping) {
                 var targetBy = $('#target_by').val();
                 if(targetBy === 'qty' && (!qty || qty == 0)) { alert("Target Qty is required when Capping is ON"); return; }
                 if(targetBy === 'amount' && (!amt || amt == '0')) { alert("Target Amount is required when Capping is ON"); return; }
             }
+
             t.row.add([
                 1, 
                 code + '<input type="hidden" name="cust_code[]" value="'+code+'">', 
@@ -651,14 +609,17 @@ $sb_number_auto = "SB-$tahun_ini/$bulan_ini/$seq_str";
                 '<div class="text-center">' + uom + '<input type="hidden" name="cust_uom[]" value="'+uom+'"></div>',
                 '<div class="text-center"><button type="button" class="btn btn-xs btn-danger text-white remove-row"><i class="fas fa-trash"></i></button></div>'
             ]).draw(false);
+
             $('#input_cust_code').val(''); $('#input_cust_name').val('');
             $('#input_target_qty').val(''); $('#input_target_amt').val('0');
             updateRowNumbers();
         };
+
         $('#table-customer tbody').on('click', '.remove-row', function () {
             t.row($(this).parents('tr')).remove().draw();
             updateRowNumbers();
         });
+
         function updateRowNumbers() {
             t.on('order.dt search.dt', function () {
                 t.column(0, {search:'applied', order:'applied'}).nodes().each( function (cell, i) {
@@ -666,11 +627,13 @@ $sb_number_auto = "SB-$tahun_ini/$bulan_ini/$seq_str";
                 });
             }).draw();
         }
+
         updateCappingLogic();
-        // 9. LOGIC MODAL SUMMARY
+
         $('#btn-pre-submit').click(function() {
             var form = $('#form-sb')[0];
             if(form.checkValidity() === false) { form.reportValidity(); return; }
+            
             var sbNo    = $('input[name="SalesBriefNo"]').val();
             var name    = $('input[name="SalesBriefName"]').val();
             var start   = $('input[name="fromdate"]').val();
@@ -683,6 +646,7 @@ $sb_number_auto = "SB-$tahun_ini/$bulan_ini/$seq_str";
             if(!$('#target_by').val()) calc = '-';
             var isCap   = $('#capping-promo').is(':checked') ? '<span class="text-success">ON</span>' : '<span class="text-secondary">OFF</span>';
             var storeCount = $('#table-customer tbody tr').length;
+
             $('#sum-no').text(sbNo);
             $('#sum-name').text(name);
             $('#sum-start').text(start);
@@ -693,8 +657,10 @@ $sb_number_auto = "SB-$tahun_ini/$bulan_ini/$seq_str";
             $('#sum-store-count').text(storeCount);
             $('#sum-calc').text(calc.split('(')[0]);
             $('#sum-capping').html(isCap);
+
             $('#modal-summary').modal('show');
         });
+
         $('#btn-confirm-submit').click(function() {
             $('#form-sb').submit(); 
         });
