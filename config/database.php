@@ -1,4 +1,5 @@
 <?php
+// config/database.php
 // Mencegah akses langsung ke file ini
 if (basename($_SERVER['PHP_SELF']) === basename(__FILE__)) { die('Akses Ditolak!'); }
 
@@ -30,7 +31,7 @@ class Database {
         $this->conn = null;
         // Ambil credential dari environment variable
         $this->host = getenv('DB_HOST') ?: 'localhost';
-        $this->db_name = getenv('DB_NAME') ?: 'portofolio_db'; // Pastikan ini sesuai nama DB di .env
+        $this->db_name = getenv('DB_NAME') ?: 'portofolio_db'; 
         $this->username = getenv('DB_USER') ?: 'root';
         $this->password = getenv('DB_PASS') ?: '';
 
@@ -40,14 +41,13 @@ class Database {
             
             $this->conn = new PDO($dsn, $this->username, $this->password);
             $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-            $this->conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC); // Tambahan biar rapi
+            $this->conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
             
             // 🔥 FIX EMOJI: Paksa command set names
             $this->conn->exec("set names utf8mb4");
             
         } catch(PDOException $exception) {
             error_log("Connection error: " . $exception->getMessage());
-            // Die diam-diam biar gak bocor path error ke user
             die("Gagal Konek: " . $exception->getMessage());
         }
         return $this->conn;
@@ -55,10 +55,42 @@ class Database {
 }
 
 // ===========================================
-// 🔥 PERBAIKAN DI SINI:
-// Kita instansiasi class-nya, lalu simpan di variabel $pdo
-// Supaya 'admin.php' bisa ngenalin dia.
+// 🔥 INSTANSIASI GLOBAL ($pdo)
 // ===========================================
 $database = new Database();
-$pdo = $database->connect(); // DULU $db, SEKARANG $pdo
+$pdo = $database->connect();
+
+// ============================================================
+// 🔥 HELPER FUNCTIONS (INI YANG TADI HILANG BOS!)
+// ============================================================
+
+// 1. safeQuery: Eksekusi query dengan aman (Prepared Statement)
+if (!function_exists('safeQuery')) {
+    function safeQuery($pdo, $sql, $params = []) {
+        try {
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+            return $stmt;
+            } catch (PDOException $e) {
+            // Tampilkan error lengkap ke layar biar ketahuan salahnya dimana
+            die("🔥 SQL ERROR: " . $e->getMessage()); 
+        }
+    }
+}
+
+// 2. safeGetOne: Ambil 1 baris data (fetch assoc)
+if (!function_exists('safeGetOne')) {
+    function safeGetOne($pdo, $sql, $params = []) {
+        $stmt = safeQuery($pdo, $sql, $params);
+        return $stmt->fetch();
+    }
+}
+
+// 3. safeGetAll: Ambil semua data (fetchAll)
+if (!function_exists('safeGetAll')) {
+    function safeGetAll($pdo, $sql, $params = []) {
+        $stmt = safeQuery($pdo, $sql, $params);
+        return $stmt->fetchAll();
+    }
+}
 ?>

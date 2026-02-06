@@ -1,85 +1,78 @@
 <?php
-// 🔥 SESSION KHUSUS WMS
+// apps/wms/auth.php
 session_name("WMS_APP_SESSION");
 session_start();
 
+require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../config/security.php';
-include 'koneksi.php'; 
 
-// Helper IP
-function getUserIP() {
-    return $_SERVER['HTTP_CLIENT_IP'] ?? $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'];
-}
-
+// --- PROSES LOGIN ---
 if(isset($_POST['btn_login'])) {
-    if (!verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+    
+    // 1. Cek CSRF Token
+    if (!verifyCSRFToken()) {
         header("Location: login.php?err=csrf");
         exit();
     }
     
-    $user = sanitizeInput($_POST['username'] ?? '');
-    $pass = $_POST['password'] ?? '';
+    // 2. Sanitasi Input
+    $user = sanitizeInput($_POST['username']);
+    $pass = $_POST['password']; // Password tidak perlu disanitasi (biar karakter unik bisa masuk)
 
     if (empty($user) || empty($pass)) {
         header("Location: login.php?err=empty");
         exit();
     }
     
-    // Rate limiting
+    // 3. Rate Limiting (Mencegah Brute Force)
     if (!checkRateLimit($user, 5, 300)) {
         logSecurityEvent('Rate limit exceeded for WMS user: ' . $user, 'WARNING');
         header("Location: login.php?err=ratelimit");
         exit();
     }
 
-    // Pakai Prepared Statement (Anti SQL Injection)
-    $stmt = $conn->prepare("SELECT * FROM wms_users WHERE username = ?");
-    $stmt->bind_param("s", $user);
-    $stmt->execute();
-    $result = $stmt->get_result();
+    // 4. Cek User di Database (PDO)
+    $stmt = $pdo->prepare("SELECT * FROM wms_users WHERE username = ?");
+    $stmt->execute([$user]);
+    $data = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if($result->num_rows > 0) {
-        $data = $result->fetch_assoc();
-        $db_pass = $data['password'];
+    if ($data) {
         $login_sukses = false;
 
-        // Cek Password (Prioritas Bcrypt, fallback MD5)
-        if (password_verify($pass, $db_pass)) {
+        // Cek Password (Prioritas Bcrypt, Fallback ke MD5 untuk auto-update)
+        if (verifyPassword($pass, $data['password'])) {
             $login_sukses = true;
-        } elseif (md5($pass) === $db_pass) {
-            // Auto-upgrade MD5 ke Bcrypt
+        } elseif (md5($pass) === $data['password']) {
+            // Jika masih MD5, update ke Bcrypt sekarang juga
             $new_hash = hashPassword($pass);
-            $stmt_upgrade = $conn->prepare("UPDATE wms_users SET password = ? WHERE user_id = ?");
-            $stmt_upgrade->bind_param("si", $new_hash, $data['user_id']);
-            $stmt_upgrade->execute();
-            $login_sukses = true; // Match MD5
+            $upd = $pdo->prepare("UPDATE wms_users SET password = ? WHERE user_id = ?");
+            $upd->execute([$new_hash, $data['user_id']]);
+            $login_sukses = true;
         }
 
         if ($login_sukses) {
-            regenerateSessionId();
+            // Regenerate Session ID untuk keamanan
+            session_regenerate_id(true);
             
-            // CATAT IP dengan prepared statement
-            $ip = getUserIP();
-            $uid = $data['user_id'];
-            $stmt_update = $conn->prepare("UPDATE wms_users SET login_count = login_count + 1, last_login = NOW(), last_ip = ? WHERE user_id = ?");
-            $stmt_update->bind_param("si", $ip, $uid);
-            $stmt_update->execute();
+            // Catat Waktu & IP Login Terakhir
+            $ip = $_SERVER['REMOTE_ADDR'];
+            $log = $pdo->prepare("UPDATE wms_users SET login_count = login_count + 1, last_login = NOW(), last_ip = ? WHERE user_id = ?");
+            $log->execute([$ip, $data['user_id']]);
 
-            // SET SESSION
+            // Set Session Variables
             $_SESSION['wms_login']    = true;
             $_SESSION['wms_user_id']  = $data['user_id'];
             $_SESSION['wms_fullname'] = $data['fullname'];
             $_SESSION['wms_role']     = $data['role'];
             $_SESSION['wms_count']    = $data['login_count'] + 1;
 
-            logSecurityEvent('WMS user logged in: ' . $user, 'INFO');
+            logSecurityEvent('WMS Login Success: ' . $user);
             header("Location: index.php");
             exit();
         }
     }
     
-    logSecurityEvent('Failed WMS login attempt for user: ' . $user, 'WARNING');
-    // Login Gagal
+    logSecurityEvent('WMS Login Failed: ' . $user, 'WARNING');
     header("Location: login.php?err=1");
     exit();
 }

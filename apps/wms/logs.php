@@ -1,4 +1,11 @@
-<?php include '../../koneksi.php'; ?>
+<?php 
+// apps/wms/logs.php (PDO FULL)
+session_name("WMS_APP_SESSION");
+session_start();
+
+if(!isset($_SESSION['wms_login'])) { exit("Akses Ditolak."); }
+require_once __DIR__ . '/../../config/database.php';
+?>
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -27,23 +34,13 @@
         <div class="card-body p-0">
             <table class="table table-hover mb-0 align-middle">
                 <thead class="table-light">
-                    <tr>
-                        <th>Time</th>
-                        <th>User</th>
-                        <th>Module</th>
-                        <th>Action</th>
-                        <th>Description</th>
-                        <th>IP Addr</th>
-                    </tr>
+                    <tr><th>Time</th><th>User</th><th>Module</th><th>Action</th><th>Description</th><th>IP Addr</th></tr>
                 </thead>
                 <tbody>
                     <?php 
-                    $stmt = $conn->prepare("SELECT * FROM wms_system_logs ORDER BY log_id DESC LIMIT 50");
-                    $stmt->execute();
-                    $q = $stmt->get_result();
-                    if(mysqli_num_rows($q) > 0) {
-                        while($row = mysqli_fetch_assoc($q)):
-                            // Styling border kiri biar gampang scanning mata
+                    $stmt = $pdo->query("SELECT * FROM wms_system_logs ORDER BY log_id DESC LIMIT 50");
+                    if($stmt->rowCount() > 0) {
+                        while($row = $stmt->fetch(PDO::FETCH_ASSOC)):
                             $class = "";
                             if($row['action_type'] == 'CREATE') $class = "log-create";
                             if($row['action_type'] == 'DELETE') $class = "log-delete";
@@ -51,23 +48,22 @@
                     ?>
                     <tr class="<?= $class ?>">
                         <td class="small text-muted"><?= $row['log_date'] ?></td>
-                        <td class="fw-bold"><?= $row['user_id'] ?></td>
-                        <td><span class="badge bg-light text-dark border"><?= $row['module'] ?></span></td>
+                        <td class="fw-bold"><?= htmlspecialchars($row['user_id']) ?></td>
+                        <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($row['module']) ?></span></td>
                         <td>
                             <?php 
                             if($row['action_type'] == 'CREATE') echo '<span class="text-success fw-bold">CREATE</span>';
                             elseif($row['action_type'] == 'DELETE') echo '<span class="text-danger fw-bold">DELETE</span>';
                             elseif($row['action_type'] == 'UPDATE') echo '<span class="text-warning fw-bold text-dark">UPDATE</span>';
-                            else echo $row['action_type'];
+                            else echo htmlspecialchars($row['action_type']);
                             ?>
                         </td>
-                        <td><?= $row['description'] ?></td>
-                        <td class="small text-monospace text-muted"><?= $row['ip_address'] ?></td>
+                        <td><?= htmlspecialchars($row['description']) ?></td>
+                        <td class="small text-monospace text-muted"><?= htmlspecialchars($row['ip_address']) ?></td>
                     </tr>
                     <?php endwhile; 
-                        $stmt->close();
                     } else {
-                        echo "<tr><td colspan='6' class='text-center py-4'>Belum ada aktivitas tercatat. Coba lakukan perubahan di Master Data.</td></tr>";
+                        echo "<tr><td colspan='6' class='text-center py-4'>Belum ada aktivitas tercatat.</td></tr>";
                     }
                     ?>
                 </tbody>
@@ -75,6 +71,5 @@
         </div>
     </div>
 </div>
-
 </body>
 </html>

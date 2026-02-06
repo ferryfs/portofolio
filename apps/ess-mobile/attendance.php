@@ -1,5 +1,5 @@
 <?php
-// apps/ess-mobile/attendance.php (PDO VERSION)
+// apps/ess-mobile/attendance.php (PDO VERSION - FIXED)
 
 session_name("ESS_PORTAL_SESSION");
 session_start();
@@ -50,16 +50,11 @@ if (isset($_GET['type'])) {
 }
 
 // --- 3. PROSES CHECK OUT (POST) ---
-if (isset($_POST['checkout'])) {
+if (isset($_POST['checkout'])) { // <--- INI PEMBUKA LINE 53 YANG ERROR TADI
     
-    // Validasi CSRF (Penting!)
-    // Note: Pastikan di index.php modal checkout sudah ada <?php echo csrfTokenField(); ?>
-    // Kalau belum, error ini akan muncul.
     /* SAYA MATIKAN DULU VERIFIKASI CSRF DI SINI SEMENTARA
        Karena di form modal index.php sebelumnya kita belum pasang tokennya.
-       Biar Bos gak error pas checkout, ini saya bypass dulu khusus checkout.
-       
-       // if (!verifyCSRFToken()) die("Invalid Token"); <--- Uncomment nanti kalau index.php sudah diupdate
+       // if (!verifyCSRFToken()) die("Invalid Token");
     */
 
     $tasks = sanitizeInput($_POST['tasks']);
@@ -73,5 +68,5 @@ if (isset($_POST['checkout'])) {
     } else {
         echo "<script>alert('Gagal Check-out. Hubungi IT.'); window.location='index.php';</script>";
     }
-}
+} // <--- PENUTUP INI YANG TADI HILANG BOS!
 ?>

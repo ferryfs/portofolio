@@ -1,93 +1,89 @@
 <?php
-// 🔥 1. PASANG SESSION DI PALING ATAS
+// apps/wms/task_confirm.php (PDO FULL)
+
 session_name("WMS_APP_SESSION");
 session_start();
 
-// 🔥 2. CEK KEAMANAN (Opsional tapi PENTING)
-// Biar orang gak bisa buka file ini langsung lewat URL tanpa login
 if(!isset($_SESSION['wms_login'])) {
     exit("Akses Ditolak. Silakan Login.");
 }
-include '../../koneksi.php';
+
+require_once __DIR__ . '/../../config/database.php';
+require_once 'koneksi.php'; 
 
 // 1. CEK ID
 if(!isset($_GET['id']) || empty($_GET['id'])) {
-    header("Location: task.php?err=noid"); // Balik kalau ga ada ID
+    header("Location: task.php?err=noid"); 
     exit();
 }
 
-$id = $_GET['id']; // ID Warehouse Task
+$id = sanitizeInt($_GET['id']); // Tanum (Task Number)
 
-// 2. AMBIL DATA TASK
-$q = mysqli_query($conn, "
+// 2. AMBIL DATA TASK (PDO)
+$stmt = $pdo->prepare("
     SELECT t.*, p.product_code, p.product_name 
     FROM wms_warehouse_tasks t 
     JOIN wms_products p ON t.product_uuid = p.product_uuid 
-    WHERE t.tanum = '$id'
+    WHERE t.tanum = ?
 ");
+$stmt->execute([$id]);
+$d = $stmt->fetch(PDO::FETCH_ASSOC);
 
-// Cek apakah data ketemu
-if(mysqli_num_rows($q) == 0) {
-    die("Task ID tidak ditemukan.");
-}
-
-$d = mysqli_fetch_assoc($q);
+if(!$d) die("Task ID tidak ditemukan.");
 
 // 3. PROSES KONFIRMASI (POST)
 if(isset($_POST['confirm_task'])) {
     $actual_bin = $_POST['actual_bin']; 
     $remarks    = $_POST['remarks'];
     
-    // --- LOGIC UPDATE STOK (QUANTS) ---
-    // Cek tipe proses: PUTAWAY (Nambah) atau PICKING (Kurang)
     $type = $d['process_type'];
     $prod = $d['product_uuid'];
     $qty  = $d['qty'];
-    $batch = isset($d['batch']) ? $d['batch'] : '-';
-    $hu   = isset($d['hu_id']) ? $d['hu_id'] : '';
+    $batch = $d['batch'] ?? '-';
+    $hu   = $d['hu_id'] ?? '';
 
-    $success_stock = false;
+    try {
+        $pdo->beginTransaction();
 
-    if($type == 'PUTAWAY') {
-        // Insert Stok Baru
-        $sql_stock = "INSERT INTO wms_quants (product_uuid, lgpla, batch, qty, gr_date, hu_id) 
-                      VALUES ('$prod', '$actual_bin', '$batch', '$qty', NOW(), '$hu')";
-        if(mysqli_query($conn, $sql_stock)) $success_stock = true;
-    
-    } else if($type == 'PICKING') {
-        // Kurangi Stok dari Source Bin
-        $src_bin = $d['source_bin'];
-        // Cari stok yg cocok
-        $q_cek = mysqli_query($conn, "SELECT quant_id, qty FROM wms_quants WHERE product_uuid='$prod' AND lgpla='$src_bin' LIMIT 1");
-        $d_cek = mysqli_fetch_assoc($q_cek);
+        if($type == 'PUTAWAY') {
+            // INSERT STOK BARU
+            $sql = "INSERT INTO wms_quants (product_uuid, lgpla, batch, qty, gr_date, hu_id) 
+                    VALUES (?, ?, ?, ?, NOW(), ?)";
+            safeQuery($pdo, $sql, [$prod, $actual_bin, $batch, $qty, $hu]);
         
-        if($d_cek) {
-            $new_qty = $d_cek['qty'] - $qty;
-            $qid = $d_cek['quant_id'];
-            if($new_qty <= 0) mysqli_query($conn, "DELETE FROM wms_quants WHERE quant_id='$qid'");
-            else mysqli_query($conn, "UPDATE wms_quants SET qty='$new_qty' WHERE quant_id='$qid'");
-            $success_stock = true;
-        } else {
-            $error = "Stok fisik di bin $src_bin tidak ditemukan!";
-        }
-    }
-
-    // --- UPDATE TASK STATUS ---
-    if($success_stock) {
-        $sql_update = "UPDATE wms_warehouse_tasks SET 
-            status = 'CONFIRMED', 
-            dest_bin = '$actual_bin', 
-            updated_at = NOW() 
-            WHERE tanum = '$id'";
+        } else if($type == 'PICKING') {
+            // KURANGI STOK SOURCE
+            $src_bin = $d['source_bin'];
+            $stmt_cek = $pdo->prepare("SELECT quant_id, qty FROM wms_quants WHERE product_uuid=? AND lgpla=? LIMIT 1");
+            $stmt_cek->execute([$prod, $src_bin]);
+            $d_cek = $stmt_cek->fetch(PDO::FETCH_ASSOC);
             
-        if(mysqli_query($conn, $sql_update)) {
-            header("Location: task.php?msg=success"); // Redirect ke task.php
-            exit();
-        } else {
-            $error = "Gagal update task: " . mysqli_error($conn);
+            if($d_cek) {
+                $new_qty = $d_cek['qty'] - $qty;
+                $qid = $d_cek['quant_id'];
+                
+                if($new_qty <= 0) safeQuery($pdo, "DELETE FROM wms_quants WHERE quant_id=?", [$qid]);
+                else safeQuery($pdo, "UPDATE wms_quants SET qty=? WHERE quant_id=?", [$new_qty, $qid]);
+                
+                // Tambah stok ke GI-ZONE (Virtual Bin buat Shipping)
+                safeQuery($pdo, "INSERT INTO wms_quants (product_uuid, lgpla, batch, qty, gr_date, hu_id) VALUES (?, 'GI-ZONE', ?, ?, NOW(), ?)", 
+                [$prod, $batch, $qty, $hu]);
+
+            } else {
+                throw new Exception("Stok fisik di bin $src_bin tidak ditemukan!");
+            }
         }
-    } else {
-        if(!isset($error)) $error = "Gagal update stok database: " . mysqli_error($conn);
+
+        // UPDATE STATUS TASK
+        safeQuery($pdo, "UPDATE wms_warehouse_tasks SET status='CONFIRMED', dest_bin=?, updated_at=NOW() WHERE tanum=?", [$actual_bin, $id]);
+
+        $pdo->commit();
+        header("Location: task.php?msg=success");
+        exit();
+
+    } catch(Exception $e) {
+        $pdo->rollBack();
+        $error = "Error: " . $e->getMessage();
     }
 }
 ?>
@@ -147,9 +143,8 @@ if(isset($_POST['confirm_task'])) {
                                 <select name="actual_bin" class="form-select form-select-lg fw-bold border-success">
                                     <option value="<?= $d['dest_bin'] ?>" selected><?= $d['dest_bin'] ?> (Suggested)</option>
                                     <?php 
-                                    // Opsi pindah rak
-                                    $b = mysqli_query($conn, "SELECT lgpla FROM wms_storage_bins WHERE lgtyp='0010' LIMIT 10");
-                                    while($bin = mysqli_fetch_assoc($b)) {
+                                    $b = $pdo->query("SELECT lgpla FROM wms_storage_bins WHERE lgtyp='0010' LIMIT 10");
+                                    while($bin = $b->fetch(PDO::FETCH_ASSOC)) {
                                         echo "<option value='{$bin['lgpla']}'>{$bin['lgpla']}</option>";
                                     }
                                     ?>

@@ -1,46 +1,71 @@
 <?php
-// 🔥 1. PASANG SESSION DI PALING ATAS
+// apps/wms/shipping.php (PDO FULL)
+
 session_name("WMS_APP_SESSION");
 session_start();
 
-// 🔥 2. CEK KEAMANAN (Opsional tapi PENTING)
-// Biar orang gak bisa buka file ini langsung lewat URL tanpa login
 if(!isset($_SESSION['wms_login'])) {
     exit("Akses Ditolak. Silakan Login.");
 }
-include '../../koneksi.php';
+
+require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/../../config/security.php';
+require_once 'koneksi.php'; 
 
 // LOGIC POST GOODS ISSUE (FINALISASI PENGIRIMAN)
 if(isset($_POST['post_gi'])) {
-    $so_number = $_POST['so_number'];
+    if (!verifyCSRFToken()) die("Token Invalid");
+
+    $so_number = sanitizeInput($_POST['so_number']);
+    $user      = $_SESSION['wms_fullname'];
     
-    // 1. Update Status SO jadi COMPLETED
-    mysqli_query($conn, "UPDATE wms_so_header SET status='COMPLETED' WHERE so_number='$so_number'");
-    
-    // 2. HAPUS STOK DARI GI-ZONE (BARANG KELUAR FISIK)
-    // Kita cari barang-barang yang ada di SO ini
-    $q_items = mysqli_query($conn, "SELECT product_uuid, qty_ordered FROM wms_so_items WHERE so_number='$so_number'");
-    
-    while($item = mysqli_fetch_assoc($q_items)) {
-        $prod = $item['product_uuid'];
-        $qty  = $item['qty_ordered'];
+    try {
+        $pdo->beginTransaction();
+
+        // 1. Update Status SO jadi COMPLETED
+        safeQuery($pdo, "UPDATE wms_so_header SET status='COMPLETED' WHERE so_number=?", [$so_number]);
         
-        // Hapus stok di GI-ZONE (FIFO: Hapus sembarang batch di zona itu)
-        // Note: Ini simplifikasi. Aslinya harus match HU/Batch.
-        $q_stok = mysqli_query($conn, "SELECT * FROM wms_quants WHERE lgpla='GI-ZONE' AND product_uuid='$prod' LIMIT 1");
-        $d_stok = mysqli_fetch_assoc($q_stok);
+        // 2. HAPUS STOK DARI GI-ZONE (FISIK KELUAR GUDANG)
+        // Ambil item yang dipesan
+        $stmt_items = $pdo->prepare("SELECT product_uuid, qty_ordered FROM wms_so_items WHERE so_number=?");
+        $stmt_items->execute([$so_number]);
+        $items = $stmt_items->fetchAll(PDO::FETCH_ASSOC);
         
-        if($d_stok) {
-            $sisa = $d_stok['qty'] - $qty;
-            if($sisa <= 0) {
-                mysqli_query($conn, "DELETE FROM wms_quants WHERE quant_id='{$d_stok['quant_id']}'");
-            } else {
-                mysqli_query($conn, "UPDATE wms_quants SET qty='$sisa' WHERE quant_id='{$d_stok['quant_id']}'");
+        foreach($items as $item) {
+            $prod = $item['product_uuid'];
+            $qty  = $item['qty_ordered'];
+            
+            // FIFO Simplified: Ambil stok di GI-ZONE (hasil picking)
+            // Kurangi sampai habis
+            $stmt_stok = $pdo->prepare("SELECT * FROM wms_quants WHERE lgpla='GI-ZONE' AND product_uuid=? ORDER BY gr_date ASC");
+            $stmt_stok->execute([$prod]);
+            
+            $sisa_butuh = $qty;
+
+            while ($sisa_butuh > 0 && $d_stok = $stmt_stok->fetch(PDO::FETCH_ASSOC)) {
+                $qty_di_bin = $d_stok['qty'];
+                
+                if ($qty_di_bin <= $sisa_butuh) {
+                    // Stok di bin ini habis semua
+                    safeQuery($pdo, "DELETE FROM wms_quants WHERE quant_id=?", [$d_stok['quant_id']]);
+                    $sisa_butuh -= $qty_di_bin;
+                } else {
+                    // Stok di bin ini sisa
+                    $sisa_stok = $qty_di_bin - $sisa_butuh;
+                    safeQuery($pdo, "UPDATE wms_quants SET qty=? WHERE quant_id=?", [$sisa_stok, $d_stok['quant_id']]);
+                    $sisa_butuh = 0;
+                }
             }
         }
+        
+        $pdo->commit();
+        catat_log($pdo, $user, 'PGI', 'OUTBOUND', "Post Goods Issue SO: $so_number");
+        $msg = "✅ <b>PGI Success!</b> SO $so_number telah closed. Stok resmi berkurang.";
+
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        $msg = "Error PGI: " . $e->getMessage();
     }
-    
-    $msg = "✅ <b>PGI Success!</b> SO $so_number telah closed. Stok resmi berkurang dari pembukuan.";
 }
 ?>
 
@@ -72,49 +97,24 @@ if(isset($_POST['post_gi'])) {
                         <th>SO Number</th>
                         <th>Customer</th>
                         <th>Delivery Date</th>
-                        <th class="text-center">Picking Status</th>
+                        <th class="text-center">Status</th>
                         <th>Action</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php 
                     // Tampilkan SO yang masih OPEN (Belum di PGI)
-                    $q_so = mysqli_query($conn, "SELECT * FROM wms_so_header WHERE status != 'COMPLETED' ORDER BY so_number ASC");
+                    $stmt_so = $pdo->query("SELECT * FROM wms_so_header WHERE status != 'COMPLETED' ORDER BY so_number ASC");
                     
-                    if(mysqli_num_rows($q_so) > 0) {
-                        while($row = mysqli_fetch_assoc($q_so)):
-                            $so = $row['so_number'];
-                            
-                            // Hitung Progress Picking
-                            // Total Item di SO
-                            $q1 = mysqli_query($conn, "SELECT SUM(qty_ordered) as total FROM wms_so_items WHERE so_number='$so'");
-                            $d1 = mysqli_fetch_assoc($q1);
-                            $total_order = $d1['total'] ?? 0;
-
-                            // Total Item yang sudah di-confirm Task-nya (Sudah Picking)
-                            // Kita cek Task Picking yang CONFIRMED untuk SO ini
-                            $q2 = mysqli_query($conn, "
-                                SELECT SUM(qty) as picked 
-                                FROM wms_warehouse_tasks 
-                                WHERE process_type='PICKING' AND status='CONFIRMED' AND dest_bin LIKE '%$so%'
-                            ");
-                            // Note: Logic dest_bin LIKE SO ini butuh penyesuaian di outbound.php nanti kalau mau presisi.
-                            // Untuk sekarang kita pake asumsi simple: Cek stok di GI-ZONE yang relevan.
-                            
-                            // ALTERNATIF LOGIC PICKING STATUS:
-                            // Cek apakah ada Task Picking yang masih OPEN untuk SO ini?
-                            $q3 = mysqli_query($conn, "SELECT COUNT(*) as pending FROM wms_warehouse_tasks WHERE process_type='PICKING' AND status='OPEN' AND dest_bin LIKE '%$so%'");
-                            // (Perlu update outbound.php sedikit biar kolom dest_bin atau source nyimpen SO Number, tapi skip dulu buat simplifikasi)
-                            
-                            // SIMPLIFIKASI STATUS:
-                            // Kita anggap "Ready to Ship" kalau user klik tombol.
+                    if($stmt_so->rowCount() > 0) {
+                        while($row = $stmt_so->fetch(PDO::FETCH_ASSOC)):
                     ?>
                     <tr>
                         <td class="fw-bold text-primary"><?= $row['so_number'] ?></td>
                         <td><?= $row['customer_name'] ?></td>
                         <td><?= $row['delivery_date'] ?></td>
                         <td class="text-center">
-                            <span class="badge bg-warning text-dark">In Progress</span>
+                            <span class="badge bg-warning text-dark">Ready to Ship</span>
                         </td>
                         <td>
                             <div class="btn-group">
@@ -123,6 +123,7 @@ if(isset($_POST['post_gi'])) {
                                 </a>
                                 
                                 <form method="POST" onsubmit="return confirm('Yakin Post GI? Stok akan berkurang permanen.');">
+                                    <?php echo csrfTokenField(); ?>
                                     <input type="hidden" name="so_number" value="<?= $row['so_number'] ?>">
                                     <button type="submit" name="post_gi" class="btn btn-sm btn-success ms-1">
                                         <i class="bi bi-box-arrow-right"></i> Post GI

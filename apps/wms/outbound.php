@@ -1,58 +1,78 @@
 <?php
-// 🔥 1. PASANG SESSION DI PALING ATAS
+// apps/wms/outbound.php (PDO FULL)
+
 session_name("WMS_APP_SESSION");
 session_start();
 
-// 🔥 2. CEK KEAMANAN (Opsional tapi PENTING)
-// Biar orang gak bisa buka file ini langsung lewat URL tanpa login
 if(!isset($_SESSION['wms_login'])) {
     exit("Akses Ditolak. Silakan Login.");
 }
-include '../../koneksi.php';
+
+require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/../../config/security.php';
+require_once 'koneksi.php'; // Helper Log
 
 // --- LOGIC GENERATE PICKING TASK ---
 if(isset($_POST['create_picking'])) {
-    $so_num = $_POST['so_number'];
     
-    // Loop Item dari Form
-    $products = $_POST['product_uuid']; 
-    $qtys     = $_POST['qty_to_pick'];  
+    if (!verifyCSRFToken()) die("Security Alert: Invalid Token");
+
+    $so_num   = sanitizeInput($_POST['so_number']);
+    $user     = $_SESSION['wms_fullname'];
+    $products = $_POST['product_uuid'] ?? [];
+    $qtys     = $_POST['qty_to_pick'] ?? [];
 
     $task_count = 0;
-    $short_count = 0;
+    
+    try {
+        $pdo->beginTransaction();
 
-    foreach($products as $i => $prod_uuid) {
-        $qty_need = (float)$qtys[$i];
-        
-        if($qty_need > 0) {
-            // STRATEGI FIFO: Cari stok di wms_warehouse_tasks (yg status CONFIRMED & PUTAWAY)
-            // Atau kalau tabel wms_quants lu udah jalan, pake query lu yg lama.
-            // Disini gue pake simulasi Query Stok FIFO:
+        foreach($products as $i => $prod_uuid) {
+            $qty_need = (float)$qtys[$i];
             
-            // Misal kita ambil stok dari tabel Tasks (karena tabel quants mungkin blm sinkron)
-            // Kita cari Task Putaway yg sisa stoknya masih ada (logika sederhana)
-            // NAMUN, biar script lu jalan lancar, kita simplify:
-            // "Picking langsung ambil dari Bin A-01 (General) kalau stok cukup"
-            
-            $batch = "BATCH-AUTO"; 
-            $source_bin = "A-01-0" . rand(1,5); // Simulasi Bin Asal
-            $hu_id = "HU-OUT-" . rand(100,999);
+            if($qty_need > 0) {
+                // STRATEGI FIFO SIMPLIFIED:
+                // Cari stok tersedia (F1) di rak penyimpanan (Bin 0010)
+                // Di real case, ini query kompleks urut berdasarkan GR_DATE ASC (First In First Out)
+                $stmt_stock = $pdo->prepare("SELECT lgpla, batch, hu_id, qty FROM wms_quants 
+                                             WHERE product_uuid = ? AND stock_type = 'F1' AND lgpla != 'GI-ZONE' 
+                                             ORDER BY gr_date ASC LIMIT 1");
+                $stmt_stock->execute([$prod_uuid]);
+                $stok = $stmt_stock->fetch(PDO::FETCH_ASSOC);
 
-            // Create Task PICKING (Status OPEN) -> Picker harus ambil barang
-            $sql_task = "INSERT INTO wms_warehouse_tasks 
-            (process_type, product_uuid, batch, hu_id, source_bin, dest_bin, qty, status, created_at)
-            VALUES ('PICKING', '$prod_uuid', '$batch', '$hu_id', '$source_bin', 'GI-ZONE', '$qty_need', 'OPEN', NOW())";
-            
-            if(mysqli_query($conn, $sql_task)) {
-                $task_count++;
+                // Kalau stok ada, buat task dari Bin tersebut
+                if ($stok) {
+                    $source_bin = $stok['lgpla'];
+                    $batch      = $stok['batch'];
+                    $hu_id      = $stok['hu_id'];
+
+                    // Create Task PICKING (Status OPEN)
+                    // Source: Rak Asli, Dest: GI-ZONE (Area Loading)
+                    $sql_task = "INSERT INTO wms_warehouse_tasks 
+                                 (process_type, product_uuid, batch, hu_id, source_bin, dest_bin, qty, status, created_at)
+                                 VALUES ('PICKING', ?, ?, ?, ?, 'GI-ZONE', ?, 'OPEN', NOW())";
+                    
+                    safeQuery($pdo, $sql_task, [$prod_uuid, $batch, $hu_id, $source_bin, $qty_need]);
+                    $task_count++;
+                } else {
+                    // Kalau stok ga nemu (Ghost Stock di data SO tapi fisik ga ada)
+                    // Skip atau throw error (Disini kita skip aja biar ga rollback semua)
+                }
             }
         }
-    }
 
-    if($task_count > 0) {
-        $success = "Success! <b>$task_count Picking Tasks</b> created. Operator can start picking.";
-    } else {
-        $error = "Failed to create tasks. Check stock availability.";
+        $pdo->commit();
+        
+        if ($task_count > 0) {
+            catat_log($pdo, $user, 'CREATE', 'OUTBOUND', "Created Picking for SO: $so_num ($task_count Tasks)");
+            $success = "Success! <b>$task_count Picking Tasks</b> created. Operator can start picking.";
+        } else {
+            $error = "Gagal membuat task. Stok fisik mungkin tidak mencukupi (FIFO Check).";
+        }
+        
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        $error = "System Error: " . $e->getMessage();
     }
 }
 ?>
@@ -86,7 +106,6 @@ if(isset($_POST['create_picking'])) {
     <?php if(isset($error)) echo "<div class='alert alert-danger border-0 shadow-sm'><i class='bi bi-exclamation-triangle-fill me-2'></i> $error</div>"; ?>
 
     <div class="row g-4">
-        
         <div class="col-lg-8">
             <div class="card card-form h-100">
                 <div class="card-header bg-white py-3">
@@ -94,17 +113,19 @@ if(isset($_POST['create_picking'])) {
                 </div>
                 <div class="card-body p-4">
                     <form method="POST">
+                        <?php echo csrfTokenField(); ?>
+                        
                         <div class="mb-4">
                             <label class="form-label small fw-bold text-muted">Select Sales Order (SO)</label>
                             <select name="so_number" id="soSelect" class="form-select form-select-lg" required>
                                 <option value="">-- Choose Order --</option>
-                                <option value="SO-2023-001">SO-2023-001 - TOKO MAJU JAYA</option>
-                                <option value="SO-2023-002">SO-2023-002 - PT. SENTOSA ABADI</option>
                                 <?php 
-                                // $q_so = mysqli_query($conn, "SELECT * FROM wms_so_header WHERE status='OPEN'");
-                                // while($row = mysqli_fetch_assoc($q_so)) {
-                                //     echo "<option value='".$row['so_number']."'>".$row['so_number']." - ".$row['customer_name']."</option>";
-                                // }
+                                // Ambil SO yang statusnya OPEN (PDO)
+                                // Pastikan tabel wms_so_header ada
+                                $stmt = $pdo->query("SELECT * FROM wms_so_header WHERE status='OPEN'");
+                                while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                                    echo "<option value='".$row['so_number']."'>".$row['so_number']." - ".$row['customer_name']."</option>";
+                                }
                                 ?>
                             </select>
                         </div>
@@ -145,25 +166,23 @@ if(isset($_POST['create_picking'])) {
                 <div class="card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-hover mb-0 align-middle small">
-                            <thead class="bg-light">
-                                <tr>
-                                    <th class="ps-3">WT No</th>
-                                    <th>Item</th>
-                                    <th class="text-end pe-3">Qty</th>
-                                </tr>
-                            </thead>
+                            <thead class="bg-light"><tr><th class="ps-3">WT No</th><th>Item</th><th class="text-end pe-3">Qty</th></tr></thead>
                             <tbody>
                                 <?php 
-                                // Ambil 7 Task Picking Terakhir
-                                $q_pick = mysqli_query($conn, "SELECT t.*, p.product_code FROM wms_warehouse_tasks t JOIN wms_products p ON t.product_uuid = p.product_uuid WHERE t.process_type='PICKING' ORDER BY t.tanum DESC LIMIT 7");
-                                while($row = mysqli_fetch_assoc($q_pick)):
+                                // AMBIL 7 TASK PICKING TERAKHIR (PDO)
+                                $sql = "SELECT t.*, p.product_code 
+                                        FROM wms_warehouse_tasks t 
+                                        JOIN wms_products p ON t.product_uuid = p.product_uuid 
+                                        WHERE t.process_type='PICKING' ORDER BY t.tanum DESC LIMIT 7";
+                                $stmt = $pdo->query($sql);
+                                while($row = $stmt->fetch(PDO::FETCH_ASSOC)):
                                 ?>
                                 <tr>
                                     <td class="ps-3 text-primary fw-bold">#<?= $row['tanum'] ?></td>
                                     <td>
-                                        <div class="fw-bold text-dark"><?= $row['product_code'] ?></div>
+                                        <div class="fw-bold text-dark"><?= htmlspecialchars($row['product_code']) ?></div>
                                         <div class="text-muted" style="font-size:0.75em">
-                                            <?= $row['source_bin'] ?> <i class="bi bi-arrow-right"></i> GI
+                                            <?= htmlspecialchars($row['source_bin']) ?> <i class="bi bi-arrow-right"></i> GI
                                         </div>
                                     </td>
                                     <td class="text-end pe-3 fw-bold text-danger"><?= (float)$row['qty'] ?></td>
@@ -178,7 +197,6 @@ if(isset($_POST['create_picking'])) {
                 </div>
             </div>
         </div>
-
     </div>
 </div>
 
@@ -187,44 +205,46 @@ $(document).ready(function() {
     $('#soSelect').change(function() {
         var soNum = $(this).val();
         
-        // --- SIMULASI DATA DUMMY (Ganti dengan AJAX ke get_so_items.php) ---
         if(soNum) {
-            var mockData = [
-                { uuid: 'p1', code: 'MAT-A-01', desc: 'Raw Material A', qty_ord: 50, stock: 120, uom: 'KG' },
-                { uuid: 'p2', code: 'PROD-X-99', desc: 'Finished Good X', qty_ord: 10, stock: 5, uom: 'BOX' } // Stok kurang
-            ];
+            // AJAX ke get_so_items.php
+            $.getJSON('get_so_items.php', { so: soNum }, function(data) {
+                var rows = '';
+                if(data.length > 0) {
+                    $.each(data, function(i, item) {
+                        // Logic sederhana: Pick qty = Order qty, tapi ga boleh lebih dari stok
+                        var avail = parseFloat(item.stock_available);
+                        var order = parseFloat(item.qty_ordered);
+                        var pickQty = (avail >= order) ? order : avail;
+                        
+                        var statusBadge = (avail >= order) 
+                            ? '<span class="badge bg-success">Ready</span>' 
+                            : '<span class="badge bg-danger">Shortage</span>';
 
-            var rows = '';
-            $.each(mockData, function(i, item) {
-                var pickQty = (item.stock >= item.qty_ord) ? item.qty_ord : item.stock;
-                var statusBadge = (item.stock >= item.qty_ord) 
-                    ? '<span class="badge bg-success">Ready</span>' 
-                    : '<span class="badge bg-danger">Shortage</span>';
-
-                rows += `
-                <tr>
-                    <td>
-                        <div class="fw-bold">${item.code}</div>
-                        <small class="text-muted">${item.desc}</small>
-                        <input type="hidden" name="product_uuid[]" value="${item.uuid}">
-                    </td>
-                    <td class="text-center fw-bold">${item.qty_ord}</td>
-                    <td class="text-center text-muted">${item.stock}</td>
-                    <td class="text-center">
-                        <input type="number" name="qty_to_pick[]" class="form-control text-center fw-bold" value="${pickQty}" readonly>
-                    </td>
-                    <td class="text-center">${statusBadge}</td>
-                </tr>
-                `;
+                        rows += `
+                        <tr>
+                            <td>
+                                <div class="fw-bold text-dark">${item.product_code}</div>
+                                <small class="text-muted">${item.description}</small>
+                                <input type="hidden" name="product_uuid[]" value="${item.product_uuid}">
+                            </td>
+                            <td class="text-center fw-bold">${order}</td>
+                            <td class="text-center text-muted">${avail}</td>
+                            <td class="text-center">
+                                <input type="number" name="qty_to_pick[]" class="form-control text-center fw-bold" value="${pickQty}" readonly>
+                            </td>
+                            <td class="text-center">${statusBadge}</td>
+                        </tr>`;
+                    });
+                } else {
+                    rows = '<tr><td colspan="5" class="text-center text-muted py-4">No items found in this SO.</td></tr>';
+                }
+                $('#soItemsBody').html(rows);
             });
-            $('#soItemsBody').html(rows);
-            
         } else {
             $('#soItemsBody').html('<tr><td colspan="5" class="text-center text-muted py-4">Select Sales Order...</td></tr>');
         }
     });
 });
 </script>
-
 </body>
 </html>

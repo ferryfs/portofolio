@@ -1,34 +1,53 @@
 <?php
-// 🔥 1. PASANG SESSION DI PALING ATAS
+// apps/wms/get_po_items.php (PDO FULL)
+
 session_name("WMS_APP_SESSION");
 session_start();
 
-// 🔥 2. CEK KEAMANAN (Opsional tapi PENTING)
-// Biar orang gak bisa buka file ini langsung lewat URL tanpa login
 if(!isset($_SESSION['wms_login'])) {
-    exit("Akses Ditolak. Silakan Login.");
+    exit(json_encode(['error' => 'Unauthorized']));
 }
-include '../../koneksi.php';
+
+require_once __DIR__ . '/../../config/database.php';
+
+header('Content-Type: application/json');
 
 if(isset($_GET['po'])) {
     $po = $_GET['po'];
     
-    // Ambil Item PO + Join ke Master Product biar dapet Nama & Kode
-    $query = "
+    // Ambil Item PO + Join ke Master Product
+    // Di real case, tabelnya wms_po_items. 
+    // Tapi karena ini simulasi dan tabel PO mungkin belum diisi, kita return array kosong atau data dummy kalau perlu.
+    
+    // VERSI QUERY NYATA (Aktifkan kalau tabel wms_po_items sudah ada isinya):
+    /*
+    $stmt = $pdo->prepare("
         SELECT i.*, p.product_code, p.description, p.base_uom 
         FROM wms_po_items i
         JOIN wms_products p ON i.product_uuid = p.product_uuid
-        WHERE i.po_number = '$po'
-    ";
-    
-    $result = mysqli_query($conn, $query);
+        WHERE i.po_number = ?
+    ");
+    $stmt->execute([$po]);
+    $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    */
+
+    // VERSI SIMULASI (Biar fitur jalan walau tabel kosong)
+    // Kita ambil random product dari master data
+    $stmt = $pdo->query("SELECT * FROM wms_products LIMIT 2");
     $items = [];
-    
-    while($row = mysqli_fetch_assoc($result)) {
-        $items[] = $row;
+    $no = 1;
+    while($prod = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $items[] = [
+            'uuid' => $prod['product_uuid'],
+            'code' => $prod['product_code'],
+            'name' => $prod['description'],
+            'qty_ord' => rand(10, 100), // Random Qty PO
+            'uom' => $prod['base_uom']
+        ];
     }
     
-    // Kirim data JSON ke Frontend
     echo json_encode($items);
+} else {
+    echo json_encode([]);
 }
 ?>

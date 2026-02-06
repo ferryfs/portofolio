@@ -1,37 +1,23 @@
 <?php
-// SESUAIKAN DENGAN SERVER LO
-$host = "localhost";
-$user = "root";
-$pass = "";
-$db   = "portofolio_db"; // Ganti nama database lo kalo beda
+// apps/wms/koneksi.php
+// File ini menjembatani koneksi pusat dan fungsi log khusus WMS
 
-$conn = mysqli_connect($host, $user, $pass, $db);
+require_once __DIR__ . '/../../config/database.php'; // Load $pdo dari config pusat
 
-if (!$conn) {
-    die("Koneksi Database Gagal: " . mysqli_connect_error());
-}
-
-// ==========================================
 // FUNGSI PENCATAT LOG (AUDIT TRAIL)
-// ==========================================
-// Dipanggil setiap ada aksi penting (Create/Update/Delete)
-// ==========================================
-function catat_log($conn, $user, $type, $module, $desc) {
-    // Ambil IP Address User
-    $ip = $_SERVER['REMOTE_ADDR'];
-    
-    // Bersihkan input biar aman dari SQL Injection
-    $user   = mysqli_real_escape_string($conn, $user);
-    $type   = mysqli_real_escape_string($conn, $type);
-    $module = mysqli_real_escape_string($conn, $module);
-    $desc   = mysqli_real_escape_string($conn, $desc);
-    
-    // Insert ke tabel wms_system_logs
-    // Pastikan tabel wms_system_logs SUDAH DIBUAT di database lo!
-    $sql = "INSERT INTO wms_system_logs (log_date, user_id, action_type, module, description, ip_address) 
-            VALUES (NOW(), '$user', '$type', '$module', '$desc', '$ip')";
-            
-    // Eksekusi (Silent error, biar gak ganggu user kalau log gagal)
-    mysqli_query($conn, $sql);
+// Menggunakan PDO Prepared Statement biar aman
+function catat_log($pdo, $user, $type, $module, $desc) {
+    try {
+        $ip = $_SERVER['REMOTE_ADDR'];
+        
+        $sql = "INSERT INTO wms_system_logs (log_date, user_id, action_type, module, description, ip_address) 
+                VALUES (NOW(), ?, ?, ?, ?, ?)";
+        
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$user, $type, $module, $desc, $ip]);
+    } catch (PDOException $e) {
+        // Silent error: Jangan sampai error log bikin aplikasi macet
+        error_log("WMS Log Error: " . $e->getMessage());
+    }
 }
 ?>

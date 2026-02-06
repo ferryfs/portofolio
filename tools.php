@@ -1,6 +1,6 @@
 <?php
 // Ganti ini dengan password yang Bos mau
-$password_baru = "Operator123"; 
+$password_baru = "Tamu123"; 
 
 // Generate Hash yang Aman (Bcrypt)
 $hash = password_hash($password_baru, PASSWORD_DEFAULT);

@@ -1,33 +1,52 @@
 <?php
+// apps/tms/drivers.php (PDO FULL)
+
 session_name("TMS_APP_SESSION");
 session_start();
+
+require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/../../config/security.php';
+
 if (!isset($_SESSION['tms_status'])) { header("Location: index.php"); exit(); }
-include '../../koneksi.php';
 
-// TAMBAH DRIVER BARU
+// TAMBAH DRIVER BARU (PDO)
 if (isset($_POST['add_driver'])) {
-    $name  = $_POST['fullname'];
-    $phone = $_POST['phone'];
-    $sim   = $_POST['license_type'];
     
-    // Create dummy user login first (Anggap auto generate user)
-    // Di real case harusnya insert ke tms_users dulu, tp kita simplify langsung ke tms_drivers
-    // Kita pake user_id = 1 (dummy) biar gak error foreign key
-    $q = "INSERT INTO tms_drivers (user_id, vendor_id, phone, license_type) VALUES (1, 1, '$phone', '$sim')";
-    // Note: Karena struktur DB kita drivers link ke users. Kita akalin dikit buat display aja.
-    // Revisi: Kita insert user baru dulu.
-    
-    $username = strtolower(str_replace(' ', '', $name)) . rand(10,99);
-    mysqli_query($conn, "INSERT INTO tms_users (tenant_id, fullname, username, password, role) VALUES (1, '$name', '$username', 'driver123', 'driver')");
-    $new_user_id = mysqli_insert_id($conn);
+    // Validasi CSRF
+    if (!verifyCSRFToken()) { die("Invalid Token"); }
 
-    mysqli_query($conn, "INSERT INTO tms_drivers (user_id, vendor_id, phone, license_type) VALUES ('$new_user_id', 1, '$phone', '$sim')");
+    $name  = sanitizeInput($_POST['fullname']);
+    $phone = sanitizeInput($_POST['phone']);
+    $sim   = sanitizeInput($_POST['license_type']);
     
-    echo "<script>alert('Driver $name Berhasil Ditambah! Login: $username'); window.location='drivers.php';</script>";
+    // 1. Create User Login Otomatis
+    $username = strtolower(str_replace(' ', '', $name)) . rand(10,99);
+    $password = 'driver123';
+    $hash     = hashPassword($password); // Pakai helper security
+    
+    try {
+        $pdo->beginTransaction();
+        
+        // Insert User
+        $sql_user = "INSERT INTO tms_users (tenant_id, fullname, username, password, role, status) VALUES (1, ?, ?, ?, 'driver', 'active')";
+        safeQuery($pdo, $sql_user, [$name, $username, $hash]);
+        $new_user_id = $pdo->lastInsertId();
+
+        // Insert Driver Profile
+        $sql_driver = "INSERT INTO tms_drivers (user_id, vendor_id, phone, license_type) VALUES (?, 1, ?, ?)";
+        safeQuery($pdo, $sql_driver, [$new_user_id, $phone, $sim]);
+        
+        $pdo->commit();
+        echo "<script>alert('Driver $name Berhasil Ditambah! Login: $username'); window.location='drivers.php';</script>";
+        
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        echo "<script>alert('Gagal menambah driver.');</script>";
+    }
 }
 
-// AMBIL DATA DRIVER
-$drivers = mysqli_query($conn, "SELECT d.*, u.fullname, u.status as user_status FROM tms_drivers d JOIN tms_users u ON d.user_id = u.id ORDER BY d.id DESC");
+// AMBIL DATA DRIVER (PDO)
+$drivers = $pdo->query("SELECT d.*, u.fullname, u.status as user_status FROM tms_drivers d JOIN tms_users u ON d.user_id = u.id ORDER BY d.id DESC")->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <!DOCTYPE html>
@@ -46,7 +65,6 @@ $drivers = mysqli_query($conn, "SELECT d.*, u.fullname, u.status as user_status 
         .sidebar-brand { padding: 20px; font-size: 1.5rem; font-weight: 800; color: white; border-bottom: 1px solid rgba(255,255,255,0.1); }
         .nav-link { color: #94a3b8; padding: 12px 20px; font-weight: 500; display: flex; align-items: center; gap: 10px; transition: 0.2s; }
         .nav-link:hover, .nav-link.active { color: white; background: rgba(255,255,255,0.05); border-right: 3px solid var(--accent); }
-        .nav-link i { width: 20px; text-align: center; }
         .main-content { margin-left: 250px; padding: 20px; }
     </style>
 </head>
@@ -64,7 +82,7 @@ $drivers = mysqli_query($conn, "SELECT d.*, u.fullname, u.status as user_status 
             <div class="mt-4 px-3 text-uppercase small fw-bold text-muted" style="font-size: 0.7rem;">Settings</div>
             <a href="billing.php" class="nav-link"><i class="fa fa-file-invoice-dollar"></i> Billing & Cost</a>
             <a href="help.php" class="nav-link"><i class="fa fa-circle-question"></i> User Guide</a>
-            <a href="logout.php" class="nav-link text-danger"><i class="fa fa-power-off"></i> Logout</a>
+            <a href="auth.php?logout=true" class="nav-link text-danger"><i class="fa fa-power-off"></i> Logout</a>
         </nav>
     </div>
 
@@ -83,29 +101,21 @@ $drivers = mysqli_query($conn, "SELECT d.*, u.fullname, u.status as user_status 
             <div class="card-body">
                 <table class="table table-hover align-middle" id="tableDriver">
                     <thead class="table-light">
-                        <tr>
-                            <th>Nama Lengkap</th>
-                            <th>No. HP / WA</th>
-                            <th>Jenis SIM</th>
-                            <th>Status Akun</th>
-                            <th>Action</th>
-                        </tr>
+                        <tr><th>Nama Lengkap</th><th>No. HP / WA</th><th>Jenis SIM</th><th>Status Akun</th><th>Action</th></tr>
                     </thead>
                     <tbody>
-                        <?php while($row = mysqli_fetch_assoc($drivers)): ?>
+                        <?php foreach($drivers as $row): ?>
                         <tr>
                             <td class="fw-bold">
-                                <img src="https://ui-avatars.com/api/?name=<?=$row['fullname']?>&background=random" class="rounded-circle me-2" width="30">
-                                <?=$row['fullname']?>
+                                <img src="https://ui-avatars.com/api/?name=<?=urlencode($row['fullname'])?>&background=random" class="rounded-circle me-2" width="30">
+                                <?=htmlspecialchars($row['fullname'])?>
                             </td>
-                            <td><?=$row['phone']?></td>
-                            <td><span class="badge bg-secondary"><?=$row['license_type']?></span></td>
-                            <td><span class="badge bg-success text-uppercase"><?=$row['user_status']?></span></td>
-                            <td>
-                                <button class="btn btn-sm btn-outline-dark"><i class="fa fa-pen"></i></button>
-                            </td>
+                            <td><?=htmlspecialchars($row['phone'])?></td>
+                            <td><span class="badge bg-secondary"><?=htmlspecialchars($row['license_type'])?></span></td>
+                            <td><span class="badge bg-success text-uppercase"><?=htmlspecialchars($row['user_status'])?></span></td>
+                            <td><button class="btn btn-sm btn-outline-dark"><i class="fa fa-pen"></i></button></td>
                         </tr>
-                        <?php endwhile; ?>
+                        <?php endforeach; ?>
                     </tbody>
                 </table>
             </div>
@@ -115,22 +125,14 @@ $drivers = mysqli_query($conn, "SELECT d.*, u.fullname, u.status as user_status 
     <div class="modal fade" id="modalDriver">
         <div class="modal-dialog">
             <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Registrasi Supir Baru</h5>
-                    <button class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
+                <div class="modal-header"><h5 class="modal-title">Registrasi Supir Baru</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
                 <form method="POST">
+                    <?php echo csrfTokenField(); ?>
+                    
                     <div class="modal-body">
-                        <div class="mb-3">
-                            <label>Nama Lengkap</label>
-                            <input type="text" name="fullname" class="form-control" required>
-                        </div>
-                        <div class="mb-3">
-                            <label>No. HP (WhatsApp)</label>
-                            <input type="text" name="phone" class="form-control" placeholder="0812..." required>
-                        </div>
-                        <div class="mb-3">
-                            <label>Jenis SIM</label>
+                        <div class="mb-3"><label>Nama Lengkap</label><input type="text" name="fullname" class="form-control" required></div>
+                        <div class="mb-3"><label>No. HP (WhatsApp)</label><input type="text" name="phone" class="form-control" placeholder="0812..." required></div>
+                        <div class="mb-3"><label>Jenis SIM</label>
                             <select name="license_type" class="form-select">
                                 <option value="B1 Polos">B1 Polos</option>
                                 <option value="B1 Umum">B1 Umum</option>
@@ -138,9 +140,7 @@ $drivers = mysqli_query($conn, "SELECT d.*, u.fullname, u.status as user_status 
                             </select>
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="submit" name="add_driver" class="btn btn-primary">Simpan Data</button>
-                    </div>
+                    <div class="modal-footer"><button type="submit" name="add_driver" class="btn btn-primary">Simpan Data</button></div>
                 </form>
             </div>
         </div>

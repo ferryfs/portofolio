@@ -1,38 +1,29 @@
 <?php
-// 🔥 1. PASANG SESSION DI PALING ATAS
+// apps/wms/get_so_items.php
 session_name("WMS_APP_SESSION");
 session_start();
 
-// 🔥 2. CEK KEAMANAN (Opsional tapi PENTING)
-// Biar orang gak bisa buka file ini langsung lewat URL tanpa login
-if(!isset($_SESSION['wms_login'])) {
-    exit("Akses Ditolak. Silakan Login.");
-}
-include '../../koneksi.php';
+if(!isset($_SESSION['wms_login'])) exit(json_encode([]));
+require_once __DIR__ . '/../../config/database.php';
+
+header('Content-Type: application/json');
 
 if(isset($_GET['so'])) {
     $so = $_GET['so'];
-    
-    // Ambil Item SO + Cek Total Stok Tersedia (Available Stock F1)
-    $query = "
-        SELECT 
+    // Logic: Ambil item SO + Cek stok F1 di gudang (selain GI-ZONE)
+    $sql = "SELECT 
             i.so_number, i.product_uuid, i.qty_ordered, 
             p.product_code, p.description, p.base_uom,
-            COALESCE(SUM(q.qty), 0) as stock_available
-        FROM wms_so_items i
-        JOIN wms_products p ON i.product_uuid = p.product_uuid
-        LEFT JOIN wms_quants q ON p.product_uuid = q.product_uuid AND q.stock_type = 'F1'
-        WHERE i.so_number = '$so'
-        GROUP BY i.so_item_id
-    ";
+            COALESCE((SELECT SUM(q.qty) FROM wms_quants q WHERE q.product_uuid = p.product_uuid AND q.stock_type = 'F1' AND q.lgpla != 'GI-ZONE'), 0) as stock_available
+            FROM wms_so_items i 
+            JOIN wms_products p ON i.product_uuid = p.product_uuid 
+            WHERE i.so_number = ? 
+            GROUP BY i.so_item_id";
     
-    $result = mysqli_query($conn, $query);
-    $items = [];
-    
-    while($row = mysqli_fetch_assoc($result)) {
-        $items[] = $row;
-    }
-    
-    echo json_encode($items);
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([$so]);
+    echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+} else {
+    echo json_encode([]);
 }
 ?>

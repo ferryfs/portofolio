@@ -91,7 +91,7 @@ DATA FERRY:
 // 3. KOMUNIKASI KE GEMINI
 // ============================================================
 
-// 🔥 PILIHAN MANTEP: GEMINI 2.0 FLASH (STABIL & PINTER) 🔥
+// 🔥 PILIHAN MANTEP: GEMINI 2.5 FLASH (STABIL & PINTER) 🔥
 $model = "gemini-2.5-flash"; 
 $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key=" . $apiKey;
 
