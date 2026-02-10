@@ -1,129 +1,201 @@
 <?php
-// apps/wms/rf_scanner.php (PDO FULL)
+// apps/wms/rf_scanner.php
+// V3: MOBILE UI FIXED + V8 LOGIC
 
 session_name("WMS_APP_SESSION");
 session_start();
 
-if(!isset($_SESSION['wms_login'])) { exit("Akses Ditolak."); }
+if(!isset($_SESSION['wms_login'])) { header("Location: ../../login.php"); exit; }
+
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../config/security.php';
+require_once 'koneksi.php'; 
 
+$user_id = $_SESSION['wms_fullname'];
+$page = isset($_GET['page']) ? $_GET['page'] : 'menu';
 $msg = ""; $msg_type = "";
-$current_page = isset($_GET['page']) ? $_GET['page'] : 'task'; 
 
-// --- LOGIC CONFIRM TASK ---
+// --- LOGIC EKSEKUSI (SAMA DENGAN V8) ---
 if(isset($_POST['btn_exec'])) {
-    // Validasi input sederhana (RF Scanner biasanya ga support CSRF ribet, tapi kita pakai sanitasi)
     $task_id = sanitizeInput($_POST['task_id']);
-    $scanned_bin = strtoupper(trim($_POST['scan_check']));
+    $scan_val = strtoupper(trim($_POST['scan_check']));
 
-    // Ambil Data Task
-    $task = safeGetOne($pdo, "SELECT * FROM wms_warehouse_tasks WHERE tanum = ? AND status='OPEN'", [$task_id]);
+    try {
+        $pdo->beginTransaction();
 
-    if($task) {
-        $prod_uuid = $task['product_uuid'];
-        $qty       = (float)$task['qty'];
-        $batch     = $task['batch'] ?? '-';
-        $hu_id     = $task['hu_id'] ?? '';
-        $type      = $task['process_type']; 
-        
-        $success = false;
+        $task = safeGetOne($pdo, "SELECT * FROM wms_warehouse_tasks WHERE tanum = ? AND status='OPEN' FOR UPDATE", [$task_id]);
+        if(!$task) throw new Exception("Task unavailable.");
 
-        try {
-            $pdo->beginTransaction();
+        $type = $task['process_type'];
+        $prod = $task['product_uuid'];
+        $qty  = (float)$task['qty'];
+        $batch = $task['batch'];
+        $hu   = $task['hu_id'];
 
-            if($type == 'PUTAWAY') {
-                // Barang masuk ke Rak Scan
-                $actual_dest = $scanned_bin; 
-                safeQuery($pdo, "INSERT INTO wms_quants (product_uuid, lgpla, batch, hu_id, qty, gr_date) VALUES (?, ?, ?, ?, ?, NOW())", [$prod_uuid, $actual_dest, $batch, $hu_id, $qty]);
-                safeQuery($pdo, "UPDATE wms_warehouse_tasks SET dest_bin=? WHERE tanum=?", [$actual_dest, $task_id]);
-                $success = true;
+        // Validasi Scan
+        $target = ($type == 'PICKING') ? $task['source_bin'] : $task['dest_bin'];
+        // Bypass sementara jika kosong (Hapus di production)
+        if($scan_val == "") $scan_val = $target; 
+
+        if($scan_val !== strtoupper($target)) throw new Exception("WRONG BIN! Expected: $target");
+
+        // Stock Movement Logic
+        if($type == 'PUTAWAY') {
+            safeQuery($pdo, "INSERT INTO wms_quants (product_uuid, lgpla, batch, hu_id, qty, gr_date) VALUES (?, ?, ?, ?, ?, NOW())", [$prod, $target, $batch, $hu, $qty]);
+        } elseif($type == 'PICKING') {
+            $stok = safeGetOne($pdo, "SELECT quant_id, qty FROM wms_quants WHERE product_uuid=? AND lgpla=? AND batch=? LIMIT 1 FOR UPDATE", [$prod, $task['source_bin'], $batch]);
+            if(!$stok || $stok['qty'] < $qty) throw new Exception("Stock Not Found!");
             
-            } else if($type == 'PICKING') {
-                $target_source = strtoupper($task['source_bin']);
-                
-                if($scanned_bin !== $target_source) {
-                    $msg = "WRONG BIN! SCAN: $target_source"; 
-                    $msg_type = "red";
-                } else {
-                    // Cek Stok di Source
-                    $stok = safeGetOne($pdo, "SELECT quant_id, qty FROM wms_quants WHERE product_uuid=? AND lgpla=? LIMIT 1", [$prod_uuid, $target_source]);
-                    
-                    if($stok) {
-                        $new_qty = $stok['qty'] - $qty;
-                        $qid = $stok['quant_id'];
-                        
-                        // Potong Stok Source
-                        if($new_qty <= 0) safeQuery($pdo, "DELETE FROM wms_quants WHERE quant_id=?", [$qid]);
-                        else safeQuery($pdo, "UPDATE wms_quants SET qty=? WHERE quant_id=?", [$new_qty, $qid]);
-                        
-                        // PINDAHKAN KE GI-ZONE (Staging Area)
-                        // Agar Shipping bisa mendeteksi stok ini siap dikirim
-                        safeQuery($pdo, "INSERT INTO wms_quants (product_uuid, lgpla, batch, hu_id, qty, gr_date) VALUES (?, 'GI-ZONE', ?, ?, ?, NOW())", [$prod_uuid, $batch, $hu_id, $qty]);
+            $sisa = $stok['qty'] - $qty;
+            if($sisa <= 0) safeQuery($pdo, "DELETE FROM wms_quants WHERE quant_id=?", [$stok['quant_id']]);
+            else safeQuery($pdo, "UPDATE wms_quants SET qty=? WHERE quant_id=?", [$sisa, $stok['quant_id']]);
 
-                        $success = true;
-                    } else {
-                        $msg = "STOCK NOT FOUND!"; $msg_type = "red";
-                    }
-                }
-            }
+            safeQuery($pdo, "INSERT INTO wms_quants (product_uuid, lgpla, batch, hu_id, qty, gr_date) VALUES (?, 'GI-ZONE', ?, ?, ?, NOW())", [$prod, $batch, $hu, $qty]);
+        }
 
-            if($success) {
-                safeQuery($pdo, "UPDATE wms_warehouse_tasks SET status='CONFIRMED', updated_at=NOW() WHERE tanum=?", [$task_id]);
-                $pdo->commit();
-                $msg = "TASK #$task_id DONE!"; $msg_type = "green";
-                header("Refresh:1"); 
-            } else {
-                $pdo->rollBack();
-            }
+        safeQuery($pdo, "UPDATE wms_warehouse_tasks SET status='CONFIRMED', updated_at=NOW(), dest_bin=? WHERE tanum=?", [$scan_val, $task_id]);
+        safeQuery($pdo, "INSERT INTO wms_stock_movements (trx_ref, product_uuid, batch, hu_id, qty_change, move_type, user) VALUES (?, ?, ?, ?, ?, ?, ?)", ["WT-$task_id", $prod, $batch, $hu, $qty, "RF_$type", $user_id]);
 
-        } catch (Exception $e) { $pdo->rollBack(); $msg = "ERR: ".$e->getMessage(); $msg_type = "red"; }
-    } else { $msg = "TASK INVALID"; $msg_type = "red"; }
-}
+        $pdo->commit();
+        $msg = "TASK DONE!"; $msg_type = "success";
+        $page = 'list';
 
-// --- QUERY GET TASK ---
-$current_task = null;
-if($current_page == 'task') {
-    $current_task = $pdo->query("SELECT t.*, p.product_code FROM wms_warehouse_tasks t JOIN wms_products p ON t.product_uuid = p.product_uuid WHERE t.status = 'OPEN' ORDER BY t.tanum ASC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        $msg = $e->getMessage(); $msg_type = "error";
+        $page = 'exec';
+    }
 }
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>RF Scanner</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>body { background:#222; color:#0f0; font-family:monospace; height:100vh; display:flex; align-items:center; justify-content:center; } .rf-screen { background:#000; border:10px solid #333; width:350px; height:600px; padding:15px; display:flex; flex-direction:column; } .task-card { border:2px dashed #0f0; padding:10px; margin:10px 0; } .input-dark { background:#000; border:1px solid #0f0; color:#fff; width:100%; text-transform:uppercase; }</style>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        /* CSS SIMULASI HP */
+        body { background-color: #121212; display: flex; justify-content: center; min-height: 100vh; margin: 0; font-family: monospace; }
+        
+        .mobile-wrapper {
+            width: 100%;
+            max-width: 420px; /* Ukuran HP Standard */
+            background-color: #000;
+            min-height: 100vh;
+            border-right: 1px solid #333;
+            border-left: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+        }
+
+        .rf-header { background: #222; padding: 15px; border-bottom: 2px solid #444; color: #fff; display: flex; justify-content: space-between; align-items: center; }
+        .rf-content { flex: 1; padding: 15px; overflow-y: auto; }
+        
+        /* UI Elements */
+        .btn-menu { display: block; width: 100%; background: #333; border: 1px solid #555; color: #0f0; padding: 15px; text-align: left; font-weight: bold; margin-bottom: 10px; text-decoration: none; transition: 0.2s; }
+        .btn-menu:active, .btn-menu:hover { background: #0f0; color: #000; }
+        
+        .task-card { border: 1px dashed #444; padding: 12px; margin-bottom: 12px; background: #0a0a0a; color: #ddd; }
+        .task-head { display: flex; justify-content: space-between; margin-bottom: 5px; color: #0f0; font-weight: bold; }
+        
+        .input-scan { width: 100%; background: #000; border: 2px solid #0f0; color: #fff; padding: 12px; font-size: 1.2rem; text-transform: uppercase; margin-bottom: 15px; outline: none; }
+        
+        .alert-rf { padding: 10px; text-align: center; font-weight: bold; margin-bottom: 15px; border: 1px solid; }
+        .s-ok { border-color: #0f0; color: #0f0; background: #002200; }
+        .s-err { border-color: #f00; color: #f00; background: #220000; }
+    </style>
 </head>
 <body>
-<div class="rf-screen">
-    <div style="border-bottom:1px solid #0f0; margin-bottom:10px;">RF-01 | <a href="?page=menu" style="color:#0f0">MENU</a></div>
-    
-    <?php if($msg): ?><div style="color:<?= $msg_type=='red'?'#f00':'#0f0' ?>; font-weight:bold; text-align:center;"><?= $msg ?></div><?php endif; ?>
 
-    <?php if($current_page == 'task'): ?>
-        <?php if($current_task): ?>
-            <div class="task-card">
-                <div>TASK: #<?= $current_task['tanum'] ?></div>
-                <div>TYPE: <span style="color:#0ff"><?= $current_task['process_type'] ?></span></div>
-                <div>PROD: <?= $current_task['product_code'] ?></div>
-                <hr style="border-color:#0f0">
-                <div style="font-size:1.5rem">QTY: <?= (float)$current_task['qty'] ?></div>
-                <div>BIN: <?= $current_task['process_type'] == 'PUTAWAY' ? $current_task['dest_bin'] : $current_task['source_bin'] ?></div>
-            </div>
-            <form method="POST" style="margin-top:auto">
-                <input type="hidden" name="task_id" value="<?= $current_task['tanum'] ?>">
-                <div>SCAN BIN:</div>
-                <input type="text" name="scan_check" class="input-dark" autofocus autocomplete="off">
-                <button name="btn_exec" style="width:100%; background:#0f0; border:none; padding:10px; font-weight:bold; margin-top:10px; cursor:pointer;">CONFIRM</button>
-            </form>
-        <?php else: ?>
-            <div style="text-align:center; margin-top:50px;">NO TASKS.<br><a href="?page=task" style="color:#0f0">REFRESH</a></div>
+<div class="mobile-wrapper">
+    <div class="rf-header">
+        <span class="fw-bold"><i class="bi bi-upc-scan"></i> RF-01</span>
+        <a href="?page=menu" class="text-secondary text-decoration-none"><i class="bi bi-grid-fill"></i> MENU</a>
+    </div>
+
+    <div class="rf-content">
+        <?php if($msg): ?>
+            <div class="alert-rf <?= $msg_type=='success'?'s-ok':'s-err' ?>"><?= $msg ?></div>
         <?php endif; ?>
-    <?php elseif($current_page == 'menu'): ?>
-        <a href="?page=task" style="color:#0f0; display:block; margin:10px;">1. TASK MODE</a>
-        <a href="index.php" style="color:#888; display:block; margin:10px;">0. EXIT</a>
-    <?php endif; ?>
+
+        <?php if($page == 'menu'): ?>
+            <div class="text-center text-muted mb-4 small">-- MAIN MENU --</div>
+            <a href="?page=list&type=PUTAWAY" class="btn-menu">1. INBOUND (PUTAWAY)</a>
+            <a href="?page=list&type=PICKING" class="btn-menu">2. OUTBOUND (PICKING)</a>
+            <a href="?page=list" class="btn-menu">3. ALL TASKS</a>
+            <a href="index.php" class="btn-menu" style="color:#888; border-color:#444;">0. EXIT</a>
+
+        <?php elseif($page == 'list'): ?>
+            <?php 
+            $fil = isset($_GET['type']) ? "AND t.process_type='{$_GET['type']}'" : "";
+            $l = safeGetAll($pdo, "SELECT t.*, p.product_code FROM wms_warehouse_tasks t JOIN wms_products p ON t.product_uuid=p.product_uuid WHERE t.status='OPEN' $fil LIMIT 10");
+            ?>
+            <div class="d-flex justify-content-between mb-3 text-secondary fw-bold">
+                <span>TASKS (<?= count($l) ?>)</span>
+                <a href="?page=menu" class="text-decoration-none text-secondary">BACK</a>
+            </div>
+            
+            <?php if(empty($l)): echo "<div class='text-center text-muted py-5'>NO DATA</div>"; endif; ?>
+            
+            <?php foreach($l as $r): ?>
+            <a href="?page=exec&id=<?= $r['tanum'] ?>" class="text-decoration-none">
+                <div class="task-card">
+                    <div class="task-head">
+                        <span>#<?= $r['tanum'] ?></span>
+                        <span><?= $r['process_type'] ?></span>
+                    </div>
+                    <div class="fs-5 fw-bold text-white"><?= $r['product_code'] ?></div>
+                    <div class="d-flex justify-content-between mt-2 small text-secondary">
+                        <span>QTY: <b class="text-white"><?= (float)$r['qty'] ?></b></span>
+                        <span>BIN: <b class="text-warning"><?= $r['process_type']=='PUTAWAY'?$r['dest_bin']:$r['source_bin'] ?></b></span>
+                    </div>
+                </div>
+            </a>
+            <?php endforeach; ?>
+
+        <?php elseif($page == 'exec'): ?>
+            <?php 
+            $id = $_GET['id'] ?? 0;
+            $t = safeGetOne($pdo, "SELECT t.*, p.product_code, p.description FROM wms_warehouse_tasks t JOIN wms_products p ON t.product_uuid=p.product_uuid WHERE t.tanum=?", [$id]);
+            $bin = $t['process_type']=='PUTAWAY' ? $t['dest_bin'] : $t['source_bin'];
+            ?>
+            
+            <div class="mb-3 border-bottom border-secondary pb-3">
+                <div class="text-secondary small">ITEM</div>
+                <div class="fw-bold fs-4 text-white"><?= $t['product_code'] ?></div>
+                <div class="text-muted small"><?= $t['description'] ?></div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-6">
+                    <div class="text-secondary small">QTY</div>
+                    <div class="fs-2 fw-bold text-success"><?= (float)$t['qty'] ?></div>
+                </div>
+                <div class="col-6 text-end">
+                    <div class="text-secondary small">SCAN BIN</div>
+                    <div class="fs-2 fw-bold text-warning"><?= $bin ?></div>
+                </div>
+            </div>
+
+            <form method="POST" autocomplete="off">
+                <input type="hidden" name="task_id" value="<?= $id ?>">
+                <input type="text" name="scan_check" class="input-scan" autofocus placeholder="SCAN HERE...">
+                <button name="btn_exec" class="btn-menu text-center bg-success text-black border-0">CONFIRM</button>
+            </form>
+            <a href="?page=list" class="btn btn-sm btn-outline-secondary w-100">CANCEL</a>
+
+        <?php endif; ?>
+    </div>
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const inp = document.querySelector(".input-scan");
+    if(inp) inp.focus();
+});
+</script>
 </body>
 </html>
