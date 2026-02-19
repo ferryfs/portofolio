@@ -1,6 +1,7 @@
 <?php
 // apps/wms/task_confirm.php
-// V9: PREMIUM UI + V8 LOGIC (FORTRESS)
+// V18: SOA REFACTORING (Service-Oriented Architecture)
+// Features: UI/UX preserved, execution logic offloaded to WMSPutawayService.
 
 session_name("WMS_APP_SESSION");
 session_start();
@@ -10,207 +11,152 @@ require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../config/security.php';
 require_once 'koneksi.php';
 
-$id = sanitizeInt($_GET['id'] ?? 0);
-$user_id = $_SESSION['wms_fullname'];
+// 🔥 INCLUDE SERVICE LAYER KITA
+require_once 'WMSPutawayService.php';
 
-// Ambil Data Task + Product Info
-$task = safeGetOne($pdo, "SELECT t.*, p.product_code, p.description, p.base_uom 
+$id = sanitizeInt($_GET['id'] ?? 0);
+$user_id = $_SESSION['wms_fullname'] ?? 'System';
+
+// 1. Get Task Data (Hanya untuk keperluan render UI)
+$task = safeGetOne($pdo, "SELECT t.*, p.product_code, p.description, p.base_uom, q.gr_ref, q.po_ref, q.batch 
                           FROM wms_warehouse_tasks t 
                           JOIN wms_products p ON t.product_uuid = p.product_uuid 
+                          LEFT JOIN wms_quants q ON t.hu_id = q.hu_id
                           WHERE t.tanum = ?", [$id]);
 
-if(!$task) die("Task Not Found or Invalid ID.");
+if(!$task) die("Task invalid or not found.");
 
-$msg = ""; $msg_type = "";
-
-// --- LOGIC EKSEKUSI (SAMA DENGAN RF SCANNER) ---
-if(isset($_POST['confirm'])) {
-    try {
-        $pdo->beginTransaction();
-        
-        // Re-check status (Anti Race Condition)
-        $t = safeGetOne($pdo, "SELECT * FROM wms_warehouse_tasks WHERE tanum=? AND status='OPEN' FOR UPDATE", [$id]);
-        if(!$t) throw new Exception("Task already processed by someone else!");
-
-        $type = $t['process_type'];
-        $prod = $t['product_uuid'];
-        $qty  = $t['qty'];
-        $batch = $t['batch'];
-        $hu   = $t['hu_id'];
-        $final_bin = strtoupper(sanitizeInput($_POST['actual_bin'])); // Input Admin
-
-        // Validasi Target Bin (Biar gak salah taruh sembarangan)
-        // Di mode desktop admin boleh override, tapi kita kasih warning logic kalau kosong
-        if(empty($final_bin)) throw new Exception("Bin Location cannot be empty!");
-
-        // 1. UPDATE STOCK LOGIC
-        if($type == 'PUTAWAY') {
-            // Masuk ke Bin Tujuan
-            safeQuery($pdo, "INSERT INTO wms_quants (product_uuid, lgpla, batch, hu_id, qty, gr_date) VALUES (?, ?, ?, ?, ?, NOW())", 
-                      [$prod, $final_bin, $batch, $hu, $qty]);
-        } 
-        elseif($type == 'PICKING') {
-            // Picking Logic: Kurangi Source, Pindah ke GI
-            $stok = safeGetOne($pdo, "SELECT quant_id, qty FROM wms_quants WHERE product_uuid=? AND lgpla=? AND batch=? LIMIT 1 FOR UPDATE", 
-                               [$prod, $t['source_bin'], $batch]);
-            
-            if(!$stok || $stok['qty'] < $qty) throw new Exception("Stock in source bin insufficient!");
-            
-            $sisa = $stok['qty'] - $qty;
-            if($sisa <= 0) safeQuery($pdo, "DELETE FROM wms_quants WHERE quant_id=?", [$stok['quant_id']]);
-            else safeQuery($pdo, "UPDATE wms_quants SET qty=? WHERE quant_id=?", [$sisa, $stok['quant_id']]);
-
-            // Pindah ke GI-ZONE (Virtual Outbound)
-            safeQuery($pdo, "INSERT INTO wms_quants (product_uuid, lgpla, batch, hu_id, qty, gr_date) VALUES (?, 'GI-ZONE', ?, ?, ?, NOW())", 
-                      [$prod, $batch, $hu, $qty]);
+// 🔥 FETCH ADMIN NOTES (Untuk UI Kotak Kuning)
+$adminNote = "";
+if($task['po_ref']) {
+    $noteQ = safeGetOne($pdo, "SELECT message FROM wms_inbound_notif WHERE po_number = ? AND (severity = 'SUCCESS' OR severity = 'INFO') ORDER BY created_at DESC LIMIT 1", [$task['po_ref']]);
+    if($noteQ) {
+        $parts = explode(".", $noteQ['message']);
+        if(isset($parts[2]) && trim($parts[2]) != '') {
+            $adminNote = trim($parts[2]);
         }
-
-        // 2. CLOSE TASK
-        safeQuery($pdo, "UPDATE wms_warehouse_tasks SET status='CONFIRMED', updated_at=NOW(), dest_bin=? WHERE tanum=?", [$final_bin, $id]);
-
-        // 3. AUDIT TRAIL
-        safeQuery($pdo, "INSERT INTO wms_stock_movements (trx_ref, product_uuid, batch, hu_id, qty_change, move_type, user) VALUES (?, ?, ?, ?, ?, ?, ?)", 
-                  ["WT-$id", $prod, $batch, $hu, $qty, "DESK_$type", $user_id]);
-
-        $pdo->commit();
-        
-        // Redirect balik ke dashboard task
-        header("Location: task.php?msg=success"); exit;
-
-    } catch (Exception $e) {
-        $pdo->rollBack();
-        $msg = $e->getMessage();
-        $msg_type = "danger";
     }
 }
+
+// ---------------------------------------------------------
+// 🔥 EXECUTION BLOCK (REFACTORED)
+// ---------------------------------------------------------
+if(isset($_POST['confirm'])) {
+    // Kita panggil ahlinya: WMSPutawayService
+    $putawayService = new WMSPutawayService($pdo, $user_id);
+    
+    // Ambil input dari form HTML
+    $targetBin = $_POST['actual_bin'] ?? '';
+    $qtyGood = $_POST['qty_good'] ?? 0;
+    // Note: di form UI lo name-nya 'qty_dmg', bukan 'qty_bad'
+    $qtyBad = $_POST['qty_dmg'] ?? 0; 
+    $remarks = $_POST['remarks'] ?? '';
+
+    // Lemparkan tugas ke Service Layer dengan penanda 'DESKTOP'
+    $result = $putawayService->executePutaway($id, $targetBin, $qtyGood, $qtyBad, $remarks, 'DESKTOP');
+
+    if ($result['status'] === 'success') {
+        header("Location: task.php?msg=success"); 
+        exit;
+    } else {
+        // Kalau gagal (misal kena regex rak atau phantom stock), lempar error ke UI
+        $error = $result['msg'];
+    }
+}
+// ---------------------------------------------------------
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Confirm Task #<?= $id ?></title>
+    <title>Execute Task | V18 (SOA)</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
-        body { background: #f1f5f9; font-family: system-ui, -apple-system, sans-serif; }
-        .card { border: none; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-        .card-header { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 20px; border-radius: 12px 12px 0 0 !important; }
-        
-        .route-box { background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 10px; padding: 20px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-        .bin-badge { background: #fff; padding: 8px 16px; border-radius: 6px; border: 1px solid #e2e8f0; font-family: monospace; font-weight: bold; font-size: 1.1rem; color: #334155; }
-        .arrow-icon { font-size: 1.5rem; color: #94a3b8; }
-        
-        .product-highlight { background: #eff6ff; padding: 15px; border-radius: 8px; border-left: 4px solid #3b82f6; }
-        
-        .btn-confirm { padding: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
+        body { background: #f3f4f6; font-family: 'Inter', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .card { border: none; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); overflow: hidden; width: 100%; max-width: 600px; }
+        .card-header { background: #fff; padding: 25px; border-bottom: 1px solid #e5e7eb; }
+        /* 🔥 New style for Admin Note */
+        .admin-note { background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 15px; margin-bottom: 20px; border-radius: 0 8px 8px 0; color: #b45309; }
     </style>
 </head>
-<body class="py-5">
+<body>
 
-<div class="container">
-    
-    <div class="d-flex justify-content-between align-items-center mb-4">
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
         <div>
-            <h4 class="fw-bold m-0 text-dark">Task Execution</h4>
-            <p class="text-muted m-0">Manual confirmation via Desktop</p>
+            <h5 class="fw-bold m-0 text-primary">TASK-<?= str_pad($id, 5, '0', STR_PAD_LEFT) ?></h5>
+            <div class="small text-muted">Process: <?= $task['process_type'] ?></div>
         </div>
-        <a href="task.php" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-2"></i>Back to Monitor</a>
+        <a href="task.php" class="btn btn-light rounded-circle shadow-sm"><i class="bi bi-x-lg"></i></a>
     </div>
+    <div class="card-body p-4">
+        <?php if(isset($error)): ?>
+            <div class="alert alert-danger rounded-3"><i class="bi bi-exclamation-triangle-fill me-2"></i><?= htmlspecialchars($error) ?></div>
+        <?php endif; ?>
 
-    <div class="row g-4">
-        
-        <div class="col-lg-7">
-            <div class="card h-100">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h6 class="fw-bold m-0"><i class="bi bi-ticket-detailed me-2 text-primary"></i> Task Details #<?= $task['tanum'] ?></h6>
-                    <span class="badge bg-primary"><?= $task['process_type'] ?></span>
-                </div>
-                <div class="card-body">
-                    
-                    <div class="route-box">
-                        <div class="text-center">
-                            <small class="text-muted d-block mb-1">SOURCE BIN</small>
-                            <div class="bin-badge"><?= $task['source_bin'] ?></div>
-                        </div>
-                        <div class="arrow-icon"><i class="bi bi-arrow-right-circle-fill text-primary"></i></div>
-                        <div class="text-center">
-                            <small class="text-muted d-block mb-1">TARGET BIN</small>
-                            <div class="bin-badge text-primary border-primary"><?= $task['dest_bin'] ?></div>
-                        </div>
+        <form method="POST">
+            <div class="mb-4">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="bg-primary bg-opacity-10 text-primary p-3 rounded-3"><i class="bi bi-box-seam fs-3"></i></div>
+                    <div>
+                        <div class="fw-bold text-dark fs-5"><?= $task['product_code'] ?></div>
+                        <div class="small text-muted"><?= $task['description'] ?></div>
+                        <div class="badge bg-light text-dark border mt-1">HU: <?= $task['hu_id'] ?></div>
                     </div>
-
-                    <div class="product-highlight mb-4">
-                        <div class="text-muted small text-uppercase fw-bold mb-1">Product Item</div>
-                        <h4 class="fw-bold text-dark m-0"><?= $task['product_code'] ?></h4>
-                        <div class="text-secondary"><?= $task['description'] ?></div>
-                    </div>
-
-                    <div class="row g-3">
-                        <div class="col-sm-4">
-                            <div class="p-3 bg-light rounded border">
-                                <small class="text-muted d-block">Quantity</small>
-                                <span class="fs-5 fw-bold text-dark"><?= (float)$task['qty'] ?> <span class="fs-6 text-muted"><?= $task['base_uom'] ?></span></span>
-                            </div>
-                        </div>
-                        <div class="col-sm-4">
-                            <div class="p-3 bg-light rounded border">
-                                <small class="text-muted d-block">Batch No</small>
-                                <span class="fs-6 fw-bold font-monospace text-dark"><?= $task['batch'] ?></span>
-                            </div>
-                        </div>
-                        <div class="col-sm-4">
-                            <div class="p-3 bg-light rounded border">
-                                <small class="text-muted d-block">HU ID</small>
-                                <span class="fs-6 fw-bold font-monospace text-dark text-truncate d-block"><?= $task['hu_id'] ?></span>
-                            </div>
-                        </div>
-                    </div>
-
                 </div>
             </div>
-        </div>
 
-        <div class="col-lg-5">
-            <div class="card border-primary h-100">
-                <div class="card-header bg-primary text-white">
-                    <h6 class="fw-bold m-0"><i class="bi bi-check-circle-fill me-2"></i> Confirm Execution</h6>
+            <?php if($adminNote): ?>
+            <div class="admin-note shadow-sm">
+                <div class="fw-bold mb-1"><i class="bi bi-megaphone-fill me-2"></i>Note From Admin:</div>
+                <div class="small"><?= htmlspecialchars($adminNote) ?></div>
+            </div>
+            <?php endif; ?>
+
+            <div class="row g-3 mb-4">
+                <div class="col-6">
+                    <label class="small fw-bold text-muted">SOURCE</label>
+                    <div class="p-2 border rounded text-center bg-light fw-bold font-monospace"><?= $task['source_bin'] ?></div>
                 </div>
-                <div class="card-body d-flex flex-column">
-                    
-                    <?php if($msg): ?>
-                        <div class="alert alert-<?= $msg_type ?> mb-3"><?= $msg ?></div>
-                    <?php endif; ?>
-
-                    <form method="POST" class="flex-grow-1 d-flex flex-column justify-content-between">
-                        <div>
-                            <div class="mb-4">
-                                <label class="form-label fw-bold text-dark">Confirm Destination Bin</label>
-                                <input type="text" name="actual_bin" 
-                                       class="form-control form-control-lg fw-bold border-primary text-uppercase" 
-                                       value="<?= $task['dest_bin'] ?>" 
-                                       placeholder="SCAN OR TYPE BIN" required>
-                                <div class="form-text text-muted">
-                                    <i class="bi bi-info-circle"></i> Verify physical location matches.
-                                </div>
-                            </div>
-
-                            <div class="alert alert-light border small text-muted">
-                                <i class="bi bi-exclamation-triangle me-1"></i> Warning: This action will perform manual stock movement and update inventory levels immediately.
-                            </div>
-                        </div>
-
-                        <div class="d-grid gap-2 mt-4">
-                            <button type="submit" name="confirm" class="btn btn-primary btn-lg btn-confirm shadow-sm">
-                                <i class="bi bi-save2 me-2"></i> CONFIRM TASK
-                            </button>
-                            <a href="task.php" class="btn btn-light text-muted">Cancel Operation</a>
-                        </div>
-                    </form>
-
+                <div class="col-6">
+                    <label class="small fw-bold text-primary">DESTINATION</label>
+                    <input type="text" name="actual_bin" class="form-control fw-bold border-primary text-center text-uppercase font-monospace" 
+                           value="<?= $task['dest_bin'] == 'SYSTEM' ? '' : $task['dest_bin'] ?>" 
+                           placeholder="SCAN BIN" required autofocus>
                 </div>
             </div>
-        </div>
 
+            <?php if($task['process_type'] == 'PUTAWAY'): ?>
+                <div class="p-3 bg-light rounded border mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="small fw-bold text-dark m-0">QUALITY CHECK</label>
+                        <span class="badge bg-info text-dark">Target: <?= (float)$task['qty'] ?></span>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <div class="input-group">
+                                <span class="input-group-text bg-success text-white border-success"><i class="bi bi-check"></i></span>
+                                <input type="number" name="qty_good" class="form-control border-success fw-bold text-success" value="<?= (float)$task['qty'] ?>" step="0.01">
+                            </div>
+                            <div class="form-text text-success small">Good (F1)</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="input-group">
+                                <span class="input-group-text bg-danger text-white border-danger"><i class="bi bi-x"></i></span>
+                                <input type="number" name="qty_dmg" class="form-control border-danger fw-bold text-danger" value="0" step="0.01">
+                            </div>
+                            <div class="form-text text-danger small">Damaged (B6)</div>
+                        </div>
+                    </div>
+                    <input type="text" name="remarks" class="form-control mt-2 form-control-sm" placeholder="Operator Remarks / Notes...">
+                </div>
+            <?php endif; ?>
+
+            <button type="submit" name="confirm" class="btn btn-primary w-100 btn-lg rounded-pill fw-bold shadow-sm">
+                CONFIRM TASK <i class="bi bi-check-lg ms-2"></i>
+            </button>
+        </form>
     </div>
 </div>
 

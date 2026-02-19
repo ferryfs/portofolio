@@ -1,6 +1,6 @@
 <?php 
 // apps/wms/logs.php
-// V12: AUDIT COMMAND CENTER (Dual Logs: System & Stock)
+// V13: ENTERPRISE AUDIT CENTER (Unified UI + Advanced Analytics)
 
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
@@ -14,202 +14,273 @@ require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../config/security.php';
 require_once 'koneksi.php'; 
 
-$active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'system';
+$active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'stock'; // Default ke Stock biar langsung liat barang
 $search = isset($_GET['q']) ? sanitizeInput($_GET['q']) : '';
-$limit = 50;
+$type_filter = isset($_GET['type']) ? sanitizeInput($_GET['type']) : '';
+$limit = 100;
 
-// QUERY BUILDER
-$filter_sys = ""; 
-$filter_stk = "";
+// ---------------------------------------------------------
+// 🔍 KPI STATS (Live Dashboard)
+// ---------------------------------------------------------
+$today_moves = safeGetOne($pdo, "SELECT count(*) as c FROM wms_stock_movements WHERE DATE(created_at) = CURDATE()")['c'];
+$inbound_vol = safeGetOne($pdo, "SELECT COALESCE(SUM(qty_change),0) as c FROM wms_stock_movements WHERE move_type IN ('GR_IN', 'PI_GAIN') AND DATE(created_at) = CURDATE()")['c'];
+$outbound_vol = safeGetOne($pdo, "SELECT COALESCE(ABS(SUM(qty_change)),0) as c FROM wms_stock_movements WHERE qty_change < 0 AND DATE(created_at) = CURDATE()")['c'];
+
+// ---------------------------------------------------------
+// 🔍 QUERY BUILDER
+// ---------------------------------------------------------
+$filter_sys = "WHERE 1=1"; 
+$filter_stk = "WHERE 1=1";
 $params_sys = [];
 $params_stk = [];
 
 if($search) {
-    $filter_sys = "WHERE user_id LIKE ? OR description LIKE ? OR module LIKE ?";
-    $params_sys = ["%$search%", "%$search%", "%$search%"];
+    $filter_sys .= " AND (user_id LIKE ? OR description LIKE ? OR module LIKE ? OR action_type LIKE ?)";
+    $params_sys = array_fill(0, 4, "%$search%");
 
-    // Untuk Stock Log, kita perlu join ke product biar bisa cari nama barang
-    $filter_stk = "WHERE (p.product_code LIKE ? OR m.batch LIKE ? OR m.trx_ref LIKE ? OR m.user LIKE ?)";
-    $params_stk = ["%$search%", "%$search%", "%$search%", "%$search%"];
+    $filter_stk .= " AND (p.product_code LIKE ? OR m.batch LIKE ? OR m.trx_ref LIKE ? OR m.user LIKE ? OR m.hu_id LIKE ?)";
+    $params_stk = array_fill(0, 5, "%$search%");
 }
 
+if($type_filter && $active_tab == 'stock') {
+    $filter_stk .= " AND m.move_type = ?";
+    $params_stk[] = $type_filter;
+}
+
+// Helper: Badge Logic V13 (Unified Colors)
+function getMoveBadge($type) {
+    $map = [
+        'GR_IN'        => ['bg' => 'bg-success-subtle text-success border-success', 'icon' => 'bi-box-arrow-in-down'],
+        'GR_BAD'       => ['bg' => 'bg-danger-subtle text-danger border-danger', 'icon' => 'bi-x-octagon'],
+        'RF_PUTAWAY'   => ['bg' => 'bg-primary-subtle text-primary border-primary', 'icon' => 'bi-arrow-down-square-fill'],
+        'DESK_CONFIRM' => ['bg' => 'bg-info-subtle text-info border-info', 'icon' => 'bi-pc-display'],
+        'RF_PICKING'   => ['bg' => 'bg-warning-subtle text-warning border-warning', 'icon' => 'bi-arrow-up-square-fill'],
+        'BIN_MOVE'     => ['bg' => 'bg-secondary-subtle text-secondary border-secondary', 'icon' => 'bi-arrows-move'],
+        'PI_GAIN'      => ['bg' => 'bg-success text-white', 'icon' => 'bi-graph-up-arrow'],
+        'PI_LOSS'      => ['bg' => 'bg-danger text-white', 'icon' => 'bi-graph-down-arrow'],
+    ];
+    // Fallback
+    return $map[$type] ?? ['bg' => 'bg-light text-dark border', 'icon' => 'bi-circle'];
+}
+
+$move_types = safeGetAll($pdo, "SELECT DISTINCT move_type FROM wms_stock_movements ORDER BY move_type");
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Audit Trail & Logs</title>
+    <title>Audit Center | V13 Enterprise</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { background: #f8fafc; font-family: 'Segoe UI', sans-serif; padding-bottom: 50px; }
-        .card-log { border: none; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); overflow: hidden; }
+        /* 🎨 V13 SHARED THEME (Copy-Paste from Inbound V13) */
+        :root {
+            --primary: #4f46e5;
+            --bg: #f3f4f6;
+            --card-bg: #ffffff;
+            --text: #111827;
+            --text-muted: #6b7280;
+            --border: #e5e7eb;
+        }
+        body.dark-mode {
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: #334155;
+        }
+        body { background-color: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; transition: 0.3s; padding-bottom: 50px; }
         
-        .nav-tabs .nav-link { color: #64748b; font-weight: 600; border: none; border-bottom: 3px solid transparent; padding: 12px 20px; }
-        .nav-tabs .nav-link:hover { color: #1e293b; background: transparent; }
-        .nav-tabs .nav-link.active { color: #2563eb; border-bottom-color: #2563eb; background: transparent; }
+        .kpi-card {
+            background: var(--card-bg); border: 1px solid var(--border);
+            border-radius: 16px; padding: 1.5rem; display: flex; align-items: center; gap: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); transition: 0.2s;
+        }
+        .kpi-card:hover { transform: translateY(-3px); }
+        .kpi-icon { width: 50px; height: 50px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
+
+        .glass-table {
+            background: var(--card-bg); border: 1px solid var(--border);
+            border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+        }
+        .table { margin: 0; color: var(--text); }
+        .table thead th { background: var(--bg); color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; padding: 15px 20px; border-bottom: 1px solid var(--border); }
+        .table tbody td { padding: 15px 20px; vertical-align: middle; border-bottom: 1px solid var(--border); }
+        .table tbody tr:hover { background-color: var(--bg); }
+
+        .badge-move { padding: 6px 12px; border-radius: 50px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; border: 1px solid; display: inline-flex; align-items: center; gap: 6px; }
+        .font-mono { font-family: 'Consolas', monospace; font-size: 0.85rem; }
         
-        .log-badge { font-size: 0.75rem; font-weight: 700; padding: 4px 8px; border-radius: 4px; text-transform: uppercase; }
-        .bg-CREATE { background: #dcfce7; color: #166534; }
-        .bg-UPDATE { background: #fef9c3; color: #854d0e; }
-        .bg-DELETE { background: #fee2e2; color: #991b1b; }
-        .bg-LOGIN { background: #e0e7ff; color: #3730a3; }
+        .theme-toggle { cursor: pointer; padding: 8px; border-radius: 50%; border: 1px solid var(--border); background: var(--card-bg); }
         
-        .move-in { color: #166534; font-weight: bold; } /* Putaway */
-        .move-out { color: #991b1b; font-weight: bold; } /* Picking */
-        .move-internal { color: #3b82f6; font-weight: bold; } /* Transfer */
+        .qty-plus { color: #16a34a; font-weight: 800; }
+        .qty-min { color: #dc2626; font-weight: 800; }
     </style>
 </head>
 <body>
 
-<div class="container-fluid py-4" style="max-width: 1400px;">
-    
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h3 class="fw-bold m-0 text-dark"><i class="bi bi-shield-lock-fill text-primary me-2"></i>Audit Command Center</h3>
-            <p class="text-muted m-0">Track User Activities & Stock Movements</p>
+    <div class="d-flex justify-content-between align-items-center px-4 py-3 bg-card border-bottom" style="background: var(--card-bg); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100;">
+        <div class="d-flex align-items-center gap-3">
+            <h4 class="fw-bold m-0 text-primary"><i class="bi bi-shield-check me-2"></i>Audit Center</h4>
+            <span class="badge bg-light text-muted border">V13 Enterprise</span>
         </div>
-        <div>
-            <a href="index.php" class="btn btn-outline-secondary fw-bold">Dashboard</a>
+        <div class="d-flex align-items-center gap-3">
+            <div class="theme-toggle" onclick="toggleTheme()"><i class="bi bi-moon-stars-fill text-warning"></i></div>
+            <button onclick="window.print()" class="btn btn-outline-secondary rounded-pill px-3 fw-bold btn-sm"><i class="bi bi-printer me-2"></i>Print</button>
+            <a href="index.php" class="btn btn-dark rounded-pill px-4 fw-bold shadow-sm btn-sm">Dashboard</a>
         </div>
     </div>
 
-    <div class="d-flex justify-content-between align-items-center border-bottom mb-4">
-        <ul class="nav nav-tabs border-bottom-0">
-            <li class="nav-item">
-                <a class="nav-link <?= $active_tab == 'system' ? 'active' : '' ?>" href="?tab=system">
-                    <i class="bi bi-person-lines-fill me-2"></i> User Activity Log
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link <?= $active_tab == 'stock' ? 'active' : '' ?>" href="?tab=stock">
-                    <i class="bi bi-box-seam-fill me-2"></i> Stock Movement Log
-                </a>
-            </li>
-        </ul>
+    <div class="container-fluid px-4 py-4">
         
-        <form class="mb-2" method="GET" style="width: 300px;">
-            <input type="hidden" name="tab" value="<?= $active_tab ?>">
-            <div class="input-group">
-                <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
-                <input type="text" name="q" class="form-control border-start-0 ps-0" placeholder="Search logs..." value="<?= htmlspecialchars($search) ?>">
+        <div class="row g-4 mb-4">
+            <div class="col-md-4">
+                <div class="kpi-card">
+                    <div class="kpi-icon bg-primary bg-opacity-10 text-primary"><i class="bi bi-activity"></i></div>
+                    <div><div class="small text-muted fw-bold">TOTAL MOVES (TODAY)</div><h3 class="fw-bold m-0"><?= number_format($today_moves) ?></h3></div>
+                </div>
             </div>
-        </form>
-    </div>
-
-    <div class="tab-content">
-        
-        <div class="tab-pane fade <?= $active_tab == 'system' ? 'show active' : '' ?>">
-            <div class="card card-log">
-                <div class="table-responsive">
-                    <table class="table table-hover mb-0 align-middle">
-                        <thead class="bg-light text-muted small text-uppercase">
-                            <tr>
-                                <th class="ps-4">Timestamp</th>
-                                <th>User</th>
-                                <th>Module</th>
-                                <th>Action</th>
-                                <th>Description</th>
-                                <th class="text-end pe-4">IP Address</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php 
-                            $sql = "SELECT * FROM wms_system_logs $filter_sys ORDER BY id DESC LIMIT $limit";
-                            $stmt = safeGetAll($pdo, $sql, $params_sys);
-                            
-                            if(empty($stmt)): echo "<tr><td colspan='6' class='text-center py-5 text-muted'>No logs found.</td></tr>"; else:
-                            foreach($stmt as $row):
-                            ?>
-                            <tr>
-                                <td class="ps-4 text-secondary" style="font-family: monospace; font-size: 0.9rem;">
-                                    <?= date('d M H:i:s', strtotime($row['log_date'])) ?>
-                                </td>
-                                <td class="fw-bold text-dark"><?= htmlspecialchars($row['user_id']) ?></td>
-                                <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($row['module']) ?></span></td>
-                                <td><span class="log-badge bg-<?= $row['action_type'] ?>"><?= $row['action_type'] ?></span></td>
-                                <td class="text-secondary"><?= htmlspecialchars($row['description']) ?></td>
-                                <td class="text-end pe-4 font-monospace text-muted small"><?= $row['ip_address'] ?></td>
-                            </tr>
-                            <?php endforeach; endif; ?>
-                        </tbody>
-                    </table>
+            <div class="col-md-4">
+                <div class="kpi-card">
+                    <div class="kpi-icon bg-success bg-opacity-10 text-success"><i class="bi bi-arrow-down-right"></i></div>
+                    <div><div class="small text-muted fw-bold">INBOUND VOL (QTY)</div><h3 class="fw-bold m-0 text-success">+<?= number_format($inbound_vol) ?></h3></div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="kpi-card">
+                    <div class="kpi-icon bg-warning bg-opacity-10 text-warning"><i class="bi bi-arrow-up-right"></i></div>
+                    <div><div class="small text-muted fw-bold">OUTBOUND VOL (QTY)</div><h3 class="fw-bold m-0 text-warning">-<?= number_format($outbound_vol) ?></h3></div>
                 </div>
             </div>
         </div>
 
-        <div class="tab-pane fade <?= $active_tab == 'stock' ? 'show active' : '' ?>">
-            <div class="card card-log">
-                <div class="table-responsive">
-                    <table class="table table-hover mb-0 align-middle">
-                        <thead class="bg-light text-muted small text-uppercase">
-                            <tr>
-                                <th class="ps-4">Timestamp</th>
-                                <th>Type / Ref</th>
-                                <th>Item</th>
-                                <th>Batch / HU</th>
-                                <th class="text-center">Movement</th>
-                                <th class="text-end">Qty</th>
-                                <th class="text-end pe-4">User</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php 
-                            // Join dengan Products agar bisa search nama barang
-                            $sql = "SELECT m.*, p.product_code, p.description 
-                                    FROM wms_stock_movements m 
-                                    JOIN wms_products p ON m.product_uuid = p.product_uuid 
-                                    $filter_stk 
-                                    ORDER BY m.move_id DESC LIMIT $limit";
-                            $stmt = safeGetAll($pdo, $sql, $params_stk);
-                            
-                            if(empty($stmt)): echo "<tr><td colspan='7' class='text-center py-5 text-muted'>No movements found.</td></tr>"; else:
-                            foreach($stmt as $row):
-                                // Tentukan Warna & Arah
-                                $qty_style = "text-dark";
-                                if($row['qty_change'] > 0) $qty_style = "move-in";
-                                elseif($row['qty_change'] < 0) $qty_style = "move-out";
-                                
-                                $icon_dir = '<i class="bi bi-arrow-right text-muted mx-2"></i>';
-                                if($row['move_type'] == 'RF_PICKING') $icon_dir = '<i class="bi bi-arrow-right text-danger mx-2"></i>';
-                                if($row['move_type'] == 'RF_PUTAWAY') $icon_dir = '<i class="bi bi-arrow-right text-success mx-2"></i>';
-                            ?>
-                            <tr>
-                                <td class="ps-4 text-secondary small" style="font-family: monospace;">
-                                    <?= date('d M H:i:s', strtotime($row['created_at'])) ?>
-                                </td>
-                                <td>
-                                    <div class="fw-bold text-dark small"><?= $row['move_type'] ?></div>
-                                    <div class="text-muted small" style="font-size:0.75rem"><?= $row['trx_ref'] ?></div>
-                                </td>
-                                <td>
-                                    <div class="fw-bold text-primary"><?= $row['product_code'] ?></div>
-                                    <div class="text-muted small text-truncate" style="max-width: 200px;"><?= $row['description'] ?></div>
-                                </td>
-                                <td class="small">
-                                    <div>Batch: <?= $row['batch'] ?></div>
-                                    <div class="text-muted">HU: <?= $row['hu_id'] ?></div>
-                                </td>
-                                <td class="text-center small fw-bold">
-                                    <?= $row['from_bin'] ?: '-' ?> 
-                                    <?= $icon_dir ?> 
-                                    <?= $row['to_bin'] ?: '-' ?>
-                                </td>
-                                <td class="text-end fw-bold fs-6 <?= $qty_style ?>">
-                                    <?= ($row['qty_change'] > 0 ? '+' : '') . (float)$row['qty_change'] ?>
-                                </td>
-                                <td class="text-end pe-4 text-secondary small"><?= $row['user'] ?></td>
-                            </tr>
-                            <?php endforeach; endif; ?>
-                        </tbody>
-                    </table>
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+            <div class="btn-group rounded-pill bg-white border p-1 shadow-sm">
+                <a href="?tab=stock" class="btn btn-sm rounded-pill px-4 <?= $active_tab=='stock'?'btn-primary fw-bold':'text-muted' ?>">Stock Movements</a>
+                <a href="?tab=system" class="btn btn-sm rounded-pill px-4 <?= $active_tab=='system'?'btn-dark fw-bold':'text-muted' ?>">System Logs</a>
+            </div>
+            
+            <form method="GET" class="d-flex gap-2">
+                <input type="hidden" name="tab" value="<?= $active_tab ?>">
+                <?php if($active_tab == 'stock'): ?>
+                <select name="type" class="form-select rounded-pill border shadow-sm" style="width: 160px;" onchange="this.form.submit()">
+                    <option value="">All Types</option>
+                    <?php foreach($move_types as $mt): ?>
+                        <option value="<?= $mt['move_type'] ?>" <?= $type_filter==$mt['move_type']?'selected':'' ?>><?= $mt['move_type'] ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <?php endif; ?>
+                <div class="input-group shadow-sm rounded-pill overflow-hidden">
+                    <input type="text" name="q" class="form-control border-0 ps-4" placeholder="Search logs..." value="<?= htmlspecialchars($search) ?>" style="width: 250px;">
+                    <button type="submit" class="btn btn-white border-start"><i class="bi bi-search"></i></button>
                 </div>
+            </form>
+        </div>
+
+        <div class="glass-table">
+            <div class="table-responsive">
+                
+                <?php if($active_tab == 'stock'): ?>
+                <table class="table mb-0">
+                    <thead>
+                        <tr>
+                            <th class="ps-4">Timestamp</th>
+                            <th>Movement Type</th>
+                            <th>Product Info</th>
+                            <th>Reference</th>
+                            <th class="text-center">Route</th>
+                            <th class="text-end">Qty Change</th>
+                            <th class="text-end pe-4">Actor</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php 
+                        $stmt_stk = safeGetAll($pdo, "SELECT m.*, p.product_code, p.description 
+                                                      FROM wms_stock_movements m 
+                                                      JOIN wms_products p ON m.product_uuid = p.product_uuid 
+                                                      $filter_stk ORDER BY m.move_id DESC LIMIT $limit", $params_stk);
+                        if(empty($stmt_stk)): echo "<tr><td colspan='7' class='text-center py-5 text-muted'>No data found.</td></tr>"; else:
+                        foreach($stmt_stk as $row):
+                            $badge = getMoveBadge($row['move_type']);
+                            $q = (float)$row['qty_change'];
+                            $q_cls = $q > 0 ? 'qty-plus' : ($q < 0 ? 'qty-min' : 'text-muted');
+                            $q_sgn = $q > 0 ? '+' : '';
+                        ?>
+                        <tr>
+                            <td class="ps-4 font-mono text-muted"><?= date('d M H:i', strtotime($row['created_at'])) ?></td>
+                            <td>
+                                <span class="badge-move <?= $badge['bg'] ?>">
+                                    <i class="bi <?= $badge['icon'] ?>"></i> <?= str_replace('_', ' ', $row['move_type']) ?>
+                                </span>
+                            </td>
+                            <td>
+                                <div class="fw-bold"><?= $row['product_code'] ?></div>
+                                <div class="small text-muted text-truncate" style="max-width: 200px;"><?= $row['description'] ?></div>
+                            </td>
+                            <td>
+                                <div class="font-mono small fw-bold text-dark"><?= $row['hu_id'] ?: '-' ?></div>
+                                <div class="font-mono small text-muted"><?= $row['trx_ref'] ?></div>
+                            </td>
+                            <td class="text-center">
+                                <div class="d-flex align-items-center justify-content-center gap-2 font-mono small">
+                                    <span class="bg-light px-2 rounded border"><?= $row['from_bin'] ?: 'OUT' ?></span>
+                                    <i class="bi bi-arrow-right text-muted"></i>
+                                    <span class="bg-light px-2 rounded border fw-bold text-primary"><?= $row['to_bin'] ?: 'OUT' ?></span>
+                                </div>
+                            </td>
+                            <td class="text-end <?= $q_cls ?> fs-6"><?= $q_sgn . $q ?></td>
+                            <td class="text-end pe-4 text-muted small"><i class="bi bi-person-fill me-1"></i><?= $row['user'] ?></td>
+                        </tr>
+                        <?php endforeach; endif; ?>
+                    </tbody>
+                </table>
+
+                <?php else: ?>
+                <table class="table mb-0">
+                    <thead>
+                        <tr>
+                            <th class="ps-4">Time</th>
+                            <th>User</th>
+                            <th>Module</th>
+                            <th>Action</th>
+                            <th>Description</th>
+                            <th class="text-end pe-4">IP</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php 
+                        $stmt_sys = safeGetAll($pdo, "SELECT * FROM wms_system_logs $filter_sys ORDER BY id DESC LIMIT $limit", $params_sys);
+                        if(empty($stmt_sys)): echo "<tr><td colspan='6' class='text-center py-5 text-muted'>No system logs found.</td></tr>"; else:
+                        foreach($stmt_sys as $row):
+                        ?>
+                        <tr>
+                            <td class="ps-4 font-mono text-muted"><?= date('d M H:i:s', strtotime($row['log_date'])) ?></td>
+                            <td><div class="fw-bold text-dark"><?= htmlspecialchars($row['user_id']) ?></div></td>
+                            <td><span class="badge bg-secondary bg-opacity-10 text-secondary border px-2"><?= htmlspecialchars($row['module']) ?></span></td>
+                            <td><span class="fw-bold text-dark small"><?= $row['action_type'] ?></span></td>
+                            <td class="text-muted small"><?= htmlspecialchars($row['description']) ?></td>
+                            <td class="text-end pe-4 font-mono text-muted small"><?= $row['ip_address'] ?></td>
+                        </tr>
+                        <?php endforeach; endif; ?>
+                    </tbody>
+                </table>
+                <?php endif; ?>
+
             </div>
         </div>
 
     </div>
-</div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Dark Mode Logic (Consistent V13)
+        if(localStorage.getItem('theme') === 'dark') document.body.classList.add('dark-mode');
+        function toggleTheme() {
+            document.body.classList.toggle('dark-mode');
+            localStorage.setItem('theme', document.body.classList.contains('dark-mode') ? 'dark' : 'light');
+        }
+    </script>
 </body>
 </html>
