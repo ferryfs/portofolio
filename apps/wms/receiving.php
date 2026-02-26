@@ -1,7 +1,7 @@
 <?php
 // apps/wms/receiving.php
-// V19.9: THE ABSOLUTE FINAL GATEKEEPER (AUDIT LOG FIX)
-// Features: Print GR Panel, Partial Receiving Logic, Auto-Close, Strict Security, System Audit Logging.
+// V19.17: THE ABSOLUTE FINAL GATEKEEPER (DISCREPANCY ENGINE FIX)
+// Features: Print HU Labels Modal, Partial Receiving, Auto-Close, Native DB Remarks, Full System Audit, Precise Discrepancy Tracking
 
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
@@ -55,11 +55,12 @@ class InventoryModel {
     }
 
     public function getPOItems($poNum) {
+        // 🔥 FIX V19.17: Precise aggregation for discrepancy tracking
         $sql = "SELECT i.*, p.product_code, p.description, p.base_uom, p.conversion_qty,
-                (SELECT SUM(gi.qty_good) FROM wms_gr_items gi JOIN wms_gr_header gh ON gi.gr_number = gh.gr_number WHERE gh.po_number = i.po_number AND gi.product_uuid = i.product_uuid) as admin_good,
-                (SELECT SUM(gi.qty_damaged) FROM wms_gr_items gi JOIN wms_gr_header gh ON gi.gr_number = gh.gr_number WHERE gh.po_number = i.po_number AND gi.product_uuid = i.product_uuid) as admin_bad,
-                (SELECT SUM(gi.qty_actual_good) FROM wms_gr_items gi JOIN wms_gr_header gh ON gi.gr_number = gh.gr_number WHERE gh.po_number = i.po_number AND gi.product_uuid = i.product_uuid) as op_actual_good,
-                (SELECT SUM(gi.qty_actual_damaged) FROM wms_gr_items gi JOIN wms_gr_header gh ON gi.gr_number = gh.gr_number WHERE gh.po_number = i.po_number AND gi.product_uuid = i.product_uuid) as op_actual_bad,
+                COALESCE((SELECT SUM(gi.qty_good) FROM wms_gr_items gi JOIN wms_gr_header gh ON gi.gr_number = gh.gr_number WHERE gh.po_number = i.po_number AND gi.product_uuid = i.product_uuid), 0) as admin_good,
+                COALESCE((SELECT SUM(gi.qty_damaged) FROM wms_gr_items gi JOIN wms_gr_header gh ON gi.gr_number = gh.gr_number WHERE gh.po_number = i.po_number AND gi.product_uuid = i.product_uuid), 0) as admin_bad,
+                COALESCE((SELECT SUM(gi.qty_actual_good) FROM wms_gr_items gi JOIN wms_gr_header gh ON gi.gr_number = gh.gr_number WHERE gh.po_number = i.po_number AND gi.product_uuid = i.product_uuid), 0) as op_actual_good,
+                COALESCE((SELECT SUM(gi.qty_actual_damaged) FROM wms_gr_items gi JOIN wms_gr_header gh ON gi.gr_number = gh.gr_number WHERE gh.po_number = i.po_number AND gi.product_uuid = i.product_uuid), 0) as op_actual_bad,
                 (SELECT COUNT(*) FROM wms_warehouse_tasks t WHERE t.hu_id IN (SELECT hu_id FROM wms_quants WHERE gr_ref IN (SELECT gr_number FROM wms_gr_header WHERE po_number=i.po_number)) AND t.status='OPEN') as pending_task
                 FROM wms_po_items i JOIN wms_products p ON i.product_uuid = p.product_uuid WHERE i.po_number = ?";
         return safeGetAll($this->pdo, $sql, [$poNum]);
@@ -98,14 +99,19 @@ class InventoryModel {
             }
 
             $item = safeGetOne($this->pdo, "SELECT i.*, p.conversion_qty, p.base_uom FROM wms_po_items i JOIN wms_products p ON i.product_uuid = p.product_uuid WHERE i.po_item_id = ?", [$data['item_id']]);
+            if(!$item) throw new Exception("Error: Product Data not found.");
+
             $conv = (isset($data['uom_mode']) && $data['uom_mode'] == 'PACK') ? (float)$item['conversion_qty'] : 1;
             
             $total_good = round($qty_good * $conv, 4);
             $total_bad  = round($qty_bad * $conv, 4);
             $total_recv = $total_good + $total_bad;
 
-            if (($item['received_qty'] + $total_recv) > $item['qty_ordered']) {
-                $allowed = $item['qty_ordered'] - $item['received_qty'];
+            $received_qty_db = (float)$item['received_qty'];
+            $qty_ordered_db = (float)$item['qty_ordered'];
+
+            if (($received_qty_db + $total_recv) > $qty_ordered_db) {
+                $allowed = $qty_ordered_db - $received_qty_db;
                 throw new Exception("OVER RECEIVING DETECTED: You are trying to receive $total_recv, but only $allowed {$item['base_uom']} are remaining on this order.");
             }
 
@@ -115,7 +121,9 @@ class InventoryModel {
             $this->getOrCreateBin('GR-ZONE', '9010');
             $this->getOrCreateBin('BLOCK-ZONE', '9010');
 
-            safeQuery($this->pdo, "INSERT INTO wms_gr_header (gr_number, po_number, vendor_do, received_by, status, gr_date) VALUES (?,?,?,?,'POSTED', NOW())", [$gr_num, $data['po_number'], $data['vendor_do'], $this->user]);
+            $remarks_input = !empty($data['remarks']) ? trim($data['remarks']) : NULL;
+            safeQuery($this->pdo, "INSERT INTO wms_gr_header (gr_number, po_number, vendor_do, received_by, status, gr_date, remarks) VALUES (?,?,?,?,'POSTED', NOW(), ?)", [$gr_num, $data['po_number'], $data['vendor_do'], $this->user, $remarks_input]);
+            
             safeQuery($this->pdo, "INSERT INTO wms_gr_items (gr_number, po_item_id, product_uuid, batch_no, expiry_date, qty_good, qty_damaged, qty_reported, qty_actual_good, qty_actual_damaged, discrepancy_status) VALUES (?,?,?,?,?,?,?,?, 0, ?, 'BALANCED')", 
                      [$gr_num, $data['item_id'], $item['product_uuid'], $batch_id, $data['expiry'], $total_good, $total_bad, $total_recv, $total_bad]);
 
@@ -125,31 +133,34 @@ class InventoryModel {
                 $hu_id = "HU" . date('dy') . mt_rand(100000, 999999);
                 safeQuery($this->pdo, "INSERT INTO wms_quants (product_uuid, lgpla, batch, hu_id, qty, stock_type, gr_date, po_ref, gr_ref, is_putaway) VALUES (?, 'GR-ZONE', ?, ?, ?, 'Q4', NOW(), ?, ?, 0)", [$item['product_uuid'], $batch_id, $hu_id, $take, $data['po_number'], $gr_num]);
                 safeQuery($this->pdo, "INSERT INTO wms_warehouse_tasks (process_type, product_uuid, batch, hu_id, source_bin, dest_bin, qty, status, created_at) VALUES ('PUTAWAY', ?, ?, ?, 'GR-ZONE', 'SYSTEM', ?, 'OPEN', NOW())", [$item['product_uuid'], $batch_id, $hu_id, $take]);
+                
+                safeQuery($this->pdo, "INSERT INTO wms_stock_movements (trx_ref, product_uuid, batch, hu_id, from_bin, to_bin, qty_change, move_type, user, created_at, reason_code) VALUES (?, ?, ?, ?, NULL, 'GR-ZONE', ?, 'GR_IN', ?, NOW(), NULL)", [$gr_num, $item['product_uuid'], $batch_id, $hu_id, $take, $this->user]);
+
                 $left = round($left - $take, 4);
             }
 
             if($total_bad > 0) {
                 $hu_bad = "DMG" . date('dy') . mt_rand(1000, 9999);
                 safeQuery($this->pdo, "INSERT INTO wms_quants (product_uuid, lgpla, batch, hu_id, qty, stock_type, gr_date, po_ref, gr_ref) VALUES (?, 'BLOCK-ZONE', ?, ?, ?, 'B6', NOW(), ?, ?)", [$item['product_uuid'], $batch_id, $hu_bad, $total_bad, $data['po_number'], $gr_num]);
+                
+                safeQuery($this->pdo, "INSERT INTO wms_stock_movements (trx_ref, product_uuid, batch, hu_id, from_bin, to_bin, qty_change, move_type, user, created_at, reason_code) VALUES (?, ?, ?, ?, NULL, 'BLOCK-ZONE', ?, 'GR_BAD', ?, NOW(), NULL)", [$gr_num, $item['product_uuid'], $batch_id, $hu_bad, $total_bad, $this->user]);
             }
 
-            // AUTO-CLOSE LOGIC
-            $new_total_received = $item['received_qty'] + $total_recv;
-            if ($new_total_received >= $item['qty_ordered']) {
+            $new_total_received = $received_qty_db + $total_recv;
+            if ($new_total_received >= $qty_ordered_db) {
                 safeQuery($this->pdo, "UPDATE wms_po_items SET received_qty = ?, status = 'CLOSED' WHERE po_item_id = ?", [$new_total_received, $data['item_id']]);
             } else {
                 safeQuery($this->pdo, "UPDATE wms_po_items SET received_qty = ? WHERE po_item_id = ?", [$new_total_received, $data['item_id']]);
             }
             
-            // FEEDBACK NOTIFICATION
-            $msg = "Posted GR $gr_num. Good: $total_good, Bad: $total_bad. " . ($data['remarks'] ?? '');
+            $msg = "Posted GR $gr_num. Good: $total_good, Bad: $total_bad.";
             safeQuery($this->pdo, "INSERT INTO wms_inbound_notif (po_number, message, severity, created_at) VALUES (?, ?, 'SUCCESS', NOW())", [$data['po_number'], $msg]);
 
-            // 🔥 FIX: SYSTEM AUDIT LOG (NEW)
             $logDesc = "Admin generated GR $gr_num for PO {$data['po_number']} (Item ID: {$data['item_id']}). Qty: $total_recv";
             safeQuery($this->pdo, "INSERT INTO wms_system_logs (user_id, module, action_type, description, ip_address, log_date) VALUES (?, 'RECEIVING', 'POST_GR', ?, ?, NOW())", [$this->user, $logDesc, $_SERVER['REMOTE_ADDR']]);
 
             $this->pdo->commit(); return ['status' => 'success', 'gr' => $gr_num];
+            
         } catch (Throwable $e) { 
             if ($this->pdo->inTransaction()) { $this->pdo->rollBack(); }
             return ['status' => 'error', 'message' => $e->getMessage()]; 
@@ -165,11 +176,16 @@ class InventoryModel {
             foreach($items as $it) { safeQuery($this->pdo, "UPDATE wms_po_items SET received_qty = received_qty - ?, status = 'OPEN' WHERE po_item_id = ?", [($it['qty_good']+$it['qty_damaged']), $it['po_item_id']]); }
             safeQuery($this->pdo, "UPDATE wms_po_header SET status = 'OPEN' WHERE po_number = ?", [$poNum]);
             safeQuery($this->pdo, "DELETE FROM wms_warehouse_tasks WHERE hu_id IN (SELECT hu_id FROM wms_quants WHERE gr_ref = ?)", [$grNum]);
+            
+            $quants = safeGetAll($this->pdo, "SELECT * FROM wms_quants WHERE gr_ref = ?", [$grNum]);
+            foreach($quants as $q) {
+                safeQuery($this->pdo, "INSERT INTO wms_stock_movements (trx_ref, product_uuid, batch, hu_id, from_bin, to_bin, qty_change, move_type, user, created_at, reason_code) VALUES (?, ?, ?, ?, ?, 'VOID', ?, 'REVERSAL', ?, NOW(), NULL)", [$grNum, $q['product_uuid'], $q['batch'], $q['hu_id'], $q['lgpla'], $q['qty'], $this->user]);
+            }
+
             safeQuery($this->pdo, "DELETE FROM wms_quants WHERE gr_ref = ?", [$grNum]);
             safeQuery($this->pdo, "DELETE FROM wms_gr_items WHERE gr_number = ?", [$grNum]);
             safeQuery($this->pdo, "DELETE FROM wms_gr_header WHERE gr_number = ?", [$grNum]);
             
-            // 🔥 FIX: SYSTEM AUDIT LOG VOID (NEW)
             $logDesc = "Admin voided GR $grNum for PO $poNum. Stock and tasks wiped.";
             safeQuery($this->pdo, "INSERT INTO wms_system_logs (user_id, module, action_type, description, ip_address, log_date) VALUES (?, 'RECEIVING', 'VOID_GR', ?, ?, NOW())", [$this->user, $logDesc, $_SERVER['REMOTE_ADDR']]);
 
@@ -185,20 +201,35 @@ $model = new InventoryModel($pdo, $user_id);
 
 // AJAX handlers
 if(isset($_POST['action'])) {
+    if (ob_get_length()) ob_clean(); 
     header('Content-Type: application/json');
-    if($_POST['action'] == 'get_auto_batch') { echo json_encode(['status'=>'success', 'batch'=>"BATCH-" . date('ymd') . "-" . str_pad($model->getNextSequence('BATCH_NUM'), 4, '0', STR_PAD_LEFT)]); exit; }
-    if($_POST['action'] == 'post_gr') { echo json_encode($model->postGR($_POST)); exit; }
-    if($_POST['action'] == 'calc_preview') {
-        $item_id = sanitizeInt($_POST['item_id']); 
-        $good = isset($_POST['qty_good']) && $_POST['qty_good'] !== '' ? (float)$_POST['qty_good'] : 0; 
-        $bad = isset($_POST['qty_bad']) && $_POST['qty_bad'] !== '' ? (float)$_POST['qty_bad'] : 0;
-        
-        $prod = safeGetOne($pdo, "SELECT p.conversion_qty, p.base_uom, p.capacity_uom FROM wms_products p JOIN wms_po_items i ON i.product_uuid = p.product_uuid WHERE i.po_item_id=?", [$item_id]);
-        $conv = (isset($_POST['uom_mode']) && $_POST['uom_mode'] == 'PACK') ? (float)$prod['conversion_qty'] : 1;
-        $total = ($good + $bad) * $conv; $preview = []; $left = $good * $conv; $cap = (float)$prod['conversion_qty'] ?: 1;
-        while($left > 0.0001) { $qty = ($left >= $cap) ? $cap : $left; $preview[] = ['type'=>$prod['capacity_uom'], 'qty'=>$qty]; $left -= $qty; }
-        if($bad > 0) $preview[] = ['type'=>'DAMAGED', 'qty'=>$bad*$conv];
-        echo json_encode(['status'=>'success', 'data'=>$preview, 'total_base'=>$total, 'uom'=>$prod['base_uom']]); exit;
+    
+    try {
+        if($_POST['action'] == 'get_auto_batch') { echo json_encode(['status'=>'success', 'batch'=>"BATCH-" . date('ymd') . "-" . str_pad($model->getNextSequence('BATCH_NUM'), 4, '0', STR_PAD_LEFT)]); exit; }
+        if($_POST['action'] == 'post_gr') { echo json_encode($model->postGR($_POST)); exit; }
+        if($_POST['action'] == 'calc_preview') {
+            $item_id = sanitizeInt($_POST['item_id']); 
+            $good = isset($_POST['qty_good']) && $_POST['qty_good'] !== '' ? (float)$_POST['qty_good'] : 0; 
+            $bad = isset($_POST['qty_bad']) && $_POST['qty_bad'] !== '' ? (float)$_POST['qty_bad'] : 0;
+            
+            $prod = safeGetOne($pdo, "SELECT p.conversion_qty, p.base_uom, p.capacity_uom FROM wms_products p JOIN wms_po_items i ON i.product_uuid = p.product_uuid WHERE i.po_item_id=?", [$item_id]);
+            $conv = (isset($_POST['uom_mode']) && $_POST['uom_mode'] == 'PACK') ? (float)$prod['conversion_qty'] : 1;
+            $total = ($good + $bad) * $conv; $preview = []; $left = $good * $conv; $cap = (float)$prod['conversion_qty'] ?: 1;
+            while($left > 0.0001) { $qty = ($left >= $cap) ? $cap : $left; $preview[] = ['type'=>$prod['capacity_uom'], 'qty'=>$qty]; $left -= $qty; }
+            if($bad > 0) $preview[] = ['type'=>'DAMAGED', 'qty'=>$bad*$conv];
+            echo json_encode(['status'=>'success', 'data'=>$preview, 'total_base'=>$total, 'uom'=>$prod['base_uom']]); exit;
+        }
+        if($_POST['action'] == 'get_gr_hus') {
+            $grNum = sanitizeInput($_POST['gr_number']);
+            $sql = "SELECT q.hu_id, p.product_code, q.qty, p.base_uom, q.stock_type 
+                    FROM wms_quants q 
+                    JOIN wms_products p ON q.product_uuid = p.product_uuid 
+                    WHERE q.gr_ref = ?";
+            $hus = safeGetAll($pdo, $sql, [$grNum]);
+            echo json_encode(['status'=>'success', 'data'=>$hus]); exit;
+        }
+    } catch (Throwable $e) {
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]); exit;
     }
 }
 
@@ -215,7 +246,7 @@ $gr_list = $selected_po ? safeGetAll($pdo, "SELECT * FROM wms_gr_header WHERE po
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Inbound Control | V19.9 Audit Grade</title>
+    <title>Inbound Control | V19.17 Print Label</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
@@ -277,7 +308,7 @@ $gr_list = $selected_po ? safeGetAll($pdo, "SELECT * FROM wms_gr_header WHERE po
         <div class="sidebar-brand">
             <div class="d-flex align-items-center gap-3">
                 <div class="bg-primary p-2 rounded-3 text-white"><i class="bi bi-shield-lock-fill fs-4"></i></div>
-                <div><h5 class="fw-bold m-0">Enterprise Inbound</h5><span class="text-muted small">WMS System V19.9</span></div>
+                <div><h5 class="fw-bold m-0">Enterprise Inbound</h5><span class="text-muted small">WMS System V19.17</span></div>
             </div>
             <div class="btn-group w-100 mt-4 p-1 bg-light rounded-pill border">
                 <a href="?view=active" class="btn btn-sm rounded-pill <?= $view_mode=='active'?'btn-primary shadow-sm fw-bold':'' ?>">Active</a>
@@ -372,7 +403,7 @@ $gr_list = $selected_po ? safeGetAll($pdo, "SELECT * FROM wms_gr_header WHERE po
                                             <button class="btn btn-primary rounded-pill fw-bold px-4 shadow-sm" onclick='openModal(<?= json_encode($item) ?>)'>Process</button>
                                         <?php elseif($invalid): ?>
                                             <i class="bi bi-x-circle-fill text-danger fs-5" title="Invalid Qty from External"></i>
-                                        <?php elseif($is_closed): ?>
+                                        <?php else: ?>
                                             <i class="bi bi-check-circle-fill text-success fs-4" title="Fully Received"></i>
                                         <?php endif; ?>
                                     </td>
@@ -383,7 +414,7 @@ $gr_list = $selected_po ? safeGetAll($pdo, "SELECT * FROM wms_gr_header WHERE po
                     </div>
 
                     <div class="glass-card mt-4 border-primary border-opacity-10 shadow-sm">
-                        <h6 class="fw-bold mb-3"><i class="bi bi-printer-fill me-2 text-primary"></i>Generated Goods Receipts</h6>
+                        <h6 class="fw-bold mb-3"><i class="bi bi-ui-checks-grid me-2 text-primary"></i>Generated Goods Receipts</h6>
                         <?php if(empty($gr_list)): ?>
                             <div class="text-muted small">No GR documents generated yet.</div>
                         <?php else: ?>
@@ -395,7 +426,8 @@ $gr_list = $selected_po ? safeGetAll($pdo, "SELECT * FROM wms_gr_header WHERE po
                                             <td class="fw-bold text-dark align-middle"><?= $gr['gr_number'] ?></td>
                                             <td class="small text-muted align-middle"><?= date('d M Y H:i', strtotime($gr['gr_date'])) ?></td>
                                             <td class="text-end">
-                                                <button class="btn btn-sm btn-success rounded-pill px-3 shadow-sm" onclick="window.open('print_gr.php?gr_number=<?= $gr['gr_number'] ?>', '_blank')"><i class="bi bi-printer me-1"></i> Print</button>
+                                                <button class="btn btn-sm btn-info text-white rounded-pill px-3 shadow-sm me-1" onclick="openLabelSelectModal('<?= $gr['gr_number'] ?>')"><i class="bi bi-upc-scan me-1"></i> Labels</button>
+                                                <button class="btn btn-sm btn-success rounded-pill px-3 shadow-sm" onclick="window.open('print_gr.php?gr_number=<?= $gr['gr_number'] ?>', '_blank')"><i class="bi bi-file-earmark-text me-1"></i> Doc</button>
                                                 <button class="btn btn-sm btn-outline-danger px-3 rounded-pill ms-1" onclick="reverseGR('<?= $gr['gr_number'] ?>')"><i class="bi bi-arrow-counterclockwise"></i> Void</button>
                                             </td>
                                         </tr>
@@ -428,7 +460,7 @@ $gr_list = $selected_po ? safeGetAll($pdo, "SELECT * FROM wms_gr_header WHERE po
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header d-flex justify-content-between align-items-center">
-                <div><h4 class="fw-bold m-0"><i class="bi bi-qr-code-scan me-2"></i>SKU Reception Protocol</h4><div id="modalSub" class="small opacity-50 font-monospace">SKU-000</div></div>
+                <div><h4 class="fw-bold m-0"><i class="bi bi-box-seam me-2"></i>SKU Reception Protocol</h4><div id="modalSub" class="small opacity-50 font-monospace">SKU-000</div></div>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -495,6 +527,25 @@ $gr_list = $selected_po ? safeGetAll($pdo, "SELECT * FROM wms_gr_header WHERE po
     </div>
 </div>
 
+<div class="modal fade" id="printLabelModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius: 20px;">
+            <div class="modal-header bg-info text-white" style="border-radius: 20px 20px 0 0; border: none;">
+                <h5 class="fw-bold m-0"><i class="bi bi-upc-scan me-2"></i> Print HU Labels</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="fw-bold text-muted small">Generated Pallets (HU)</span>
+                    <button id="btnPrintAll" class="btn btn-dark btn-sm rounded-pill px-3 fw-bold shadow-sm">Print All Labels</button>
+                </div>
+                <div id="labelListContainer" style="max-height: 300px; overflow-y: auto;">
+                    </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     try {
@@ -502,8 +553,10 @@ $gr_list = $selected_po ? safeGetAll($pdo, "SELECT * FROM wms_gr_header WHERE po
     } catch(e) { console.warn("Local storage disabled by browser"); }
 
     let grModal;
+    let labelModal;
     document.addEventListener("DOMContentLoaded", function() { 
         grModal = new bootstrap.Modal(document.getElementById('grModal')); 
+        labelModal = new bootstrap.Modal(document.getElementById('printLabelModal')); 
     });
 
     function openModal(item) {
@@ -554,12 +607,7 @@ $gr_list = $selected_po ? safeGetAll($pdo, "SELECT * FROM wms_gr_header WHERE po
         fetch('receiving.php', { method: 'POST', body: fd })
         .then(async r => {
             const text = await r.text();
-            try {
-                return JSON.parse(text);
-            } catch(e) {
-                console.error("Server Output:", text);
-                throw new Error("Invalid Server Response. Check Console.");
-            }
+            try { return JSON.parse(text); } catch(e) { throw new Error("Invalid Server Response. Check Console."); }
         })
         .then(d => {
             if (d.status === 'success') {
@@ -575,8 +623,7 @@ $gr_list = $selected_po ? safeGetAll($pdo, "SELECT * FROM wms_gr_header WHERE po
         Swal.fire({
             title: 'Reverse Document?',
             text: "This will WIPE ALL staging stock and open tasks. You cannot undo this!",
-            icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#3085d6', confirmButtonText: 'Yes, Void it!',
-            footer: '<small class="text-danger">Note: Only works if Operator has NOT moved the stock.</small>'
+            icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#3085d6', confirmButtonText: 'Yes, Void it!'
         }).then((result) => {
             if (result.isConfirmed) {
                 Swal.fire({ title: 'Processing Void...', didOpen: () => Swal.showLoading() });
@@ -590,6 +637,49 @@ $gr_list = $selected_po ? safeGetAll($pdo, "SELECT * FROM wms_gr_header WHERE po
                 }).catch(e => Swal.fire('System Error', 'Check connection', 'error'));
             }
         });
+    }
+
+    // 🔥 FIX V19.16: FUNGSI BUKA MODAL LABEL
+    function openLabelSelectModal(grNum) {
+        document.getElementById('labelListContainer').innerHTML = '<div class="text-center text-muted"><div class="spinner-border spinner-border-sm me-2"></div> Loading HUs...</div>';
+        
+        // Setup tombol Print All buat GR spesifik ini
+        document.getElementById('btnPrintAll').onclick = function() {
+            window.open('print_label.php?gr=' + grNum, '_blank');
+        };
+
+        let fd = new FormData();
+        fd.append('action', 'get_gr_hus');
+        fd.append('gr_number', grNum);
+
+        fetch('receiving.php', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(res => {
+            if(res.status === 'success') {
+                let html = '';
+                if(res.data.length === 0) {
+                    html = '<div class="alert alert-light text-center">No Handling Units found for this GR.</div>';
+                } else {
+                    res.data.forEach(item => {
+                        let isBad = item.stock_type === 'B6';
+                        let badge = isBad ? '<span class="badge bg-danger ms-2">DMG</span>' : '';
+                        html += `
+                        <div class="d-flex justify-content-between align-items-center p-3 border rounded mb-2 ${isBad ? 'bg-danger bg-opacity-10' : 'bg-light'}">
+                            <div>
+                                <div class="fw-bold font-monospace">${item.hu_id} ${badge}</div>
+                                <div class="small text-muted">${item.product_code} &bull; Qty: ${parseFloat(item.qty)} ${item.base_uom}</div>
+                            </div>
+                            <button class="btn btn-outline-primary btn-sm rounded-pill" onclick="window.open('print_label.php?hu=${item.hu_id}', '_blank')">Print</button>
+                        </div>`;
+                    });
+                }
+                document.getElementById('labelListContainer').innerHTML = html;
+            } else {
+                document.getElementById('labelListContainer').innerHTML = '<div class="text-danger">Failed to load data.</div>';
+            }
+        });
+
+        labelModal.show();
     }
 
     function filterPOs() {

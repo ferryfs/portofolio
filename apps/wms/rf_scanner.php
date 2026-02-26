@@ -1,7 +1,7 @@
 <?php
 // apps/wms/rf_scanner.php
-// V18: SOA REFACTORING (Service-Oriented Architecture)
-// Features: Execution logic offloaded to WMSPutawayService, UI preserved.
+// V18.9: DATE FILTER UX FIX
+// Features: Added Date Filter before showing task list to prevent infinite scrolling.
 
 session_name("WMS_APP_SESSION");
 session_start();
@@ -12,7 +12,7 @@ require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../config/security.php';
 require_once 'koneksi.php'; 
 
-// 🔥 INCLUDE SERVICE LAYER KITA
+// 🔥 INCLUDE SERVICE LAYER 
 require_once 'WMSPutawayService.php';
 
 $user_id = $_SESSION['wms_fullname'];
@@ -28,13 +28,14 @@ class RFModel {
         $this->user = $user;
     }
 
-    public function getOpenTasks($type) {
+    // 🔥 FIX: Query dimodifikasi buat nerima parameter $filterDate
+    public function getOpenTasks($type, $filterDate) {
         return safeGetAll($this->pdo, 
             "SELECT t.*, p.product_code, p.description 
              FROM wms_warehouse_tasks t 
              JOIN wms_products p ON t.product_uuid = p.product_uuid 
-             WHERE t.status='OPEN' AND t.process_type=? 
-             ORDER BY t.priority DESC, t.created_at ASC LIMIT 20", [$type]);
+             WHERE t.status='OPEN' AND t.process_type=? AND DATE(t.created_at) = ?
+             ORDER BY t.priority DESC, t.created_at DESC", [$type, $filterDate]);
     }
 
     public function checkStock($query) {
@@ -61,27 +62,24 @@ class RFModel {
 
         return $res;
     }
-
-    // 🔥 Fungsi executeTask DIHAPUS, dipindah ke WMSPutawayService
 }
 
 $rf = new RFModel($pdo, $user_id);
 
 // ---------------------------------------------------------
-// 🔥 EXECUTION BLOCK (REFACTORED)
+// 🔥 EXECUTION BLOCK (REFACTORED SOA)
 // ---------------------------------------------------------
 if(isset($_POST['btn_exec'])) {
-    // Kita panggil ahlinya: WMSPutawayService
     $putawayService = new WMSPutawayService($pdo, $user_id);
     
-    // Ambil input
     $taskId = $_POST['task_id'];
     $targetBin = $_POST['scan_bin'];
     $qtyGood = $_POST['qty_good'] ?? 0;
     $qtyBad = $_POST['qty_bad'] ?? 0;
     $remarks = $_POST['remarks'] ?? '';
+    // Pertahankan tanggal buat balik ke list
+    $filterDate = $_POST['filter_date'] ?? date('Y-m-d'); 
 
-    // Lemparkan tugas ke Service Layer dengan penanda 'RF'
     $res = $putawayService->executePutaway($taskId, $targetBin, $qtyGood, $qtyBad, $remarks, 'RF');
     
     $msg = $res['msg'];
@@ -89,7 +87,7 @@ if(isset($_POST['btn_exec'])) {
     $page = ($res['status'] == 'success') ? 'list' : 'exec';
     
     if($res['status'] == 'success') { 
-        header("Location: ?page=list&type={$_POST['type']}&msg=".urlencode($msg)); 
+        header("Location: ?page=list&type={$_POST['type']}&date={$filterDate}&msg=".urlencode($msg)); 
         exit; 
     }
 }
@@ -108,7 +106,7 @@ if(isset($_GET['msg'])) { $msg = $_GET['msg']; $msg_type = 'success'; }
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RF Enterprise V18 (SOA)</title>
+    <title>RF Enterprise V18.9</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
@@ -128,7 +126,6 @@ if(isset($_GET['msg'])) { $msg = $_GET['msg']; $msg_type = 'success'; }
         .task-qty { font-size: 1.2rem; font-weight: 700; color: var(--success); }
         .scan-box { background: var(--card); padding: 20px; border-radius: 16px; margin-bottom: 20px; border: 1px solid #334155; }
         
-        /* 🔥 Admin Notes Box Styling */
         .admin-note-box { background: rgba(245, 158, 11, 0.1); border: 1px solid var(--warning); border-radius: 12px; padding: 15px; margin-bottom: 20px; color: #fcd34d; }
         
         .form-label { color: #94a3b8; font-size: 0.8rem; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
@@ -150,7 +147,7 @@ if(isset($_GET['msg'])) { $msg = $_GET['msg']; $msg_type = 'success'; }
         <div class="d-flex align-items-center gap-2">
             <i class="bi bi-upc-scan text-primary fs-4"></i>
             <div>
-                <div style="font-weight: 800; line-height: 1;">RF-V18</div>
+                <div style="font-weight: 800; line-height: 1;">RF-V18.9</div>
                 <div style="font-size: 0.7rem; color: #64748b;">Enterprise Mobile</div>
             </div>
         </div>
@@ -170,12 +167,12 @@ if(isset($_GET['msg'])) { $msg = $_GET['msg']; $msg_type = 'success'; }
 
         <?php if($page == 'menu'): ?>
             <div class="menu-grid">
-                <a href="?page=list&type=PUTAWAY" class="menu-card">
+                <a href="?page=filter_date&type=PUTAWAY" class="menu-card">
                     <i class="bi bi-box-arrow-in-down menu-icon text-primary"></i>
                     <div class="fw-bold">PUTAWAY</div>
                     <div class="small text-muted mt-1">Inbound Process</div>
                 </a>
-                <a href="?page=list&type=PICKING" class="menu-card">
+                <a href="?page=filter_date&type=PICKING" class="menu-card">
                     <i class="bi bi-box-arrow-up menu-icon text-warning"></i>
                     <div class="fw-bold">PICKING</div>
                     <div class="small text-muted mt-1">Outbound Process</div>
@@ -191,20 +188,41 @@ if(isset($_GET['msg'])) { $msg = $_GET['msg']; $msg_type = 'success'; }
                 </a>
             </div>
 
+        <?php elseif($page == 'filter_date'): 
+            $type = $_GET['type'] ?? 'PUTAWAY';
+        ?>
+            <div class="scan-box text-center">
+                <i class="bi bi-calendar-date text-primary fs-1 mb-3"></i>
+                <h5 class="fw-bold mb-1">Select Task Date</h5>
+                <p class="small text-muted mb-4">Choose date for <?= $type ?> tasks</p>
+                <form method="GET" action="">
+                    <input type="hidden" name="page" value="list">
+                    <input type="hidden" name="type" value="<?= $type ?>">
+                    <input type="date" name="date" class="form-control-rf mb-4" value="<?= date('Y-m-d') ?>" required>
+                    <button type="submit" class="btn-rf btn-primary">VIEW TASKS</button>
+                </form>
+            </div>
+            <a href="?page=menu" class="btn btn-outline-secondary w-100 rounded-pill py-2 fw-bold text-center text-decoration-none">BACK TO MENU</a>
+
         <?php elseif($page == 'list'): 
             $type = $_GET['type'] ?? 'PUTAWAY';
-            $tasks = $rf->getOpenTasks($type);
+            $filterDate = $_GET['date'] ?? date('Y-m-d');
+            $tasks = $rf->getOpenTasks($type, $filterDate);
         ?>
-            <h5 class="fw-bold mb-3 text-white"><i class="bi bi-list-task me-2"></i><?= $type ?> TASKS</h5>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-bold m-0 text-white"><i class="bi bi-list-task me-2"></i><?= $type ?> TASKS</h5>
+                <span class="badge bg-primary"><?= date('d M Y', strtotime($filterDate)) ?></span>
+            </div>
+            
             <?php if(empty($tasks)): ?>
                 <div class="text-center text-muted py-5">
-                    <i class="bi bi-clipboard-check fs-1 opacity-25"></i>
-                    <p class="mt-2">No pending tasks.</p>
-                    <a href="?page=menu" class="btn btn-sm btn-outline-secondary rounded-pill px-4">Back to Menu</a>
+                    <i class="bi bi-clipboard-x fs-1 opacity-25"></i>
+                    <p class="mt-2">No tasks found for this date.</p>
+                    <a href="?page=filter_date&type=<?= $type ?>" class="btn btn-sm btn-outline-secondary rounded-pill px-4 mt-2">Change Date</a>
                 </div>
             <?php else: ?>
                 <?php foreach($tasks as $t): ?>
-                    <a href="?page=exec&id=<?= $t['tanum'] ?>&type=<?= $type ?>" class="task-item">
+                    <a href="?page=exec&id=<?= $t['tanum'] ?>&type=<?= $type ?>&date=<?= $filterDate ?>" class="task-item">
                         <div class="task-meta">
                             <span>TASK #<?= $t['tanum'] ?></span>
                             <span>HU: <?= $t['hu_id'] ?></span>
@@ -216,31 +234,28 @@ if(isset($_GET['msg'])) { $msg = $_GET['msg']; $msg_type = 'success'; }
                         </div>
                     </a>
                 <?php endforeach; ?>
+                <div class="mt-4">
+                    <a href="?page=filter_date&type=<?= $type ?>" class="btn btn-outline-secondary w-100 rounded-pill py-2 text-center text-decoration-none small">CHANGE DATE FILTER</a>
+                </div>
             <?php endif; ?>
 
         <?php elseif($page == 'exec'): 
             $id = $_GET['id'];
-            $t = safeGetOne($pdo, "SELECT t.*, p.product_code, p.description, q.po_ref 
+            $filterDate = $_GET['date'] ?? date('Y-m-d');
+            
+            $t = safeGetOne($pdo, "SELECT t.*, p.product_code, p.description, p.base_uom, q.gr_ref, q.po_ref, q.batch, gh.remarks as admin_note 
                                    FROM wms_warehouse_tasks t 
-                                   JOIN wms_products p ON t.product_uuid=p.product_uuid 
+                                   JOIN wms_products p ON t.product_uuid = p.product_uuid 
                                    LEFT JOIN wms_quants q ON t.hu_id = q.hu_id
-                                   WHERE t.tanum=?", [$id]);
+                                   LEFT JOIN wms_gr_header gh ON q.gr_ref = gh.gr_number
+                                   WHERE t.tanum = ?", [$id]);
                                    
-            // Fetching Admin Note for this Task's PO
-            $adminNote = "";
-            if($t['po_ref']) {
-                $noteQ = safeGetOne($pdo, "SELECT message FROM wms_inbound_notif WHERE po_number = ? AND severity = 'SUCCESS' ORDER BY created_at DESC LIMIT 1", [$t['po_ref']]);
-                if($noteQ) {
-                    $parts = explode(".", $noteQ['message']);
-                    if(isset($parts[2]) && trim($parts[2]) != '') {
-                        $adminNote = trim($parts[2]);
-                    }
-                }
-            }
+            $adminNote = $t['admin_note'] ?? '';
         ?>
             <form method="POST">
                 <input type="hidden" name="task_id" value="<?= $id ?>">
                 <input type="hidden" name="type" value="<?= $_GET['type'] ?>">
+                <input type="hidden" name="filter_date" value="<?= $filterDate ?>">
 
                 <div class="scan-box" style="border-left: 4px solid var(--primary);">
                     <div class="d-flex justify-content-between mb-2">
@@ -257,15 +272,18 @@ if(isset($_GET['msg'])) { $msg = $_GET['msg']; $msg_type = 'success'; }
                 
                 <?php if($adminNote): ?>
                 <div class="admin-note-box">
-                    <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle-fill me-2"></i>Note From Admin:</div>
+                    <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle-fill me-2"></i>Catatan untuk <?= htmlspecialchars($t['po_ref']) ?>:</div>
                     <div class="small" style="line-height: 1.4;"><?= htmlspecialchars($adminNote) ?></div>
+                </div>
+                <?php else: ?>
+                <div class="admin-note-box" style="background: rgba(148, 163, 184, 0.1); border-color: #334155; color: #94a3b8;">
+                    <div class="fw-bold mb-0" style="font-size: 0.85rem;"><i class="bi bi-info-circle me-2"></i>Tidak ada catatan untuk <?= htmlspecialchars($t['po_ref']) ?></div>
                 </div>
                 <?php endif; ?>
 
                 <div class="scan-box">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <label class="form-label mb-0">ACTUAL COUNT</label>
-                        <span class="badge bg-secondary">Target: <?= (float)$t['qty'] ?></span>
                     </div>
 
                     <div class="row g-3 mb-3">
@@ -294,7 +312,7 @@ if(isset($_GET['msg'])) { $msg = $_GET['msg']; $msg_type = 'success'; }
 
                 <div class="d-grid gap-2">
                     <button type="submit" name="btn_exec" class="btn-rf btn-primary">CONFIRM TASK</button>
-                    <a href="?page=list&type=<?= $_GET['type'] ?>" class="btn btn-outline-secondary rounded-pill py-2 fw-bold text-center text-decoration-none">CANCEL</a>
+                    <a href="?page=list&type=<?= $_GET['type'] ?>&date=<?= $filterDate ?>" class="btn btn-outline-secondary rounded-pill py-2 fw-bold text-center text-decoration-none">CANCEL</a>
                 </div>
             </form>
 

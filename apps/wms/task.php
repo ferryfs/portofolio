@@ -1,6 +1,6 @@
 <?php
 // apps/wms/task.php
-// V13: WAREHOUSE CONTROL TOWER (Enterprise Unified UI + Responsive Logic)
+// V14: WAREHOUSE CONTROL TOWER (Pagination + Latest First Sorting)
 
 session_name("WMS_APP_SESSION");
 session_start();
@@ -33,12 +33,24 @@ if($search) {
     $params = ["%$search%", "%$search%", "%$search%", "%$search%"];
 }
 
-// Query Utama
+// 🔥 FIX: LOGIKA PAGINATION (NEXT PAGE)
+$limit = 15; // Jumlah task per halaman
+$page_num = isset($_GET['p']) ? (int)$_GET['p'] : 1;
+if($page_num < 1) $page_num = 1;
+$offset = ($page_num - 1) * $limit;
+
+// Hitung total data untuk bikin jumlah halamannya
+$count_sql = "SELECT COUNT(*) as total FROM wms_warehouse_tasks t JOIN wms_products p ON t.product_uuid = p.product_uuid $where";
+$total_rows = safeGetOne($pdo, $count_sql, $params)['total'] ?? 0;
+$total_pages = ceil($total_rows / $limit);
+
+// 🔥 FIX: Query Utama ditambahin LIMIT, OFFSET, dan diurutin PALING BARU (created_at DESC)
 $sql = "SELECT t.*, p.product_code, p.description, p.base_uom 
         FROM wms_warehouse_tasks t 
         JOIN wms_products p ON t.product_uuid = p.product_uuid 
         $where 
-        ORDER BY t.priority DESC, t.created_at ASC";
+        ORDER BY t.created_at DESC 
+        LIMIT $limit OFFSET $offset";
 
 $tasks = safeGetAll($pdo, $sql, $params);
 
@@ -53,7 +65,7 @@ $kpi_today   = safeGetOne($pdo, "SELECT count(*) as c FROM wms_warehouse_tasks W
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Task Monitor | V13 Enterprise</title>
+    <title>Task Monitor | V14 Enterprise</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -118,7 +130,7 @@ $kpi_today   = safeGetOne($pdo, "SELECT count(*) as c FROM wms_warehouse_tasks W
     <div class="navbar-glass">
         <div class="d-flex align-items-center gap-3">
             <h4 class="fw-bold m-0 text-primary"><i class="bi bi-list-check me-2"></i>Task Control</h4>
-            <span class="badge bg-light text-muted border desktop-only">V13 Unified</span>
+            <span class="badge bg-light text-muted border desktop-only">V14 Unified</span>
         </div>
         <div class="d-flex align-items-center gap-3">
             <div class="theme-toggle" onclick="toggleTheme()"><i class="bi bi-moon-stars-fill text-warning"></i></div>
@@ -162,6 +174,7 @@ $kpi_today   = safeGetOne($pdo, "SELECT count(*) as c FROM wms_warehouse_tasks W
             </div>
             
             <form class="d-flex gap-2 flex-grow-1 flex-md-grow-0">
+                <input type="hidden" name="tab" value="<?= htmlspecialchars($tab) ?>">
                 <input type="text" name="q" class="form-control rounded-pill border-0 shadow-sm ps-4" placeholder="Search Task / Batch / HU..." value="<?= htmlspecialchars($search) ?>" style="min-width: 250px;">
                 <button type="submit" class="btn btn-white border rounded-circle shadow-sm"><i class="bi bi-search"></i></button>
             </form>
@@ -230,6 +243,30 @@ $kpi_today   = safeGetOne($pdo, "SELECT count(*) as c FROM wms_warehouse_tasks W
                 </table>
             </div>
         </div>
+
+        <?php if($total_pages > 1): ?>
+        <nav class="mt-4 mb-5">
+            <ul class="pagination justify-content-center align-items-center gap-2">
+                <li class="page-item <?= ($page_num <= 1) ? 'disabled' : '' ?>">
+                    <a class="page-link rounded-pill px-4 border shadow-sm fw-bold <?= ($page_num <= 1) ? 'text-muted bg-light' : 'text-primary' ?>" 
+                       href="?tab=<?= urlencode($tab) ?>&q=<?= urlencode($search) ?>&p=<?= $page_num - 1 ?>">
+                       <i class="bi bi-chevron-left me-1"></i> Prev
+                    </a>
+                </li>
+                
+                <li class="page-item disabled">
+                    <span class="page-link border-0 bg-transparent text-muted fw-bold">Page <?= $page_num ?> of <?= $total_pages ?></span>
+                </li>
+
+                <li class="page-item <?= ($page_num >= $total_pages) ? 'disabled' : '' ?>">
+                    <a class="page-link rounded-pill px-4 border shadow-sm fw-bold <?= ($page_num >= $total_pages) ? 'text-muted bg-light' : 'text-primary' ?>" 
+                       href="?tab=<?= urlencode($tab) ?>&q=<?= urlencode($search) ?>&p=<?= $page_num + 1 ?>">
+                       Next <i class="bi bi-chevron-right ms-1"></i>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+        <?php endif; ?>
 
     </div>
 

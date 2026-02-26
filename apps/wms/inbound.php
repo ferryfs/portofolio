@@ -1,7 +1,7 @@
 <?php
 // apps/wms/inbound.php
-// V13.4: SMART STATUS FIX + ZERO QTY AUTO-SWEEPER
-// Features: Tracks Physical Work, Not Just Document Status. Automatically rejects/cleans qty=0 from external systems.
+// V13.5: SMART STATUS FIX + ZERO QTY AUTO-SWEEPER + DISCREPANCY LINK
+// Features: Tracks Physical Work, Not Just Document Status. Automatically rejects/cleans qty=0 from external systems. Linked Discrepancy KPI.
 
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
@@ -124,7 +124,7 @@ $vendors = safeGetAll($pdo, "SELECT DISTINCT vendor_name FROM wms_po_header ORDE
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Inbound Dashboard | WMS V13.4</title>
+    <title>Inbound Dashboard | WMS V13.5</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -148,8 +148,8 @@ $vendors = safeGetAll($pdo, "SELECT DISTINCT vendor_name FROM wms_po_header ORDE
         body { background-color: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; transition: 0.3s; }
         
         .navbar-glass { background: var(--card-bg); border-bottom: 1px solid var(--border); padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
-        .kpi-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px; padding: 1.5rem; display: flex; align-items: center; gap: 1rem; transition: 0.2s; }
-        .kpi-card:hover { transform: translateY(-3px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        .kpi-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px; padding: 1.5rem; display: flex; align-items: center; gap: 1rem; transition: 0.2s; text-decoration: none; color: inherit; }
+        .kpi-card:hover { transform: translateY(-3px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); color: inherit; }
         .kpi-icon { width: 50px; height: 50px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
         .glass-table { background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
         .table { margin: 0; color: var(--text); }
@@ -166,7 +166,7 @@ $vendors = safeGetAll($pdo, "SELECT DISTINCT vendor_name FROM wms_po_header ORDE
     <div class="navbar-glass">
         <div class="d-flex align-items-center gap-3">
             <h4 class="fw-bold m-0 text-primary"><i class="bi bi-box-seam-fill me-2"></i>Inbound Dashboard</h4>
-            <span class="badge bg-light text-muted border">V13.4</span>
+            <span class="badge bg-light text-muted border">V13.5</span>
         </div>
         <div class="d-flex align-items-center gap-3">
             <div class="theme-toggle" onclick="toggleTheme()"><i class="bi bi-moon-stars-fill text-warning"></i></div>
@@ -200,12 +200,20 @@ $vendors = safeGetAll($pdo, "SELECT DISTINCT vendor_name FROM wms_po_header ORDE
                 </div>
             </div>
             <div class="col-md-4">
-                <div class="kpi-card <?= $kpi_mismatch > 0 ? 'border-danger' : '' ?>">
+                <a href="discrepancy.php" class="kpi-card <?= $kpi_mismatch > 0 ? 'border-danger' : '' ?>">
                     <div class="kpi-icon bg-danger bg-opacity-10 text-danger <?= $kpi_mismatch > 0 ? 'pulse-red' : '' ?>">
                         <i class="bi bi-exclamation-triangle-fill"></i>
                     </div>
-                    <div><div class="small text-muted fw-bold text-danger">DISCREPANCIES</div><h3 class="fw-bold m-0 text-danger"><?= $kpi_mismatch ?></h3></div>
-                </div>
+                    <div>
+                        <div class="small text-muted fw-bold text-danger">DISCREPANCIES</div>
+                        <div class="d-flex align-items-center gap-2">
+                            <h3 class="fw-bold m-0 text-danger"><?= $kpi_mismatch ?></h3>
+                            <?php if($kpi_mismatch > 0): ?>
+                                <span class="badge bg-danger ms-2">Action Needed</span>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </a>
             </div>
         </div>
 

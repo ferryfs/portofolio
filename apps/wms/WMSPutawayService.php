@@ -1,7 +1,7 @@
 <?php
 // apps/wms/WMSPutawayService.php
 // ENTERPRISE SERVICE LAYER: Putaway Execution Engine
-// Features: Phantom Stock Prevention (Pessimistic Lock), Bin Regex Validation, Centralized Transaction
+// Features: Phantom Stock Prevention (Pessimistic Lock), Bin Regex Validation, Centralized Transaction, Clean Alert Formatting, Split Audit
 
 class WMSPutawayService {
     private $pdo;
@@ -62,8 +62,14 @@ class WMSPutawayService {
                 throw new Exception("PHANTOM STOCK ALERT: Handling Unit {$task['hu_id']} is missing from {$task['source_bin']}. It may have been voided or moved manually.");
             }
 
+            if (($qtyGood + $qtyBad) > $sourceQuant['qty']) {
+                throw new Exception("OVERAGE ERROR: You cannot putaway " . ($qtyGood + $qtyBad) . " items. This Pallet (HU) only contains " . (float)$sourceQuant['qty'] . " items!");
+            }
+
             // Proses Auto-Create Bin yang sudah Lolos Regex
             $this->ensureBinExists($targetBin);
+
+            $huBad = null; // Siapkan ID HU Bad
 
             // --- INTI PROSES BISNIS ---
             if ($task['process_type'] == 'PUTAWAY') {
@@ -85,8 +91,9 @@ class WMSPutawayService {
                     // Trigger Notifikasi jika terjadi Mismatch
                     $cekStatus = safeGetOne($this->pdo, "SELECT discrepancy_status, qty_reported, qty_actual_good, qty_actual_damaged FROM wms_gr_items WHERE gr_number = ? AND product_uuid = ?", [$task['gr_ref'], $task['product_uuid']]);
                     if ($cekStatus['discrepancy_status'] == 'MISMATCH') {
-                        $totalAktual = $cekStatus['qty_actual_good'] + $cekStatus['qty_actual_damaged'];
-                        $msg = "[$clientSource] Alert: PO {$task['po_ref']} Item {$task['product_code']} mismatch. Reported: {$cekStatus['qty_reported']} vs Actual: $totalAktual";
+                        $totalAktual = (float)$cekStatus['qty_actual_good'] + (float)$cekStatus['qty_actual_damaged'];
+                        $qtyReportedClean = (float)$cekStatus['qty_reported'];
+                        $msg = "[$clientSource] Discrepancy Alert for PO {$task['po_ref']} (Item: {$task['product_code']}). Admin GR Qty: {$qtyReportedClean} | Operator Actual Qty: {$totalAktual}";
                         safeQuery($this->pdo, "INSERT INTO wms_inbound_notif (po_number, message, severity, created_at) VALUES (?, ?, 'DANGER', NOW())", [$task['po_ref'], $msg]);
                     }
                 }
@@ -117,11 +124,22 @@ class WMSPutawayService {
                                    SET status='CONFIRMED', dest_bin=?, confirmed_at=NOW(), operator_id=? 
                                    WHERE tanum=?", [$targetBin, $this->user, $taskId]);
 
-            // F. Catat ke Tabel Movement Log (Audit Fisik)
+            // 🔥 F. CATAT LOG MOVEMENT (DIBELAH DUA BIAR AKURAT)
             $moveType = "{$clientSource}_PUTAWAY";
-            safeQuery($this->pdo, "INSERT INTO wms_stock_movements (trx_ref, product_uuid, hu_id, qty_change, move_type, user, from_bin, to_bin, created_at) 
-                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())", 
-                                   ["TASK-$taskId", $task['product_uuid'], $task['hu_id'], ($qtyGood + $qtyBad), $moveType, $this->user, $task['source_bin'], $targetBin]);
+            
+            // Log 1: Barang Bagus masuk Rak (Jika ada)
+            if ($qtyGood > 0) {
+                safeQuery($this->pdo, "INSERT INTO wms_stock_movements (trx_ref, product_uuid, hu_id, qty_change, move_type, user, from_bin, to_bin, created_at) 
+                                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())", 
+                                       ["TASK-$taskId", $task['product_uuid'], $task['hu_id'], $qtyGood, $moveType, $this->user, $task['source_bin'], $targetBin]);
+            }
+
+            // Log 2: Barang Jelek masuk Block Zone (Jika ada)
+            if ($qtyBad > 0) {
+                safeQuery($this->pdo, "INSERT INTO wms_stock_movements (trx_ref, product_uuid, hu_id, qty_change, move_type, user, from_bin, to_bin, created_at) 
+                                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())", 
+                                       ["TASK-$taskId", $task['product_uuid'], $huBad, $qtyBad, $moveType."_BAD", $this->user, $task['source_bin'], 'BLOCK-ZONE']);
+            }
             
             // G. Catat ke System Log (Audit IT)
             $logDesc = "Task #$taskId DONE via $clientSource. G:$qtyGood | B:$qtyBad | Bin:$targetBin | Note: $remarks";
@@ -154,3 +172,4 @@ class WMSPutawayService {
         }
     }
 }
+?>
