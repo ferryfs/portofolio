@@ -1,4 +1,4 @@
-<section id="certificates" class="pt-0 pb-12 md:pb-20 max-w-7xl mx-auto px-6" data-aos="fade-up">
+<section id="certificates" class="pt-0 pb-6 md:pt-10 md:pb-20 max-w-7xl mx-auto px-6" data-aos="fade-up">
     <div class="island-box bg-white border border-gray-100 shadow-xl">
         
         <div class="text-center mb-10">

@@ -1,7 +1,7 @@
 <?php
 // apps/wms/rf_scanner.php
-// V18.9: DATE FILTER UX FIX
-// Features: Added Date Filter before showing task list to prevent infinite scrolling.
+// V18.10: SYSTEM-DIRECTED AWARE
+// Features: Date Filter UX Fix, System Recommendation GPS UI, Override Support
 
 session_name("WMS_APP_SESSION");
 session_start();
@@ -28,7 +28,6 @@ class RFModel {
         $this->user = $user;
     }
 
-    // 🔥 FIX: Query dimodifikasi buat nerima parameter $filterDate
     public function getOpenTasks($type, $filterDate) {
         return safeGetAll($this->pdo, 
             "SELECT t.*, p.product_code, p.description 
@@ -67,7 +66,7 @@ class RFModel {
 $rf = new RFModel($pdo, $user_id);
 
 // ---------------------------------------------------------
-// 🔥 EXECUTION BLOCK (REFACTORED SOA)
+// 🔥 EXECUTION BLOCK
 // ---------------------------------------------------------
 if(isset($_POST['btn_exec'])) {
     $putawayService = new WMSPutawayService($pdo, $user_id);
@@ -106,7 +105,7 @@ if(isset($_GET['msg'])) { $msg = $_GET['msg']; $msg_type = 'success'; }
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RF Enterprise V18.9</title>
+    <title>RF Enterprise V18.10</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
@@ -138,6 +137,10 @@ if(isset($_GET['msg'])) { $msg = $_GET['msg']; $msg_type = 'success'; }
         .alert-err { background: rgba(239, 68, 68, 0.1); border-color: var(--danger); color: var(--danger); }
         .stock-item { border-bottom: 1px solid #334155; padding: 10px 0; }
         .stock-item:last-child { border-bottom: none; }
+        
+        /* 🔥 GPS Recommendation Styling */
+        .gps-alert { background: rgba(16, 185, 129, 0.1); border: 2px dashed #10b981; color: #34d399; padding: 12px; border-radius: 12px; text-align: center; margin-bottom: 15px; animation: pulseGlow 2s infinite; }
+        @keyframes pulseGlow { 0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); } 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); } }
     </style>
 </head>
 <body>
@@ -147,7 +150,7 @@ if(isset($_GET['msg'])) { $msg = $_GET['msg']; $msg_type = 'success'; }
         <div class="d-flex align-items-center gap-2">
             <i class="bi bi-upc-scan text-primary fs-4"></i>
             <div>
-                <div style="font-weight: 800; line-height: 1;">RF-V18.9</div>
+                <div style="font-weight: 800; line-height: 1;">RF-V18.10</div>
                 <div style="font-size: 0.7rem; color: #64748b;">Enterprise Mobile</div>
             </div>
         </div>
@@ -243,6 +246,7 @@ if(isset($_GET['msg'])) { $msg = $_GET['msg']; $msg_type = 'success'; }
             $id = $_GET['id'];
             $filterDate = $_GET['date'] ?? date('Y-m-d');
             
+            // 🔥 Ambil recommended_bin dari DB
             $t = safeGetOne($pdo, "SELECT t.*, p.product_code, p.description, p.base_uom, q.gr_ref, q.po_ref, q.batch, gh.remarks as admin_note 
                                    FROM wms_warehouse_tasks t 
                                    JOIN wms_products p ON t.product_uuid = p.product_uuid 
@@ -251,6 +255,7 @@ if(isset($_GET['msg'])) { $msg = $_GET['msg']; $msg_type = 'success'; }
                                    WHERE t.tanum = ?", [$id]);
                                    
             $adminNote = $t['admin_note'] ?? '';
+            $recBin = (!empty($t['recommended_bin'])) ? $t['recommended_bin'] : '';
         ?>
             <form method="POST">
                 <input type="hidden" name="task_id" value="<?= $id ?>">
@@ -286,7 +291,7 @@ if(isset($_GET['msg'])) { $msg = $_GET['msg']; $msg_type = 'success'; }
                         <label class="form-label mb-0">ACTUAL COUNT</label>
                     </div>
 
-                    <div class="row g-3 mb-3">
+                    <div class="row g-3 mb-4">
                         <div class="col-6">
                             <label class="form-label text-success">Good Qty</label>
                             <input type="number" name="qty_good" class="form-control-rf" style="border-color: var(--success);" value="<?= (float)$t['qty'] ?>" required>
@@ -298,10 +303,21 @@ if(isset($_GET['msg'])) { $msg = $_GET['msg']; $msg_type = 'success'; }
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label text-primary">Target Bin</label>
-                        <?php if($t['process_type']=='PUTAWAY' && $t['dest_bin']=='SYSTEM'): ?>
-                            <div class="text-center text-primary mb-2 small fw-bold animate-pulse">[ SCAN ANY EMPTY BIN ]</div>
+                        <div class="d-flex justify-content-between align-items-end mb-1">
+                            <label class="form-label text-primary m-0">Target Bin</label>
+                        </div>
+
+                        <?php if($t['process_type'] == 'PUTAWAY'): ?>
+                            <?php if($recBin): ?>
+                                <div class="gps-alert">
+                                    <div class="small fw-bold text-uppercase mb-1"><i class="bi bi-geo-alt-fill"></i> Recommended Bin</div>
+                                    <div class="fs-4 fw-800 font-monospace text-white"><?= $recBin ?></div>
+                                </div>
+                            <?php else: ?>
+                                <div class="text-center text-primary mb-2 small fw-bold">[ SCAN ANY EMPTY BIN ]</div>
+                            <?php endif; ?>
                         <?php endif; ?>
+                        
                         <input type="text" name="scan_bin" class="form-control-rf" placeholder="SCAN BIN LABEL" autofocus required>
                     </div>
                     

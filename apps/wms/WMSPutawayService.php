@@ -1,7 +1,7 @@
 <?php
 // apps/wms/WMSPutawayService.php
-// ENTERPRISE SERVICE LAYER: Putaway Execution Engine
-// Features: Phantom Stock Prevention (Pessimistic Lock), Bin Regex Validation, Centralized Transaction, Clean Alert Formatting, Split Audit
+// ENTERPRISE SERVICE LAYER: Putaway Execution Engine (V12 - Override & Partial Aware)
+// Features: Phantom Stock Prevention (Pessimistic Lock), Bin Regex Validation, Centralized Transaction, Clean Alert Formatting, Split Audit, Recommended Bin Override Check, Partial Putaway Split
 
 class WMSPutawayService {
     private $pdo;
@@ -14,7 +14,7 @@ class WMSPutawayService {
 
     /**
      * Execute Putaway Task (Dipanggil oleh RF Scanner & Desktop Confirm)
-     * * @param int $taskId ID dari wms_warehouse_tasks
+     * @param int $taskId ID dari wms_warehouse_tasks
      * @param string $targetBin Scan barcode lokasi rak tujuan
      * @param float $qtyGood Jumlah barang bagus (F1)
      * @param float $qtyBad Jumlah barang rusak (B6)
@@ -30,15 +30,16 @@ class WMSPutawayService {
             $qtyGood = (float)$qtyGood;
             $qtyBad = (float)$qtyBad;
             $remarks = $remarks ?: '-';
+            $totalMove = $qtyGood + $qtyBad;
 
             // 🔥 1. REGEX BIN FORMAT VALIDATION (Anti Rak Sampah)
             // Memaksa operator mematuhi format gudang, misal: Lorong-Rak-Tingkat (A-01-01 atau AA-99-99)
-            // Pengecualian hanya untuk pembuangan ke BLOCK-ZONE
-            if (!preg_match("/^[A-Z]{1,2}-[0-9]{1,2}-[0-9]{1,2}$/", $targetBin) && $targetBin !== 'BLOCK-ZONE') {
+            // Pengecualian hanya untuk pembuangan ke BLOCK-ZONE dan OVERFLOW-ZONE
+            if (!preg_match("/^[A-Z]{1,2}-[0-9]{1,2}-[0-9]{1,2}$/", $targetBin) && $targetBin !== 'BLOCK-ZONE' && $targetBin !== 'OVERFLOW-ZONE') {
                 throw new Exception("INVALID BIN FORMAT: '$targetBin'. Must follow standard format (e.g., A-01-01).");
             }
 
-            // 🔥 2. TASK & CONCURRENCY LOCK
+            // 🔥 2. TASK & CONCURRENCY LOCK (Ditambah ambil recommended_bin)
             // Mengunci task agar tidak dieksekusi 2 kali bersamaan
             $task = safeGetOne($this->pdo, "SELECT t.*, q.gr_ref, q.po_ref, q.batch, p.product_code 
                                             FROM wms_warehouse_tasks t 
@@ -51,7 +52,7 @@ class WMSPutawayService {
             }
 
             // Validasi Input Qty vs Task Target
-            if (($qtyGood + $qtyBad) <= 0) {
+            if ($totalMove <= 0) {
                 throw new Exception("QUANTITY ERROR: Total checked quantity cannot be zero.");
             }
 
@@ -62,8 +63,14 @@ class WMSPutawayService {
                 throw new Exception("PHANTOM STOCK ALERT: Handling Unit {$task['hu_id']} is missing from {$task['source_bin']}. It may have been voided or moved manually.");
             }
 
-            if (($qtyGood + $qtyBad) > $sourceQuant['qty']) {
-                throw new Exception("OVERAGE ERROR: You cannot putaway " . ($qtyGood + $qtyBad) . " items. This Pallet (HU) only contains " . (float)$sourceQuant['qty'] . " items!");
+            if ($totalMove > $sourceQuant['qty']) {
+                throw new Exception("OVERAGE ERROR: You cannot putaway " . $totalMove . " items. This Pallet (HU) only contains " . (float)$sourceQuant['qty'] . " items!");
+            }
+
+            // 🔥 4. OVERRIDE DETECTION LOGIC
+            $isOverride = false;
+            if ($targetBin !== 'BLOCK-ZONE' && !empty($task['recommended_bin']) && $targetBin !== $task['recommended_bin']) {
+                $isOverride = true;
             }
 
             // Proses Auto-Create Bin yang sudah Lolos Regex
@@ -98,14 +105,24 @@ class WMSPutawayService {
                     }
                 }
 
-                // B. Hapus Stok dari Staging Area Asal (Menghancurkan Phantom Source)
-                safeQuery($this->pdo, "DELETE FROM wms_quants WHERE hu_id = ? AND lgpla = ?", [$task['hu_id'], $task['source_bin']]);
+                // 🔥 B. HAPUS / KURANGI STOK DARI STAGING AREA ASAL (Partial Handle)
+                if ($totalMove == $sourceQuant['qty']) {
+                    // FULL MOVE: Hapus seluruh HU dari GR-ZONE (Menghancurkan Phantom Source)
+                    safeQuery($this->pdo, "DELETE FROM wms_quants WHERE hu_id = ? AND lgpla = ?", [$task['hu_id'], $task['source_bin']]);
+                } else {
+                    // PARTIAL MOVE: Kurangi qty di GR-ZONE (Sisa barang masih nangkring di GR-ZONE menunggu dipindah)
+                    $sisaQty = $sourceQuant['qty'] - $totalMove;
+                    safeQuery($this->pdo, "UPDATE wms_quants SET qty = ? WHERE hu_id = ? AND lgpla = ?", [$sisaQty, $task['hu_id'], $task['source_bin']]);
+                }
 
                 // C. Insert Stok Bagus (F1) ke Target Bin
                 if ($qtyGood > 0) {
+                    // Kalau partial move, HU ID dikasih suffix "-SPL" supaya unik di rak tujuan
+                    $targetHuId = ($totalMove == $sourceQuant['qty']) ? $task['hu_id'] : "SPL-" . $task['hu_id'] . "-" . mt_rand(10,99);
+
                     safeQuery($this->pdo, "INSERT INTO wms_quants (product_uuid, lgpla, batch, hu_id, qty, stock_type, gr_date, is_putaway, po_ref, gr_ref) 
                                            VALUES (?, ?, ?, ?, ?, 'F1', NOW(), 1, ?, ?)", 
-                                           [$task['product_uuid'], $targetBin, $task['batch'], $task['hu_id'], $qtyGood, $task['po_ref'], $task['gr_ref']]);
+                                           [$task['product_uuid'], $targetBin, $task['batch'], $targetHuId, $qtyGood, $task['po_ref'], $task['gr_ref']]);
                     safeQuery($this->pdo, "UPDATE wms_storage_bins SET status_bin='OCCUPIED' WHERE lgpla=?", [$targetBin]);
                 }
 
@@ -119,36 +136,37 @@ class WMSPutawayService {
                 }
             }
 
-            // E. Tutup Task
+            // E. Tutup Task (Update dest_bin ke aktualnya)
             safeQuery($this->pdo, "UPDATE wms_warehouse_tasks 
                                    SET status='CONFIRMED', dest_bin=?, confirmed_at=NOW(), operator_id=? 
                                    WHERE tanum=?", [$targetBin, $this->user, $taskId]);
 
             // 🔥 F. CATAT LOG MOVEMENT (DIBELAH DUA BIAR AKURAT)
             $moveType = "{$clientSource}_PUTAWAY";
+            $reason = $isOverride ? "[OVERRIDE] System recommended {$task['recommended_bin']} | Note: $remarks" : $remarks;
             
             // Log 1: Barang Bagus masuk Rak (Jika ada)
             if ($qtyGood > 0) {
-                safeQuery($this->pdo, "INSERT INTO wms_stock_movements (trx_ref, product_uuid, hu_id, qty_change, move_type, user, from_bin, to_bin, created_at) 
-                                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())", 
-                                       ["TASK-$taskId", $task['product_uuid'], $task['hu_id'], $qtyGood, $moveType, $this->user, $task['source_bin'], $targetBin]);
+                safeQuery($this->pdo, "INSERT INTO wms_stock_movements (trx_ref, product_uuid, hu_id, qty_change, move_type, user, from_bin, to_bin, created_at, reason_code) 
+                                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)", 
+                                       ["TASK-$taskId", $task['product_uuid'], $task['hu_id'], $qtyGood, $moveType, $this->user, $task['source_bin'], $targetBin, $reason]);
             }
 
             // Log 2: Barang Jelek masuk Block Zone (Jika ada)
             if ($qtyBad > 0) {
-                safeQuery($this->pdo, "INSERT INTO wms_stock_movements (trx_ref, product_uuid, hu_id, qty_change, move_type, user, from_bin, to_bin, created_at) 
-                                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())", 
-                                       ["TASK-$taskId", $task['product_uuid'], $huBad, $qtyBad, $moveType."_BAD", $this->user, $task['source_bin'], 'BLOCK-ZONE']);
+                safeQuery($this->pdo, "INSERT INTO wms_stock_movements (trx_ref, product_uuid, hu_id, qty_change, move_type, user, from_bin, to_bin, created_at, reason_code) 
+                                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)", 
+                                       ["TASK-$taskId", $task['product_uuid'], $huBad, $qtyBad, $moveType."_BAD", $this->user, $task['source_bin'], 'BLOCK-ZONE', $reason]);
             }
             
             // G. Catat ke System Log (Audit IT)
-            $logDesc = "Task #$taskId DONE via $clientSource. G:$qtyGood | B:$qtyBad | Bin:$targetBin | Note: $remarks";
+            $logDesc = "Task #$taskId DONE via $clientSource. " . ($isOverride ? "[OVERRIDDEN from {$task['recommended_bin']}] " : "") . "G:$qtyGood | B:$qtyBad | Bin:$targetBin | Note: $remarks";
             safeQuery($this->pdo, "INSERT INTO wms_system_logs (user_id, module, action_type, description, ip_address, log_date) 
                                    VALUES (?, 'PUTAWAY_SVC', 'EXECUTE', ?, ?, NOW())", [$this->user, $logDesc, $_SERVER['REMOTE_ADDR']]);
 
             // H. Kasih Feedback ke Layar Admin Inbound
-            $msgSuccess = "Task #$taskId (Item: {$task['product_code']}) confirmed by {$this->user} via $clientSource. Note: $remarks";
-            safeQuery($this->pdo, "INSERT INTO wms_inbound_notif (po_number, message, severity, created_at) VALUES (?, ?, 'SUCCESS', NOW())", [$task['po_ref'], $msgSuccess]);
+            $msgSuccess = ($isOverride ? "⚠️ [OVERRIDE] " : "✅ ") . "Task #$taskId (Item: {$task['product_code']}) confirmed by {$this->user} via $clientSource at $targetBin. Note: $remarks";
+            safeQuery($this->pdo, "INSERT INTO wms_inbound_notif (po_number, message, severity, created_at) VALUES (?, ?, ?, NOW())", [$task['po_ref'], $msgSuccess, ($isOverride ? 'WARNING' : '')]);
 
             $this->pdo->commit();
             return ['status' => 'success', 'msg' => 'Task Confirmed Successfully'];

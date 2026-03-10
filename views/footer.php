@@ -155,6 +155,7 @@ foreach($js_timeline as $row) { $temp_careers[$row['company']][] = $row; }
     // Data Timeline Flat buat pencarian
     const rawTimeline = <?php echo json_encode($js_timeline, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
     const is_en = <?php echo ($is_en ?? false) ? 'true' : 'false'; ?>;
+    const defaultCartoon = <?php echo json_encode($default_popup_img ?? ''); ?>;
 </script>
 
 <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>

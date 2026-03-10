@@ -1,116 +1,101 @@
 <?php
-// 1. LOGIC: AMBIL PERUSAHAAN UNIK DARI TIMELINE (Career Journey)
-// Kita group berdasarkan nama Company, dan ambil Role TERAKHIR (ID tertinggi/Date terbaru)
-$company_tabs = [];
-foreach ($timelineData as $t) {
-    $compName = $t['company'];
-    // Jika perusahaan belum ada di list, atau data ini lebih baru (ID lebih besar), simpan/update
-    // Asumsi: Data di JSON timeline lu sudah urut atau ID makin gede makin baru
-    if (!isset($company_tabs[$compName]) || $t['id'] > $company_tabs[$compName]['id']) {
-        $company_tabs[$compName] = [
-            'id' => $t['id'],
-            'company' => $t['company'],
-            'role' => $t['role'], // Ambil jabatan terakhir
-        ];
-    }
+// Group projects per company untuk sub-tabs
+$work_projects = array_filter($projects, fn($p) => strtolower($p['category']) === 'work');
+$personal_projects = array_filter($projects, fn($p) => strtolower($p['category']) === 'personal');
+
+// Group by company (dari company_ref, fallback ke "Lainnya")
+$by_company = [];
+foreach ($work_projects as $proj) {
+    $comp = !empty($proj['company_ref']) ? $proj['company_ref'] : 'Lainnya';
+    $by_company[$comp][] = $proj;
 }
 ?>
 
-<section id="projects" class="py-12 md:py-20 mt-0 md:mt-12 max-w-7xl mx-auto px-4 relative z-10" data-aos="fade-up">
-    
-    <div class="island-box bg-primary text-white relative overflow-hidden shadow-2xl rounded-[2.5rem]">
-        <div class="absolute top-0 right-0 w-96 h-96 bg-accent/20 blur-[100px] rounded-full pointer-events-none"></div>
-        
-        <div class="p-6 md:p-12 pb-0 relative z-20">
-            <div class="mb-8 text-center md:text-left">
-                <h2 class="text-3xl md:text-5xl font-black mb-3 text-white tracking-tight"><?php echo $txt['sect_proj_title']; ?></h2>
-                <p class="text-gray-400 max-w-xl text-sm md:text-base leading-relaxed"><?php echo $txt['sect_proj_desc']; ?></p>
+<section id="projects" class="py-6 md:py-10 max-w-7xl mx-auto px-4 relative z-10" data-aos="fade-up">
+
+    <div class="projects-island shadow-2xl" style="background: #0C0C0E; color: #ffffff;">
+
+        <!-- Ambient glow -->
+        <div class="absolute top-0 right-0 w-[500px] h-[500px] rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(37,99,235,0.08) 0%, transparent 70%);"></div>
+        <div class="absolute bottom-0 left-0 w-[300px] h-[300px] rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(124,58,237,0.06) 0%, transparent 70%);"></div>
+
+        <!-- Header -->
+        <div class="p-6 md:p-10 pb-0 relative z-10">
+            <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
+                <div>
+                    <span style="color:#60a5fa; font-weight:800; font-size:10px; text-transform:uppercase; letter-spacing:0.15em; display:block; margin-bottom:8px;">Portfolio</span>
+                    <h2 style="color:#ffffff; font-weight:900; font-size:clamp(1.8rem,4vw,3rem); letter-spacing:-0.03em; margin-bottom:8px;"><?php echo $txt['sect_proj_title']; ?></h2>
+                </div>
+                <!-- Scroll hint -->
+                <div style="display:flex; align-items:center; gap:6px; color:rgba(255,255,255,0.3); font-size:11px; font-weight:700; flex-shrink:0; padding-bottom:4px;">
+                    <i class="bi bi-arrow-left"></i>
+                    <span>Geser untuk lihat lebih</span>
+                    <i class="bi bi-arrow-right"></i>
+                </div>
             </div>
 
-            <div class="flex gap-3 mb-8 overflow-x-auto pb-2 scrollbar-hide border-b border-white/10">
-                <button onclick="switchMainTab('work')" id="main-tab-work" class="main-tab-btn active px-6 py-3 text-sm md:text-base font-bold text-white border-b-2 border-accent transition-all">
-                    <i class="bi bi-briefcase-fill me-2"></i> <?php echo $txt['tab_work']; ?>
-                </button>
-                <button onclick="switchMainTab('personal')" id="main-tab-personal" class="main-tab-btn px-6 py-3 text-sm md:text-base font-bold text-gray-400 hover:text-white border-b-2 border-transparent transition-all">
-                    <i class="bi bi-code-square me-2"></i> <?php echo $txt['tab_personal']; ?>
-                </button>
+            <!-- Main tabs — pakai div bukan button biar border-bottom bisa dikontrol -->
+            <div class="flex gap-0 overflow-x-auto scrollbar-hide" style="border-bottom: 1px solid rgba(255,255,255,0.08);">
+                <div onclick="switchMainTab('work')" id="main-tab-work"
+                     class="main-tab-btn active cursor-pointer select-none">
+                    <i class="bi bi-briefcase-fill me-2"></i><?php echo $txt['tab_work']; ?>
+                </div>
+                <div onclick="switchMainTab('personal')" id="main-tab-personal"
+                     class="main-tab-btn cursor-pointer select-none">
+                    <i class="bi bi-code-square me-2"></i><?php echo $txt['tab_personal']; ?>
+                </div>
             </div>
         </div>
 
-        <div class="relative w-full z-20 p-6 md:p-12 pt-0 min-h-[400px]">
-            
+        <!-- Content Area -->
+        <div class="relative z-10 p-6 md:p-10 pt-5">
+
+            <!-- WORK PROJECTS -->
             <div id="content-work" class="tab-content-area">
-                
-                <div class="flex gap-3 mb-8 overflow-x-auto pb-4 scrollbar-hide snap-x">
-                    <button onclick="switchSubTab('all-work')" id="sub-btn-all-work" class="sub-tab-btn active shrink-0 px-5 py-2 rounded-full text-xs font-bold bg-white text-primary border border-transparent shadow-lg hover:scale-105 transition-all">
-                        All Works
-                    </button>
 
-                    <?php 
-                    $i = 0;
-                    foreach($company_tabs as $comp): 
-                        $slug = md5($comp['company']); // Bikin ID unik dari nama PT
-                    ?>
-                    <button onclick="switchSubTab('<?php echo $slug; ?>')" id="sub-btn-<?php echo $slug; ?>" class="sub-tab-btn shrink-0 px-5 py-2 rounded-full text-xs font-bold bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 hover:text-white transition-all hover:scale-105">
-                        <?php echo $comp['company']; ?>
+                <!-- Sub-tabs company — hanya tampil kalau ada lebih dari 1 company -->
+                <?php if (count($by_company) > 1): ?>
+               <div style="display:flex; gap:8px; margin-bottom:24px; overflow-x:auto; padding-bottom:4px; scrollbar-width:none;">
+                    <button onclick="switchSubTab('all')" id="sub-btn-all" class="sub-tab-btn active">
+                        Semua
                     </button>
-                    <?php $i++; endforeach; ?>
+                    <?php foreach ($by_company as $compName => $compProjects): ?>
+                    <button onclick="switchSubTab('<?php echo md5($compName); ?>')"
+                            id="sub-btn-<?php echo md5($compName); ?>"
+                            class="sub-tab-btn">
+                        <?php echo clean($compName); ?>
+                        <span class="ml-1.5 opacity-50"><?php echo count($compProjects); ?></span>
+                    </button>
+                    <?php endforeach; ?>
+                </div>
+                <?php else: ?>
+                <div class="mb-6"></div>
+                <?php endif; ?>
+
+                <!-- All work -->
+                <div id="sub-content-all" class="sub-content-area flex-nowrap gap-5 overflow-x-auto pb-6 snap-x scrollbar-hide drag-scroll">
+                    <?php foreach ($work_projects as $d): include 'component/card_project.php'; endforeach; ?>
+                    <?php if (empty($work_projects)): ?>
+                    <div class="text-white/30 text-sm italic py-10">Belum ada proyek kerja.</div>
+                    <?php endif; ?>
                 </div>
 
-                <div id="sub-content-all-work" class="sub-content-area flex flex-nowrap gap-6 overflow-x-auto pb-10 snap-x scrollbar-hide cursor-grab active:cursor-grabbing">
-                    <?php 
-                    $hasWork = false;
-                    foreach($projects as $d): 
-                        if(strtolower($d['category']) == 'work'): 
-                            $hasWork = true;
-                            include 'component/card_project.php'; 
-                        endif; 
-                    endforeach; 
-                    if(!$hasWork) echo '<div class="text-white/30 italic">No work projects yet.</div>';
-                    ?>
-                </div>
-
-                <?php foreach($company_tabs as $comp): $slug = md5($comp['company']); ?>
-                <div id="sub-content-<?php echo $slug; ?>" class="sub-content-area hidden flex flex-nowrap gap-6 overflow-x-auto pb-10 snap-x scrollbar-hide cursor-grab active:cursor-grabbing">
-                    <?php 
-                    $found = false;
-                    foreach($projects as $d): 
-                        // Logic Matching: Cek apakah nama PT ada di deskripsi project atau field 'tech_stack' (Kalo DB project belum ada kolom company)
-                        // IDEALNYA: Di DB project ada kolom 'company_name'. 
-                        // SEMENTARA: Kita anggap field 'tech_stack' atau title mengandung nama PT, atau tampilin semua work (User nanti update DB).
-                        // Note: Karena lu bilang "nanti aja isi popupnya", asumsi matching project ke PT juga manual dulu atau show all work filtered.
-                        
-                        // FILTER: Project Category WORK && (Cocokkan nama PT manual/string match)
-                        // Di sini gue filter category 'work' dulu. Nanti lu harus tambah field 'company' di table project biar akurat.
-                        if(strtolower($d['category']) == 'work'): 
-                            $found = true;
-                            // Inject Company Name ke array project biar bisa dipake di popup
-                            $d['company_ref'] = $comp['company']; 
-                            include 'component/card_project.php'; 
-                        endif; 
-                    endforeach; 
-                    if(!$found) echo '<div class="text-white/30 italic">No projects for this company.</div>';
-                    ?>
+                <!-- Per company -->
+                <?php foreach ($by_company as $compName => $compProjects): $slug = md5($compName); ?>
+                <div id="sub-content-<?php echo $slug; ?>" class="sub-content-area hidden flex-nowrap gap-5 overflow-x-auto pb-6 snap-x scrollbar-hide drag-scroll">
+                    <?php foreach ($compProjects as $d): include 'component/card_project.php'; endforeach; ?>
                 </div>
                 <?php endforeach; ?>
 
             </div>
 
+            <!-- PERSONAL PROJECTS -->
             <div id="content-personal" class="tab-content-area hidden">
-                <div class="flex flex-nowrap gap-6 overflow-x-auto pb-10 snap-x scrollbar-hide cursor-grab active:cursor-grabbing">
-                    <?php 
-                    $hasPersonal = false;
-                    foreach($projects as $d): 
-                        if(strtolower($d['category']) == 'personal'): 
-                            $hasPersonal = true;
-                            include 'component/card_project.php'; 
-                        endif; 
-                    endforeach; 
-                    
-                    if(!$hasPersonal): ?>
-                        <div class="w-full text-center py-12 text-white/30 italic border border-dashed border-white/10 rounded-2xl">
-                            Belum ada project kategori Personal.
-                        </div>
+                <div class="mb-6"></div>
+                <div class="flex flex-nowrap gap-5 overflow-x-auto pb-6 snap-x scrollbar-hide drag-scroll">
+                    <?php foreach ($personal_projects as $d): include 'component/card_project.php'; endforeach; ?>
+                    <?php if (empty($personal_projects)): ?>
+                    <div class="text-white/30 text-sm italic py-10">Belum ada proyek personal.</div>
                     <?php endif; ?>
                 </div>
             </div>

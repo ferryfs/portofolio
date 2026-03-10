@@ -1,7 +1,7 @@
 <?php
 // apps/wms/task_confirm.php
-// V18.3: UX POP-UP ENHANCEMENT
-// Features: SweetAlert2 integrated for success/error feedback showing PO, HU, and Batch.
+// V18.4: SYSTEM DIRECTED PUTAWAY AWARE
+// Features: Auto-fill Recommended Bin, Visual Indicator for Smart Suggestions, SweetAlert2 UX.
 
 session_name("WMS_APP_SESSION");
 session_start();
@@ -17,7 +17,7 @@ require_once 'WMSPutawayService.php';
 $id = sanitizeInt($_GET['id'] ?? 0);
 $user_id = $_SESSION['wms_fullname'] ?? 'System';
 
-// 1. Get Task Data
+// 1. Get Task Data (Tarik kolom recommended_bin)
 $task = safeGetOne($pdo, "SELECT t.*, p.product_code, p.description, p.base_uom, q.gr_ref, q.po_ref, q.batch, gh.remarks as admin_note 
                           FROM wms_warehouse_tasks t 
                           JOIN wms_products p ON t.product_uuid = p.product_uuid 
@@ -27,7 +27,6 @@ $task = safeGetOne($pdo, "SELECT t.*, p.product_code, p.description, p.base_uom,
 
 if(!$task) die("Task invalid or not found.");
 
-// Langsung ambil dari DB!
 $adminNote = $task['admin_note'] ?? '';
 
 // Variables for SweetAlert Trigger
@@ -36,7 +35,7 @@ $alert_status = '';
 $alert_msg = '';
 
 // ---------------------------------------------------------
-// 🔥 EXECUTION BLOCK (REFACTORED)
+// 🔥 EXECUTION BLOCK
 // ---------------------------------------------------------
 if(isset($_POST['confirm'])) {
     $putawayService = new WMSPutawayService($pdo, $user_id);
@@ -52,23 +51,36 @@ if(isset($_POST['confirm'])) {
     $alert_status = $result['status'];
     
     if ($result['status'] === 'success') {
-        // Build success message explicitly mentioning PO, Batch, and HU
         $po_text = $task['po_ref'] ?? 'N/A';
         $batch_text = $task['batch'] ?? 'N/A';
         $hu_text = $task['hu_id'] ?? 'N/A';
         $alert_msg = "Task Confirmed!<br><br><small><b>PO:</b> $po_text<br><b>Batch:</b> $batch_text<br><b>HU:</b> $hu_text</small>";
     } else {
         $alert_msg = $result['msg'];
-        $error = $result['msg']; // Fallback for standard alert UI
+        $error = $result['msg']; 
     }
 }
 // ---------------------------------------------------------
+
+// Logic Penentuan Tampilan Bin Awal
+$initialBinValue = '';
+$isRecommended = false;
+
+if ($task['dest_bin'] !== 'SYSTEM' && !empty($task['dest_bin'])) {
+    // Kalau udah pernah diubah/diset manual
+    $initialBinValue = $task['dest_bin'];
+} elseif (!empty($task['recommended_bin'])) {
+    // Kalau sistem punya rekomendasi, Auto-Fill!
+    $initialBinValue = $task['recommended_bin'];
+    $isRecommended = true;
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Execute Task | V18.3 (SOA)</title>
+    <title>Execute Task | V18.4 (Smart)</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -77,6 +89,7 @@ if(isset($_POST['confirm'])) {
         .card { border: none; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); overflow: hidden; width: 100%; max-width: 600px; }
         .card-header { background: #fff; padding: 25px; border-bottom: 1px solid #e5e7eb; }
         .admin-note { background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 15px; margin-bottom: 20px; border-radius: 0 8px 8px 0; color: #b45309; }
+        .recommended-badge { font-size: 0.7rem; background: #e0e7ff; color: #4f46e5; padding: 3px 8px; border-radius: 4px; border: 1px solid #c7d2fe; display: inline-flex; align-items: center; gap: 4px; }
     </style>
 </head>
 <body>
@@ -118,14 +131,19 @@ if(isset($_POST['confirm'])) {
             <?php endif; ?>
 
             <div class="row g-3 mb-4">
-                <div class="col-6">
+                <div class="col-5">
                     <label class="small fw-bold text-muted">SOURCE</label>
                     <div class="p-2 border rounded text-center bg-light fw-bold font-monospace"><?= $task['source_bin'] ?></div>
                 </div>
-                <div class="col-6">
-                    <label class="small fw-bold text-primary">DESTINATION</label>
+                <div class="col-7">
+                    <div class="d-flex justify-content-between align-items-end mb-1">
+                        <label class="small fw-bold text-primary m-0">DESTINATION</label>
+                        <?php if($isRecommended): ?>
+                            <span class="recommended-badge"><i class="bi bi-stars"></i> System Recommended</span>
+                        <?php endif; ?>
+                    </div>
                     <input type="text" name="actual_bin" class="form-control fw-bold border-primary text-center text-uppercase font-monospace" 
-                           value="<?= $task['dest_bin'] == 'SYSTEM' ? '' : $task['dest_bin'] ?>" 
+                           value="<?= htmlspecialchars($initialBinValue) ?>" 
                            placeholder="SCAN BIN" required autofocus>
                 </div>
             </div>

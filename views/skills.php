@@ -1,4 +1,4 @@
-<section id="skills" class="pt-0 pb-8 md:pt-10 md:pb-16 max-w-7xl mx-auto px-4" data-aos="fade-up">
+<section id="skills" class="pt-0 pb-6 md:pt-4 md:pb-6 max-w-7xl mx-auto px-4" data-aos="fade-up">
     <div class="island">
         <div class="text-center mb-10 md:mb-16">
             <span class="text-accent font-bold tracking-widest text-xs uppercase mb-2 block"><?php echo $txt['sect_skills_label']; ?></span>

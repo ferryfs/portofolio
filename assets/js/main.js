@@ -1,126 +1,177 @@
-// assets/js/main.js
+// ============================================
+// FERRY FERNANDO — IMPROVED MAIN.JS
+// ============================================
 
-// Init AOS Animation
-AOS.init({ duration: 800, offset: 50, once: true, easing: 'ease-out-cubic' });
+// Init AOS
+AOS.init({ duration: 800, offset: 60, once: true, easing: 'ease-out-cubic' });
 
-// TAB SWITCHER LOGIC
-function switchTab(tab) {
-    const listWork = document.getElementById('list-work');
-    const listPersonal = document.getElementById('list-personal');
-    const btnWork = document.getElementById('btn-work');
-    const btnPersonal = document.getElementById('btn-personal');
+// ---- MAIN TAB SWITCHER (fix garis biru) ----
+function switchMainTab(tab) {
+    ['work', 'personal'].forEach(t => {
+        const content = document.getElementById('content-' + t);
+        const btn = document.getElementById('main-tab-' + t);
+        if (!content || !btn) return;
 
-    if(tab === 'work') {
-        listWork.classList.remove('hidden'); listPersonal.classList.add('hidden');
-        btnWork.className = "tab-btn active px-6 py-2.5 rounded-full text-sm font-bold bg-white text-primary transition-all duration-300 border border-transparent shadow-md";
-        btnPersonal.className = "tab-btn px-6 py-2.5 rounded-full text-sm font-bold bg-white/10 text-white hover:bg-white/20 transition-all duration-300 border border-transparent border-white/10";
-    } else {
-        listWork.classList.add('hidden'); listPersonal.classList.remove('hidden');
-        btnPersonal.className = "tab-btn active px-6 py-2.5 rounded-full text-sm font-bold bg-white text-primary transition-all duration-300 border border-transparent shadow-md";
-        btnWork.className = "tab-btn px-6 py-2.5 rounded-full text-sm font-bold bg-white/10 text-white hover:bg-white/20 transition-all duration-300 border border-transparent border-white/10";
-    }
+        if (t === tab) {
+            content.classList.remove('hidden');
+            btn.classList.add('active');
+            btn.style.borderBottomColor = '#2563EB';
+            btn.style.color = '#ffffff';
+        } else {
+            content.classList.add('hidden');
+            btn.classList.remove('active');
+            btn.style.borderBottomColor = 'transparent';
+            btn.style.color = 'rgba(255,255,255,0.4)';
+        }
+    });
 }
 
-// PROJECT MODAL LOGIC
-// Note: variable projectData & is_en dikirim dari PHP di footer
-function openProjectModal(index) {
-    const p = projectData[index];
-    const desc = is_en && p.description_en ? p.description_en : p.description;
-    
-    document.getElementById('modalTitle').innerText = p.title;
-    document.getElementById('modalCat').innerText = p.category;
-    document.getElementById('modalImg').src = p.image_url;
-    // DOMPurify sebaiknya dipasang disini nanti, untuk sekarang innerHTML manual dulu
-    document.getElementById('modalDesc').innerHTML = desc;
-    
-    // Tech Stack
-    let techHtml = '';
-    if(p.tech_stack) {
-        p.tech_stack.split(',').forEach(t => {
-            techHtml += `<span class="bg-gray-100 text-gray-600 px-3 py-1 rounded-lg text-xs font-bold border border-gray-200">${t.trim()}</span>`;
+// ---- SUB TAB SWITCHER (fix sub-tab work) ----
+function switchSubTab(slug) {
+    // Hide semua sub-content
+    document.querySelectorAll('[id^="sub-content-"]').forEach(el => {
+        el.classList.add('hidden');
+        el.style.display = 'none';
+    });
+    // Show yang dipilih
+    const target = document.getElementById('sub-content-' + slug);
+    if (target) {
+        target.classList.remove('hidden');
+        target.style.display = 'flex';
+    }
+
+    // Update button state
+    document.querySelectorAll('[id^="sub-btn-"]').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    const activeBtn = document.getElementById('sub-btn-' + slug);
+    if (activeBtn) activeBtn.classList.add('active');
+}
+
+// Init tab state saat halaman load
+document.addEventListener('DOMContentLoaded', function () {
+    switchMainTab('work');
+    switchSubTab('all');
+
+    // Init drag scroll
+    document.querySelectorAll('.drag-scroll').forEach(el => {
+        let isDown = false, startX, scrollLeft, moved = false;
+        el.addEventListener('mousedown', e => {
+            isDown = true;
+            moved = false;
+            startX = e.pageX - el.offsetLeft;
+            scrollLeft = el.scrollLeft;
         });
-    }
-    document.getElementById('modalTech').innerHTML = techHtml;
+        el.addEventListener('mouseleave', () => { isDown = false; });
+        el.addEventListener('mouseup', () => { isDown = false; });
+        el.addEventListener('mousemove', e => {
+            if (!isDown) return;
+            const x = e.pageX - el.offsetLeft;
+            const walk = (x - startX) * 1.5;
+            if (Math.abs(walk) > 5) moved = true;
+            el.scrollLeft = scrollLeft - walk;
+        });
+        // Prevent click kalau lagi drag
+        el.addEventListener('click', e => {
+            if (moved) e.stopPropagation();
+        }, true);
+    });
+});
 
-    // Challenge & Impact logic
-    const chalBox = document.getElementById('boxChallenge');
-    const impBox = document.getElementById('boxImpact');
-    
-    if(p.challenge && p.challenge.trim() !== '') {
-        document.getElementById('modalChallenge').innerHTML = p.challenge;
-        chalBox.classList.remove('hidden');
-    } else { chalBox.classList.add('hidden'); }
-
-    if(p.impact && p.impact.trim() !== '') {
-        document.getElementById('modalImpact').innerHTML = p.impact;
-        impBox.classList.remove('hidden');
-    } else { impBox.classList.add('hidden'); }
-
-    // Link logic
-    const btn = document.getElementById('modalLink');
-    if(p.link_demo && p.link_demo !== '#' && p.link_demo !== '') {
-        btn.href = p.link_demo;
-        btn.classList.remove('hidden'); 
-    } else { btn.classList.add('hidden'); }
-
-    document.getElementById('projectModal').classList.remove('hidden');
-    document.body.style.overflow = 'hidden'; 
+// ---- IMAGE LIGHTBOX ----
+function openImageModal(src) {
+    document.getElementById('lightboxImg').src = src;
+    document.getElementById('imageModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+function closeImageModal() {
+    document.getElementById('imageModal').classList.add('hidden');
+    document.body.style.overflow = '';
 }
 
-function closeModal() { 
-    document.getElementById('projectModal').classList.add('hidden'); 
-    document.body.style.overflow = 'auto'; 
-}
-
-// IMAGE MODAL
-function openImageModal(src) { 
-    document.getElementById('lightboxImg').src = src; 
-    document.getElementById('imageModal').classList.remove('hidden'); 
-    document.body.style.overflow = 'hidden'; 
-}
-function closeImageModal() { 
-    document.getElementById('imageModal').classList.add('hidden'); 
-    document.body.style.overflow = 'auto'; 
-}
-
-// CAREER MODAL
+// ---- CAREER MODAL ----
 function openCareerModal(company) {
-    document.getElementById('careerModal').classList.remove('hidden'); 
+    const modal = document.getElementById('careerModal');
+    modal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
     document.getElementById('careerCompany').innerText = company;
+
     const roles = careerData[company];
-    
-    let foundImg = defaultCartoon;
-    if(roles) { 
-        for (let i = 0; i < roles.length; i++) { 
-            if (roles[i].image && roles[i].image.trim() !== "") { 
-                foundImg = 'assets/img/' + roles[i].image; break; 
-            } 
-        } 
+
+    const imgEl = document.getElementById('careerCartoon');
+    if (imgEl) {
+        let foundImg = (typeof defaultCartoon !== 'undefined') ? defaultCartoon : '';
+        if (roles) {
+            for (let i = 0; i < roles.length; i++) {
+                if (roles[i].image && roles[i].image.trim() !== '') {
+                    foundImg = 'assets/img/' + roles[i].image;
+                    break;
+                }
+            }
+        }
+        imgEl.src = foundImg;
+        imgEl.style.display = window.innerWidth < 768 ? 'none' : 'block';
     }
-    const imgEl = document.getElementById('careerCartoon'); 
-    imgEl.src = foundImg; 
-    imgEl.style.display = ''; 
-    imgEl.classList.remove('hidden'); 
-    
-    if(window.innerWidth < 768) imgEl.classList.add('hidden'); 
-    else imgEl.classList.add('md:block');
-    
-    let html = roles ? (roles.length > 1 ? '<div class="grid grid-cols-1 gap-6">' : '<div>') : '';
-    if(roles) { 
-        roles.forEach(role => { 
-            html += `<div class="bg-gray-50 rounded-2xl p-6 border border-gray-100 hover:border-accent/30 transition shadow-sm hover:shadow-md"><div class="flex justify-between items-start mb-4 border-b border-gray-200 pb-3"><div><h4 class="font-bold text-lg text-primary">${role.role}</h4><div class="text-xs text-gray-500 font-bold uppercase tracking-wider mt-1">Full Time</div></div><span class="text-xs font-bold bg-primary text-white px-3 py-1 rounded-full text-center h-fit">${role.year}</span></div><div class="text-sm text-gray-600 leading-relaxed space-y-2 prose prose-sm max-w-none"><div class="db-desc">${role.description}</div></div></div>`; 
-        }); 
-        html += '</div>'; 
+
+    let html = '';
+    if (roles && roles.length > 0) {
+        html = '<div class="space-y-5">';
+        roles.forEach(role => {
+            html += `
+            <div class="bg-gray-50 rounded-2xl p-5 border border-gray-100 hover:border-blue-100 hover:shadow-md transition-all duration-300">
+                <div class="flex justify-between items-start mb-3 pb-3 border-b border-gray-100">
+                    <div>
+                        <h4 class="font-black text-base text-gray-900 leading-tight">${role.role}</h4>
+                        <p class="text-xs text-gray-500 font-semibold mt-0.5 uppercase tracking-wider">Full Time</p>
+                    </div>
+                    <span class="text-[10px] font-black bg-blue-600 text-white px-3 py-1.5 rounded-full text-center shrink-0 ml-4">${role.year}</span>
+                </div>
+                <div class="db-desc text-sm text-gray-600">${role.description}</div>
+            </div>`;
+        });
+        html += '</div>';
+    } else {
+        html = '<p class="text-gray-400 text-sm italic p-4">Tidak ada detail tersedia.</p>';
     }
     document.getElementById('careerContent').innerHTML = html;
 }
-function closeCareerModal() { 
-    document.getElementById('careerModal').classList.add('hidden'); 
-    document.body.style.overflow = 'auto'; 
+function closeCareerModal() {
+    document.getElementById('careerModal').classList.add('hidden');
+    document.body.style.overflow = '';
 }
 
-// CHATBOT
-function toggleChatbot() { 
-    document.getElementById('chatbotFrame').classList.toggle('hidden'); 
+// ---- CHATBOT ----
+function toggleChatbot() {
+    const frame = document.getElementById('chatbotFrame');
+    if (frame) frame.classList.toggle('hidden');
 }
+
+// ---- KEYBOARD SHORTCUTS ----
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        closeCareerModal();
+        closeImageModal();
+        if (typeof closeModal === 'function') closeModal();
+    }
+    if (e.ctrlKey && e.shiftKey && (e.key === 'X' || e.key === 'x')) {
+        window.location.href = 'admin';
+    }
+});
+
+// ---- LINK INTERCEPTOR (security) ----
+document.querySelectorAll('a').forEach(link => {
+    const href = link.getAttribute('href');
+    if (
+        href &&
+        !href.includes('logout') &&
+        link.getAttribute('target') !== '_blank' &&
+        !href.startsWith('mailto') &&
+        !href.startsWith('https://wa') &&
+        !href.startsWith('javascript') &&
+        !href.startsWith('#')
+    ) {
+        const urlTujuan = href;
+        link.setAttribute('href', 'javascript:void(0);');
+        link.addEventListener('click', () => { window.location.href = urlTujuan; });
+    }
+});
