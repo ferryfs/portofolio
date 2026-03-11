@@ -6,58 +6,56 @@
         </div>
         
         <?php
-        // 🔥 LOGIC GROUPING SKILL YANG LEBIH KUAT
         $skill_groups = ['Analysis' => [], 'Enterprise' => [], 'Development' => []];
-        
         if (!empty($skillsData)) {
             foreach($skillsData as $s) {
-                // Bersihkan spasi & lowercase biar pencocokan lebih akurat
                 $cat_db = strtolower(trim($s['category'])); 
-                
-                // Cek keyword, bukan exact match
                 if(strpos($cat_db, 'analy') !== false || strpos($cat_db, 'jira') !== false || strpos($cat_db, 'design') !== false) {
                     $skill_groups['Analysis'][] = $s; 
-                } 
-                else if(strpos($cat_db, 'enter') !== false || strpos($cat_db, 'sys') !== false || strpos($cat_db, 'sap') !== false) {
+                } else if(strpos($cat_db, 'enter') !== false || strpos($cat_db, 'sys') !== false || strpos($cat_db, 'sap') !== false) {
                     $skill_groups['Enterprise'][] = $s; 
-                } 
-                else {
-                    // Sisanya masuk ke development
+                } else {
                     $skill_groups['Development'][] = $s;
                 }
             }
         }
         ?>
         
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Mobile: stack vertical, Desktop: 3 col -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
             <?php foreach(['Analysis', 'Enterprise', 'Development'] as $cat): 
                 $num = ($cat == 'Analysis' ? 1 : ($cat == 'Enterprise' ? 2 : 3));
-                
                 $title_key = 'bento_title_'.$num;
                 $title_val = !empty($p[$title_key]) ? $p[$title_key] : $cat;
-                
                 $desc_val = $txt['bento_desc_'.$num];
-                
                 $icon = $cat == 'Analysis' ? 'bi-diagram-3' : ($cat == 'Enterprise' ? 'bi-kanban' : 'bi-code-slash');
                 $color = $cat == 'Analysis' ? 'text-accent' : ($cat == 'Enterprise' ? 'text-green-500' : 'text-purple-500');
+                $bg_color = $cat == 'Analysis' ? 'bg-blue-50' : ($cat == 'Enterprise' ? 'bg-green-50' : 'bg-purple-50');
             ?>
-            
-            <div class="group p-6 md:p-8 rounded-3xl bg-gray-50 hover:bg-primary hover:text-white transition duration-500 h-full flex flex-col border border-transparent hover:border-white/10">
-                <div class="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-xl <?php echo $color; ?> mb-6 shadow-sm group-hover:scale-110 transition">
+            <div class="group p-5 md:p-8 rounded-3xl bg-gray-50 hover:bg-primary hover:text-white transition duration-500 flex flex-col border border-transparent hover:border-white/10">
+                
+                <!-- Icon — pakai inline style biar ga hilang di mobile -->
+                <div class="w-12 h-12 rounded-xl flex items-center justify-center text-xl mb-5 shadow-sm group-hover:scale-110 transition <?php echo $bg_color; ?> <?php echo $color; ?>">
                     <i class="bi <?php echo $icon; ?>"></i>
                 </div>
                 
-                <h3 class="text-xl font-bold mb-3"><?php echo $title_val; ?></h3>
+                <!-- Title -->
+                <h3 class="text-lg md:text-xl font-bold mb-2"><?php echo $title_val; ?></h3>
                 
-                <div class="border-l-2 border-accent pl-4 mb-6 flex-grow">
+                <!-- Desc -->
+                <div class="border-l-2 border-accent pl-4 mb-5">
                     <p class="text-xs md:text-sm text-gray-500 group-hover:text-gray-400 leading-relaxed"><?php echo $desc_val; ?></p>
                 </div>
                 
+                <!-- Skills tags -->
                 <div class="flex flex-wrap gap-2 mt-auto">
                     <?php if(!empty($skill_groups[$cat])): ?>
                         <?php foreach($skill_groups[$cat] as $item): ?>
-                        <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-white border border-gray-200 text-[10px] md:text-xs font-bold text-gray-700 shadow-sm transition-all group-hover:bg-white/10 group-hover:border-white/10 group-hover:text-white">
-                            <i class="<?php echo clean($item['icon']); ?>"></i> <?php echo clean($item['name']); ?>
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-white border border-gray-200 text-[10px] md:text-xs font-bold text-gray-700 shadow-sm transition-all group-hover:bg-white/10 group-hover:border-white/10 group-hover:text-white">
+                            <?php if(!empty($item['icon'])): ?>
+                            <i class="<?php echo clean($item['icon']); ?>"></i>
+                            <?php endif; ?>
+                            <?php echo clean($item['name']); ?>
                         </span>
                         <?php endforeach; ?>
                     <?php else: ?>

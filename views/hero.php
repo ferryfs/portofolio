@@ -4,64 +4,60 @@
     <div class="max-w-7xl mx-auto px-6 w-full relative z-10">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
             
-            <div data-aos="fade-right" data-aos-duration="1000" class="-mt-20 lg:-mt-32 order-2 lg:order-1">
+            <!-- LEFT: Text Content -->
+            <div data-aos="fade-right" data-aos-duration="1000" class="order-2 lg:order-1 lg:-mt-32">
                 <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white border border-gray-200 shadow-sm text-secondary text-[10px] font-bold uppercase tracking-widest mb-6">
                     <span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span></span>
                     <?php echo $txt['status_avail']; ?>
                 </div>
                 
                 <div class="mb-6">
-                    <h2 class="text-2xl md:text-3xl font-bold mb-4"> 
-                        <span class="text-accent"><?php echo $txt['hero_pre']; ?></span> <br class="md:hidden">
-                        <span class="text-primary"><?php echo $txt['hero_greeting']; ?></span>,
+                    <h2 class="text-xl md:text-3xl font-bold mb-3">
+                        <span class="text-accent"><?php echo $txt['hero_pre']; ?></span>
+                        <span class="text-primary"> <?php echo $txt['hero_greeting']; ?></span>,
                     </h2>
-                    <h1 class="text-5xl md:text-7xl font-black leading-[1.1] text-primary tracking-tight">
+                    <h1 class="text-4xl md:text-7xl font-black leading-[1.1] text-primary tracking-tight">
                         <?php echo str_replace('| ', '| <br class="hidden md:block">', $txt['hero_title_raw']); ?>
                     </h1>
                 </div>
 
-                <div class="relative w-full max-w-xs mx-auto my-10 lg:hidden flex justify-center order-1 lg:order-2" data-aos="fade-up">
-                    <div class="relative w-full z-10">
-                        <div class="rounded-[2.5rem] overflow-hidden shadow-2xl rotate-2 border-[6px] border-white bg-white relative z-10">
-                            <img src="<?php echo $foto_profile; ?>" alt="Profile" class="w-full h-auto object-cover" loading="lazy">
+                <!-- Mobile Photo — CLEAN, no floating pills -->
+                <div class="relative w-full max-w-[240px] mx-auto my-8 lg:hidden" data-aos="fade-up">
+                    <div class="rounded-[2rem] overflow-hidden shadow-xl border-[5px] border-white bg-white">
+                        <img src="<?php echo $foto_profile; ?>" alt="Profile" class="w-full h-auto object-cover" loading="lazy">
+                    </div>
+                    <!-- Stats row di bawah foto, bukan floating -->
+                    <div class="flex justify-center gap-3 mt-4">
+                        <div class="flex flex-col items-center bg-white rounded-2xl px-4 py-2 shadow-md border border-gray-100">
+                            <span class="text-lg font-black text-primary leading-none"><?php echo $p['years_exp'] ?? 0; ?>+</span>
+                            <span class="text-[9px] font-bold text-gray-400 uppercase text-center leading-tight mt-0.5"><?php echo $txt['stat_exp']; ?></span>
                         </div>
-                        
-                        <div class="absolute top-4 -right-2 flex flex-col gap-3 z-20 scale-90">
-                            
-                            <div class="w-16 h-16 bg-white rounded-full shadow-lg flex flex-col items-center justify-center border border-gray-100 animate-[bounce_3s_infinite] p-1">
-                                <span class="text-lg font-black text-primary leading-none mb-0.5"><?php echo $p['years_exp'] ?? 0; ?>+</span>
-                                <span class="text-[7px] font-bold text-gray-400 uppercase text-center leading-tight"><?php echo $txt['stat_exp']; ?></span>
-                            </div>
-
-                            <div class="w-16 h-16 bg-primary rounded-full shadow-lg flex flex-col items-center justify-center border border-gray-800 animate-[bounce_3.5s_infinite] p-1">
-                                <span class="text-lg font-black text-white leading-none mb-0.5"><?php echo $p['projects_done'] ?? 0; ?>+</span>
-                                <span class="text-[7px] font-bold text-gray-400 uppercase text-center leading-tight"><?php echo $txt['stat_proj']; ?></span>
-                            </div>
-
-                            <div class="w-16 h-16 bg-white rounded-full shadow-lg flex flex-col items-center justify-center border border-gray-100 animate-[bounce_4s_infinite] p-1">
-                                <div class="w-2 h-2 bg-green-500 rounded-full mb-1 animate-pulse"></div>
-                                <span class="text-[7px] font-bold text-primary uppercase text-center leading-none">Available<br>Hire Me</span>
-                            </div>
-
+                        <div class="flex flex-col items-center bg-primary rounded-2xl px-4 py-2 shadow-md">
+                            <span class="text-lg font-black text-white leading-none"><?php echo $p['projects_done'] ?? 0; ?>+</span>
+                            <span class="text-[9px] font-bold text-gray-400 uppercase text-center leading-tight mt-0.5"><?php echo $txt['stat_proj']; ?></span>
+                        </div>
+                        <div class="flex flex-col items-center bg-white rounded-2xl px-4 py-2 shadow-md border border-gray-100">
+                            <div class="w-2 h-2 bg-green-500 rounded-full mb-1 animate-pulse"></div>
+                            <span class="text-[9px] font-bold text-primary uppercase text-center leading-none">Available<br>Hire Me</span>
                         </div>
                     </div>
                 </div>
 
-                <div class="flex gap-6 mb-10 border-l-4 border-accent pl-6 mt-4 lg:mt-0">
-                    <p class="text-lg text-gray-600 leading-relaxed max-w-lg font-medium"><?php echo $txt['hero_desc']; ?></p>
+                <div class="flex gap-6 mb-8 border-l-4 border-accent pl-5">
+                    <p class="text-base md:text-lg text-gray-600 leading-relaxed max-w-lg font-medium"><?php echo $txt['hero_desc']; ?></p>
                 </div>
-                <div class="flex flex-wrap gap-4">
-                    <a href="#projects" class="bg-primary text-white px-8 py-3.5 rounded-full font-bold text-sm hover:bg-accent transition shadow-lg hover:shadow-glow hover:-translate-y-1"><?php echo $txt['btn_port']; ?></a>
-                    <a href="<?php echo $cv_url; ?>" target="_blank" class="bg-white text-primary border border-gray-200 px-8 py-3.5 rounded-full font-bold text-sm hover:bg-gray-50 transition shadow-sm hover:-translate-y-1"><?php echo $txt['btn_cv']; ?></a>
+                <div class="flex flex-wrap gap-3">
+                    <a href="#projects" class="bg-primary text-white px-6 md:px-8 py-3 md:py-3.5 rounded-full font-bold text-sm hover:bg-accent transition shadow-lg hover:-translate-y-1"><?php echo $txt['btn_port']; ?></a>
+                    <a href="<?php echo $cv_url; ?>" target="_blank" class="bg-white text-primary border border-gray-200 px-6 md:px-8 py-3 md:py-3.5 rounded-full font-bold text-sm hover:bg-gray-50 transition shadow-sm hover:-translate-y-1"><?php echo $txt['btn_cv']; ?></a>
                 </div>
             </div>
             
+            <!-- RIGHT: Desktop Photo -->
             <div class="relative hidden lg:flex justify-end order-1 lg:order-2" data-aos="fade-left" data-aos-duration="1200">
                 <div class="relative w-full max-w-md z-10">
                     <div class="rounded-[3rem] overflow-hidden shadow-2xl rotate-2 hover:rotate-0 transition duration-700 ease-out border-[8px] border-white bg-white">
                         <img src="<?php echo $foto_profile; ?>" alt="Profile" class="w-full h-auto object-cover grayscale hover:grayscale-0 transition duration-700" loading="lazy">
                     </div>
-                    
                     <div class="absolute top-10 right-6 flex flex-col gap-4 z-20">
                         <div class="w-16 h-16 bg-white rounded-full shadow-xl flex flex-col items-center justify-center border border-gray-100 animate-[bounce_3s_infinite] p-1">
                             <span class="text-xl font-black text-primary leading-none mb-0.5"><?php echo $p['years_exp'] ?? 0; ?>+</span>

@@ -210,34 +210,47 @@ foreach($js_timeline as $row) { $temp_careers[$row['company']][] = $row; }
         }
 
         // ===============================================
-        // 🔥 LOGIC BARU: MATCHING ROLE via COMPANY_REF
+        // ROLE: Ambil dari my_role (per-project) + company_ref
         // ===============================================
         const roleInfoBox = document.getElementById('guideRoleInfo');
-        let matchedCareer = null;
+        if (roleInfoBox) {
+            const myRole = project.my_role;
+            const companyRef = project.company_ref;
 
-        if (roleInfoBox) { // Cek biar gak error kalo elemen gak ada
-            
-            // CARA 1: Cek Jalur VIP (Database Admin)
-            if (project.company_ref && project.company_ref.trim() !== "") {
-                matchedCareer = rawTimeline.find(job => job.company === project.company_ref);
-            }
-
-            // CARA 2: Kalau Jalur VIP kosong, coba TEBAK (Fallback)
-            if (!matchedCareer) {
-                 rawTimeline.forEach(job => {
-                    const keyword = job.company.split(' ')[0].length > 2 ? job.company.split(' ')[0] : job.company.split(' ')[1];
-                    if (keyword && project.title.toLowerCase().includes(keyword.toLowerCase())) {
-                        matchedCareer = job;
-                    }
-                });
-            }
-
-            // TAMPILKAN HASILNYA
-            if (matchedCareer) {
+            if (myRole && myRole.trim() !== '') {
+                // Tampilkan my_role sebagai deskripsi aktivitas
                 roleInfoBox.classList.remove('hidden');
-                document.getElementById('guideRoleTitle').innerText = matchedCareer.role;
-                document.getElementById('guideRoleCompany').innerText = "at " + matchedCareer.company;
-                document.getElementById('guideRoleDesc').innerHTML = matchedCareer.description; 
+
+                // Judul: jabatan dari timeline (kalau ada company_ref)
+                let jobTitle = 'Contributor';
+                let jobCompany = '';
+                if (companyRef && companyRef.trim() !== '') {
+                    const matched = rawTimeline.find(job => job.company === companyRef);
+                    if (matched) {
+                        jobTitle = matched.role;
+                        jobCompany = matched.company;
+                    }
+                }
+
+                document.getElementById('guideRoleTitle').innerText = jobTitle;
+
+                const companyEl = document.getElementById('guideRoleCompany');
+                if (jobCompany) {
+                    companyEl.innerText = 'at ' + jobCompany;
+                    companyEl.style.display = '';
+                } else {
+                    companyEl.style.display = 'none';
+                }
+
+                // Isi scope & responsibilities dari my_role
+                const roleDescEl = document.getElementById('guideRoleDesc');
+                roleDescEl.style.display = '';
+                roleDescEl.innerHTML = myRole;
+
+                // Buka details by default biar langsung keliatan
+                const detailsEl = roleInfoBox.querySelector('details');
+                if (detailsEl) detailsEl.setAttribute('open', '');
+
             } else {
                 roleInfoBox.classList.add('hidden');
             }

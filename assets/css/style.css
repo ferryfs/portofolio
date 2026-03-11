@@ -1,15 +1,138 @@
 /* assets/css/style.css */
 body { background-color: #FAFAFA; color: #111827; overflow-x: hidden; width: 100%; position: relative; }
+
 .island-box { background: white; border-radius: 2rem; padding: 3rem 2rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); border: 1px solid #F3F4F6; }
 .glass-nav { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.6); }
+
 .lang-btn { padding: 4px 12px; font-size: 11px; font-weight: 800; color: #6B7280; transition: all 0.3s; border-radius: 99px; }
 .lang-btn.active { color: #000; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+
 .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; } 
 .custom-scroll::-webkit-scrollbar-track { background: #f1f1f1; }
 .custom-scroll::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
 .db-desc ul { padding-left: 1.2rem; list-style-type: disc; } 
 .db-desc li { margin-bottom: 0.5rem; } 
 .db-desc b, .db-desc strong { color: #2563EB; font-weight: 800; }
+
 .tab-btn.active { background-color: #ffffff; color: #2563EB; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+
+/* ==================== ISLAND (Skills, etc) ==================== */
+.island {
+    background: white;
+    border-radius: 2.5rem;
+    padding: 2.5rem 1.5rem;
+    border: 1px solid #F3F4F6;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.04);
+}
+@media (min-width: 768px) {
+    .island { padding: 3rem; }
+}
+
+/* ==================== PROJECTS ISLAND ==================== */
+.projects-island {
+    border-radius: 2rem;
+    position: relative;
+    overflow: hidden;
+}
+
+/* ==================== PROJECT CARD ==================== */
+.project-card-wrap {
+    flex: 0 0 auto;
+    width: 280px;   /* mobile */
+    snap-align: start;
+}
+@media (min-width: 640px) {
+    .project-card-wrap { width: 300px; }
+}
+@media (min-width: 1024px) {
+    .project-card-wrap { width: 320px; }
+}
+
+/* ==================== MAIN TAB BTN ==================== */
+.main-tab-btn {
+    padding: 12px 20px;
+    font-size: 13px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.4);
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+.main-tab-btn.active {
+    color: #ffffff;
+    border-bottom-color: #2563EB;
+}
+
+/* ==================== SUB TAB BTN ==================== */
+.sub-tab-btn {
+    padding: 6px 14px;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 99px;
+    white-space: nowrap;
+    transition: all 0.2s;
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.5);
+    border: none;
+    cursor: pointer;
+}
+.sub-tab-btn.active {
+    background: #ffffff;
+    color: #111827;
+}
+.sub-tab-btn:hover:not(.active) {
+    background: rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.8);
+}
+
+/* ==================== CONTACT BUTTONS ==================== */
+.contact-btn-primary {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 14px 28px; border-radius: 999px;
+    background: #111827; color: white;
+    font-weight: 800; font-size: 14px;
+    transition: all 0.3s; text-decoration: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.contact-btn-primary:hover { background: #2563EB; transform: translateY(-2px); }
+
+.contact-btn-secondary {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 14px 28px; border-radius: 999px;
+    background: white; color: #111827;
+    font-weight: 800; font-size: 14px;
+    border: 2px solid #E5E7EB;
+    transition: all 0.3s; text-decoration: none;
+}
+.contact-btn-secondary:hover { border-color: #111827; transform: translateY(-2px); }
+
+/* ==================== CERT CARD ==================== */
+.cert-card {
+    transition: all 0.3s;
+}
+.cert-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(0,0,0,0.08);
+}
+
+/* ==================== MOBILE FIXES ==================== */
+@media (max-width: 640px) {
+    /* Prevent overflow pada section manapun */
+    section { overflow-x: hidden; }
+
+    /* Hero title lebih kecil di HP kecil */
+    #home h1 { font-size: 2.4rem; }
+
+    /* About foto grid fix */
+    #about .grid-cols-2 { grid-template-columns: 1fr 1fr; }
+
+    /* Skills card full width di mobile */
+    #skills .grid { gap: 12px; }
+    #skills .rounded-3xl { padding: 1.25rem; }
+    
+    /* Skill tags lebih kecil */
+    #skills .inline-flex { font-size: 9px; padding: 4px 8px; }
+}

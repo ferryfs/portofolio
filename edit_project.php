@@ -21,6 +21,7 @@ if(isset($_POST['update'])){
     $cat = $_POST['category'];
     $comp_ref = ($cat == 'Personal') ? '' : trim($_POST['company_ref']);
     $tech = trim($_POST['tech_stack']);
+    $my_role = trim($_POST['my_role'] ?? '');
     $link = trim($_POST['link_demo']);
     $desc = purify($_POST['description']);
     $desc_en = purify($_POST['description_en']);
@@ -28,8 +29,8 @@ if(isset($_POST['update'])){
     $imp = purify($_POST['impact']);
     
     // Update dengan image validation via security.php
-    $sql = "UPDATE projects SET title=?, category=?, company_ref=?, tech_stack=?, link_demo=?, description=?, description_en=?, challenge=?, impact=? WHERE id=?";
-    $params = [$title, $cat, $comp_ref, $tech, $link, $desc, $desc_en, $chal, $imp, $id];
+    $sql = "UPDATE projects SET title=?, category=?, company_ref=?, tech_stack=?, link_demo=?, description=?, description_en=?, challenge=?, impact=?, my_role=? WHERE id=?";
+    $params = [$title, $cat, $comp_ref, $tech, $link, $desc, $desc_en, $chal, $imp, $my_role, $id];
 
     if(!empty($_FILES['image']['name'])) {
         $upload = handleFileUpload($_FILES['image'], 'assets/img/');
@@ -100,7 +101,13 @@ if(isset($_POST['update'])){
                                 <?php endwhile; ?>
                             </select>
                         </div>
-
+                        <div class="col-12">
+                            <label class="fw-bold small">My Role in This Project</label>
+                            <textarea name="my_role" class="form-control" rows="4" 
+                                    placeholder="Contoh: Requirement gathering, review UI/UX, SIT/UAT, training Sales untuk fitur capping promo..."
+                            ><?php echo htmlspecialchars($d['my_role'] ?? ''); ?></textarea>
+                            <div class="form-text text-muted">Isi dengan peran & aktivitas spesifik lo di project ini.</div>
+                        </div>
                         <div class="col-12"><label class="fw-bold small">Tech Stack</label><input type="text" name="tech_stack" class="form-control" value="<?=$d['tech_stack']?>"></div>
                         <div class="col-12"><label class="fw-bold small">Link Demo</label><input type="text" name="link_demo" class="form-control" value="<?=$d['link_demo']?>"></div>
                         
