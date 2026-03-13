@@ -3,8 +3,8 @@
 // V13.5: SMART STATUS FIX + ZERO QTY AUTO-SWEEPER + DISCREPANCY LINK
 // Features: Tracks Physical Work, Not Just Document Status. Automatically rejects/cleans qty=0 from external systems. Linked Discrepancy KPI.
 
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
+
+
 
 session_name("WMS_APP_SESSION");
 session_start();
@@ -124,7 +124,7 @@ $vendors = safeGetAll($pdo, "SELECT DISTINCT vendor_name FROM wms_po_header ORDE
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Inbound Dashboard | WMS V13.5</title>
+    <title>Inbound | Smart WMS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -166,7 +166,7 @@ $vendors = safeGetAll($pdo, "SELECT DISTINCT vendor_name FROM wms_po_header ORDE
     <div class="navbar-glass">
         <div class="d-flex align-items-center gap-3">
             <h4 class="fw-bold m-0 text-primary"><i class="bi bi-box-seam-fill me-2"></i>Inbound Dashboard</h4>
-            <span class="badge bg-light text-muted border">V13.5</span>
+            
         </div>
         <div class="d-flex align-items-center gap-3">
             <div class="theme-toggle" onclick="toggleTheme()"><i class="bi bi-moon-stars-fill text-warning"></i></div>

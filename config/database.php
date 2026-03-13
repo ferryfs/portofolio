@@ -48,7 +48,8 @@ class Database {
             
         } catch(PDOException $exception) {
             error_log("Connection error: " . $exception->getMessage());
-            die("Gagal Konek: " . $exception->getMessage());
+            error_log("Connection error: " . $exception->getMessage());
+            die("Terjadi kesalahan sistem.");
         }
         return $this->conn;
     }
@@ -73,7 +74,8 @@ if (!function_exists('safeQuery')) {
             return $stmt;
             } catch (PDOException $e) {
             // Tampilkan error lengkap ke layar biar ketahuan salahnya dimana
-            die("🔥 SQL ERROR: " . $e->getMessage()); 
+            error_log("SQL Error: " . $e->getMessage());
+            die("Terjadi kesalahan sistem."); 
         }
     }
 }

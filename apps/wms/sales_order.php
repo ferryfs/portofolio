@@ -2,8 +2,6 @@
 // apps/wms/sales_order.php
 // V12: ENTERPRISE SO (Rich Header + Smart Item Selector)
 
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
 
 session_name("WMS_APP_SESSION");
 session_start();
@@ -30,7 +28,7 @@ if(isset($_POST['create_header'])) {
     $prio = sanitizeInput($_POST['priority']);
     $note = sanitizeInput($_POST['remarks']);
     
-    $so_num = "SO-" . date('ymd') . "-" . rand(100,999);
+    $so_num = "SO-" . date('ymd') . "-" . strtoupper(substr(md5(uniqid("", true)), 0, 5));
     
     try {
         $sql = "INSERT INTO wms_so_header (so_number, customer_name, po_reference, expected_date, ship_to, priority, remarks, status, created_at) 
@@ -182,6 +180,18 @@ $prod_list = safeGetAll($pdo, "
     </style>
 </head>
 <body>
+<nav style="background:#0f172a; padding:14px 0; border-bottom:3px solid #4f46e5; position:sticky; top:0; z-index:100;" class="shadow-sm">
+    <div class="container d-flex justify-content-between align-items-center">
+        <a class="d-flex align-items-center gap-2 text-white text-decoration-none" href="index.php">
+            <i class="bi bi-box-seam-fill text-primary fs-5"></i>
+            <span class="fw-bold">WMS <span style="font-weight:300;">Enterprise</span></span>
+        </a>
+        <div class="d-flex gap-2">
+            <a href="outbound.php" class="btn btn-outline-light btn-sm rounded-pill px-3 fw-bold"><i class="bi bi-arrow-left me-1"></i>Outbound</a>
+            <a href="index.php" class="btn btn-outline-light btn-sm rounded-pill px-3 fw-bold"><i class="bi bi-house me-1"></i>Dashboard</a>
+        </div>
+    </div>
+</nav>
 
 <div class="container-fluid py-4" style="max-width: 1500px;">
     

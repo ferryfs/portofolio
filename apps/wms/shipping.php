@@ -2,8 +2,6 @@
 // apps/wms/shipping.php
 // V12: SHIPPING COCKPIT (Progress Tracking + Rich Data)
 
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
 
 session_name("WMS_APP_SESSION");
 session_start();
@@ -47,9 +45,12 @@ if(isset($_POST['post_gi'])) {
             $stok_gi = safeGetOne($pdo, "SELECT SUM(qty) as total FROM wms_quants WHERE lgpla='GI-ZONE' AND product_uuid=?", [$prod]);
             $qty_ready = $stok_gi['total'] ?? 0;
 
+            if($qty_ready <= 0) {
+                throw new Exception("Stock not found in GI-ZONE for this item. Please complete picking first. Needed: $qty_order");
+            }
             if($qty_ready < $qty_order) {
-                // Allow Partial PGI? Untuk V12 kita Strict dulu.
-                throw new Exception("Loading Incomplete! Item mismatch in GI-ZONE. Needed: $qty_order, Ready: $qty_ready");
+                // Partial PGI — allowed, ship what is ready
+                $qty_order = $qty_ready;
             }
         }
 

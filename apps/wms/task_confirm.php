@@ -45,20 +45,24 @@ if(isset($_POST['confirm'])) {
     $qtyBad = $_POST['qty_dmg'] ?? 0; 
     $remarks = $_POST['remarks'] ?? '';
 
-    $result = $putawayService->executePutaway($id, $targetBin, $qtyGood, $qtyBad, $remarks, 'DESKTOP');
-
-    $show_alert = true;
-    $alert_status = $result['status'];
-    
-    if ($result['status'] === 'success') {
-        $po_text = $task['po_ref'] ?? 'N/A';
-        $batch_text = $task['batch'] ?? 'N/A';
-        $hu_text = $task['hu_id'] ?? 'N/A';
-        $alert_msg = "Task Confirmed!<br><br><small><b>PO:</b> $po_text<br><b>Batch:</b> $batch_text<br><b>HU:</b> $hu_text</small>";
+    // Validate total tidak melebihi task qty
+    $taskQty = (float)$task['qty'];
+    $totalInput = (float)$qtyGood + (float)$qtyBad;
+    if($totalInput <= 0) {
+        $show_alert = true; $alert_status = 'error'; $alert_msg = 'Total quantity cannot be zero.';
+    } elseif($totalInput > $taskQty + 0.001) {
+        $show_alert = true; $alert_status = 'error'; $alert_msg = "Total quantity ($totalInput) exceeds task target ($taskQty). Cannot over-putaway.";
     } else {
-        $alert_msg = $result['msg'];
-        $error = $result['msg']; 
+        $result = $putawayService->executePutaway($id, $targetBin, $qtyGood, $qtyBad, $remarks, 'DESKTOP');
+        $show_alert = true; $alert_status = $result['status'];
+        if($result['status'] === 'success') {
+            $po_text = $task['po_ref'] ?? 'N/A'; $batch_text = $task['batch'] ?? 'N/A'; $hu_text = $task['hu_id'] ?? 'N/A';
+            $alert_msg = "Task Confirmed!<br><br><small><b>PO:</b> $po_text<br><b>Batch:</b> $batch_text<br><b>HU:</b> $hu_text</small>";
+        } else {
+            $alert_msg = $result['msg']; $error = $result['msg'];
+        }
     }
+    // Skip duplicate assignment below
 }
 // ---------------------------------------------------------
 
@@ -80,7 +84,7 @@ if ($task['dest_bin'] !== 'SYSTEM' && !empty($task['dest_bin'])) {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Execute Task | V18.4 (Smart)</title>
+    <title>Execute Task | Smart WMS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>

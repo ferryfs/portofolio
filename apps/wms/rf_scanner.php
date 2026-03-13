@@ -6,7 +6,7 @@
 session_name("WMS_APP_SESSION");
 session_start();
 
-if(!isset($_SESSION['wms_login'])) { header("Location: ../../login.php"); exit; }
+if(!isset($_SESSION['wms_login'])) { header("Location: login.php"); exit; }
 
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../config/security.php';
@@ -105,7 +105,7 @@ if(isset($_GET['msg'])) { $msg = $_GET['msg']; $msg_type = 'success'; }
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RF Enterprise V18.10</title>
+    <title>RF Scanner | Smart WMS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
@@ -150,7 +150,7 @@ if(isset($_GET['msg'])) { $msg = $_GET['msg']; $msg_type = 'success'; }
         <div class="d-flex align-items-center gap-2">
             <i class="bi bi-upc-scan text-primary fs-4"></i>
             <div>
-                <div style="font-weight: 800; line-height: 1;">RF-V18.10</div>
+                <div style="font-weight: 800; line-height: 1;">RF Scanner</div>
                 <div style="font-size: 0.7rem; color: #64748b;">Enterprise Mobile</div>
             </div>
         </div>

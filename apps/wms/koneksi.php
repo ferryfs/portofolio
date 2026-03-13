@@ -20,4 +20,23 @@ function catat_log($pdo, $user, $type, $module, $desc) {
         error_log("WMS Log Error: " . $e->getMessage());
     }
 }
+
+// SESSION TIMEOUT: Check apakah session masih valid
+// Dipanggil di halaman sensitif untuk prevent stale session
+function wms_check_session_timeout($timeout_minutes = 480) {
+    if (!isset($_SESSION['wms_login'])) return false;
+    $last = $_SESSION['wms_last_activity'] ?? time();
+    if ((time() - $last) > ($timeout_minutes * 60)) {
+        session_destroy();
+        return false;
+    }
+    $_SESSION['wms_last_activity'] = time();
+    return true;
+}
+
+// Inisialisasi timestamp aktivitas saat login
+if (isset($_SESSION['wms_login']) && !isset($_SESSION['wms_last_activity'])) {
+    $_SESSION['wms_last_activity'] = time();
+}
+
 ?>

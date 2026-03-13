@@ -2,8 +2,8 @@
 // apps/wms/stock_master.php
 // V10.2: INVENTORY DASHBOARD (AJAX FIXED + GOOD VS BAD BREAKDOWN)
 
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
+
+
 
 session_name("WMS_APP_SESSION");
 session_start();
@@ -88,7 +88,7 @@ $stocks = safeGetAll($pdo, "
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Inventory Master | WMS Enterprise</title>
+    <title>Inventory | Smart WMS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -96,8 +96,8 @@ $stocks = safeGetAll($pdo, "
         :root { --bg: #f8fafc; --card: #ffffff; --text: #0f172a; --primary: #4f46e5; }
         body { background: var(--bg); font-family: 'Inter', sans-serif; color: var(--text); padding-bottom: 3rem; }
         
-        .navbar-custom { background: #0f172a; padding: 15px 0; border-bottom: 3px solid var(--primary); }
-        .navbar-brand { font-weight: 800; letter-spacing: 0.5px; }
+        
+        
 
         .stat-card { background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 1.5rem; position: relative; overflow: hidden; transition: transform 0.2s; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); }
         .stat-card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
@@ -125,14 +125,16 @@ $stocks = safeGetAll($pdo, "
 </head>
 <body>
 
-<nav class="navbar navbar-expand-lg navbar-dark navbar-custom shadow-sm mb-5">
+<nav style="background:#0f172a; padding:14px 0; border-bottom:3px solid #4f46e5; position:sticky; top:0; z-index:100;" class="shadow-sm mb-5">
     <div class="container-fluid px-5" style="max-width: 1600px;">
-        <a class="navbar-brand d-flex align-items-center gap-2" href="#">
-            <i class="bi bi-boxes text-primary fs-4"></i> 
-            <span>Inventory <span style="font-weight: 300;">Master</span></span>
-        </a>
-        <div class="d-flex gap-2">
-            <a href="index.php" class="btn btn-outline-light btn-sm rounded-pill px-4 fw-bold"><i class="bi bi-house-door me-2"></i>Dashboard</a>
+        <div class="d-flex justify-content-between align-items-center">
+            <a class="d-flex align-items-center gap-2 text-white text-decoration-none" href="index.php">
+                <i class="bi bi-boxes text-primary fs-5"></i>
+                <span class="fw-bold">WMS <span style="font-weight:300;">Enterprise</span></span>
+            </a>
+            <div class="d-flex gap-2">
+                <a href="index.php" class="btn btn-outline-light btn-sm rounded-pill px-4 fw-bold"><i class="bi bi-house me-2"></i>Dashboard</a>
+            </div>
         </div>
     </div>
 </nav>

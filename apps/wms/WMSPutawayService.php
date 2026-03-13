@@ -118,7 +118,7 @@ class WMSPutawayService {
                 // C. Insert Stok Bagus (F1) ke Target Bin
                 if ($qtyGood > 0) {
                     // Kalau partial move, HU ID dikasih suffix "-SPL" supaya unik di rak tujuan
-                    $targetHuId = ($totalMove == $sourceQuant['qty']) ? $task['hu_id'] : "SPL-" . $task['hu_id'] . "-" . mt_rand(10,99);
+                    $targetHuId = ($totalMove == $sourceQuant['qty']) ? $task['hu_id'] : "SPL-" . strtoupper(substr(md5(uniqid($task['hu_id'], true)), 0, 8));
 
                     safeQuery($this->pdo, "INSERT INTO wms_quants (product_uuid, lgpla, batch, hu_id, qty, stock_type, gr_date, is_putaway, po_ref, gr_ref) 
                                            VALUES (?, ?, ?, ?, ?, 'F1', NOW(), 1, ?, ?)", 
@@ -128,12 +128,47 @@ class WMSPutawayService {
 
                 // D. Insert Stok Rusak (B6) ke Block Zone
                 if ($qtyBad > 0) {
-                    $huBad = "DMG-" . $task['hu_id'] . "-" . time(); // Generate sub-HU untuk barang rusak
+                    $huBad = "DMG-" . strtoupper(substr(md5(uniqid($task['hu_id'], true)), 0, 8)); // Generate sub-HU untuk barang rusak
                     $this->ensureBinExists('BLOCK-ZONE');
                     safeQuery($this->pdo, "INSERT INTO wms_quants (product_uuid, lgpla, batch, hu_id, qty, stock_type, gr_date, is_putaway, po_ref, gr_ref) 
                                            VALUES (?, 'BLOCK-ZONE', ?, ?, ?, 'B6', NOW(), 1, ?, ?)", 
                                            [$task['product_uuid'], $task['batch'], $huBad, $qtyBad, $task['po_ref'], $task['gr_ref']]);
                 }
+            }
+
+            // PICKING PROCESS: Move stock from source bin to GI-ZONE
+            if ($task['process_type'] == 'PICKING') {
+                // Validasi bin tujuan untuk picking = GI-ZONE
+                $this->ensureBinExists('GI-ZONE');
+                
+                if ($totalMove == $sourceQuant['qty']) {
+                    // Full pick: pindah HU ke GI-ZONE
+                    safeQuery($this->pdo, "UPDATE wms_quants SET lgpla='GI-ZONE' WHERE hu_id=? AND lgpla=?", 
+                               [$task['hu_id'], $task['source_bin']]);
+                } else {
+                    // Partial pick: kurangi source, buat HU baru di GI-ZONE
+                    $sisaQty = $sourceQuant['qty'] - $totalMove;
+                    safeQuery($this->pdo, "UPDATE wms_quants SET qty=? WHERE hu_id=? AND lgpla=?", 
+                               [$sisaQty, $task['hu_id'], $task['source_bin']]);
+                    $pickHu = "PCK-" . strtoupper(substr(md5(uniqid($task['hu_id'], true)), 0, 8));
+                    safeQuery($this->pdo, "INSERT INTO wms_quants (product_uuid, lgpla, batch, hu_id, qty, stock_type, gr_date, is_putaway, po_ref, gr_ref)
+                                           SELECT product_uuid, 'GI-ZONE', batch, ?, ?, stock_type, gr_date, 1, po_ref, gr_ref
+                                           FROM wms_quants WHERE hu_id=? AND lgpla='GI-ZONE' LIMIT 1",
+                               [$pickHu, $totalMove, $task['hu_id']]);
+                    // Fallback insert jika source sudah dipindah
+                    safeQuery($this->pdo, "INSERT IGNORE INTO wms_quants (product_uuid, lgpla, batch, hu_id, qty, stock_type, gr_date, is_putaway)
+                                           VALUES (?, 'GI-ZONE', ?, ?, ?, 'F1', NOW(), 1)",
+                               [$task['product_uuid'], $task['batch'], $pickHu, $totalMove]);
+                }
+                // Update bin status sumber
+                $cek_sisa = safeGetOne($this->pdo, "SELECT COUNT(*) as c FROM wms_quants WHERE lgpla=? AND qty>0", [$task['source_bin']]);
+                if((int)$cek_sisa['c'] === 0) {
+                    safeQuery($this->pdo, "UPDATE wms_storage_bins SET status_bin='EMPTY' WHERE lgpla=?", [$task['source_bin']]);
+                }
+                // Log movement
+                safeQuery($this->pdo, "INSERT INTO wms_stock_movements (trx_ref, product_uuid, hu_id, qty_change, move_type, user, from_bin, to_bin, created_at, reason_code)
+                                       VALUES (?, ?, ?, ?, 'RF_PICKING', ?, ?, 'GI-ZONE', NOW(), ?)",
+                           ["TASK-$taskId", $task['product_uuid'], $task['hu_id'], $totalMove, $this->user, $task['source_bin'], $remarks]);
             }
 
             // E. Tutup Task (Update dest_bin ke aktualnya)

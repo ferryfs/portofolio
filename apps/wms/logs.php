@@ -2,8 +2,8 @@
 // apps/wms/logs.php
 // V14: ENTERPRISE AUDIT CENTER (Pagination, Universal Filter, Smart Print)
 
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
+
+
 
 session_name("WMS_APP_SESSION");
 session_start();
@@ -90,7 +90,7 @@ function getMoveBadge($type) {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Audit Center | V14 Enterprise</title>
+    <title>Audit Center | Smart WMS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -132,7 +132,7 @@ function getMoveBadge($type) {
     <div class="d-flex justify-content-between align-items-center px-4 py-3 bg-card border-bottom hide-on-print" style="background: var(--card-bg); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100;">
         <div class="d-flex align-items-center gap-3">
             <h4 class="fw-bold m-0 text-primary"><i class="bi bi-shield-check me-2"></i>Audit Center</h4>
-            <span class="badge bg-light text-muted border">V14 Enterprise</span>
+            
         </div>
         <div class="d-flex align-items-center gap-3">
             <div class="theme-toggle" onclick="toggleTheme()"><i class="bi bi-moon-stars-fill text-warning"></i></div>

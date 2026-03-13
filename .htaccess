@@ -12,6 +12,11 @@ Options -Indexes
     Deny from all
 </FilesMatch>
 
+# 🔒 BLOKIR AKSES FOLDER CONFIG & LOGS
+<IfModule mod_rewrite.c>
+    RewriteRule ^(config|logs)/ - [F,L]
+</IfModule>
+
 # 🛡️ TAMENG BROWSER
 <IfModule mod_headers.c>
     Header set X-Frame-Options "SAMEORIGIN"

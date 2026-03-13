@@ -3,8 +3,6 @@
 // V1.2: INBOUND DISCREPANCY RESOLUTION (LOSS & SURPLUS SUPPORT)
 // Features: Strictly mapped to `id` column. Perfect tracking for overage/shortage.
 
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
 
 session_name("WMS_APP_SESSION");
 session_start();

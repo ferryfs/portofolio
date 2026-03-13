@@ -2,8 +2,6 @@
 // apps/wms/physical_inventory.php
 // V13: FULL ENTERPRISE SUITE (Smart UI, Filters, Pagination, History Parsing, CSV Export)
 
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
 
 session_name("WMS_APP_SESSION");
 session_start();
@@ -148,14 +146,14 @@ function buildUrl($newPage) {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Stock Opname | WMS Enterprise</title>
+    <title>Stock Opname | Smart WMS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root { --bg: #f8fafc; --primary: #4f46e5; }
         body { background: var(--bg); font-family: 'Inter', sans-serif; padding-bottom: 50px; }
-        .navbar-custom { background: #0f172a; padding: 15px 0; border-bottom: 3px solid var(--primary); }
+        
         .card-pi { border: none; border-radius: 0 0 16px 16px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); background: white; }
         .table thead th { background: #f8fafc; color: #64748b; font-weight: 700; text-transform: uppercase; font-size: 0.75rem; padding: 16px 20px; }
         .table tbody td { padding: 16px 20px; vertical-align: middle; border-bottom: 1px solid #f1f5f9; }
@@ -182,13 +180,18 @@ function buildUrl($newPage) {
 </head>
 <body>
 
-<nav class="navbar navbar-expand-lg navbar-dark navbar-custom shadow-sm mb-5">
+<nav style="background:#0f172a; padding:14px 0; border-bottom:3px solid #4f46e5; position:sticky; top:0; z-index:100;" class="shadow-sm mb-5">
     <div class="container-fluid px-5" style="max-width: 1500px;">
-        <a class="navbar-brand d-flex align-items-center gap-2" href="#">
-            <i class="bi bi-clipboard2-check text-primary fs-4"></i> 
-            <span>Stock <span style="font-weight: 300;">Opname</span></span>
-        </a>
-        <a href="stock_master.php" class="btn btn-outline-light btn-sm rounded-pill px-4 fw-bold"><i class="bi bi-arrow-left me-2"></i>Inventory Master</a>
+        <div class="d-flex justify-content-between align-items-center">
+            <a class="d-flex align-items-center gap-2 text-white text-decoration-none" href="index.php">
+                <i class="bi bi-clipboard2-check text-primary fs-5"></i>
+                <span class="fw-bold">WMS <span style="font-weight:300;">Stock Opname</span></span>
+            </a>
+            <div class="d-flex gap-2">
+                <a href="stock_master.php" class="btn btn-outline-light btn-sm rounded-pill px-3 fw-bold"><i class="bi bi-arrow-left me-1"></i>Inventory</a>
+                <a href="index.php" class="btn btn-outline-light btn-sm rounded-pill px-3 fw-bold"><i class="bi bi-house me-1"></i>Dashboard</a>
+            </div>
+        </div>
     </div>
 </nav>
 

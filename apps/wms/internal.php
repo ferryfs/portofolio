@@ -2,8 +2,6 @@
 // apps/wms/internal.php
 // V11: ENTERPRISE INTERNAL MOVEMENTS (With Reason Codes, Double-Entry Audit, and System Logs)
 
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
 
 session_name("WMS_APP_SESSION");
 session_start();
@@ -48,7 +46,7 @@ if(isset($_POST['post_transfer'])) {
             $sisa = $src['qty'] - $qty_move;
             safeQuery($pdo, "UPDATE wms_quants SET qty=? WHERE quant_id=?", [$sisa, $qid]);
             
-            $target_hu = "SPL-" . $src['hu_id'] . "-" . mt_rand(10,99);
+            $target_hu = "SPL-" . strtoupper(substr(md5(uniqid($src['hu_id'], true)), 0, 8));
             safeQuery($pdo, "INSERT INTO wms_quants (product_uuid, lgpla, batch, hu_id, qty, stock_type, gr_date, is_putaway) 
                              VALUES (?, ?, ?, ?, ?, ?, ?, 1)", 
                              [$src['product_uuid'], $bin, $src['batch'], $target_hu, $qty_move, $src['stock_type'], $src['gr_date']]);
@@ -139,7 +137,7 @@ $stok_list = safeGetAll($pdo, "SELECT q.quant_id, q.hu_id, q.lgpla, q.stock_type
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Internal Operations | WMS Enterprise</title>
+    <title>Internal Transfer | Smart WMS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -154,6 +152,18 @@ $stok_list = safeGetAll($pdo, "SELECT q.quant_id, q.hu_id, q.lgpla, q.stock_type
 </head>
 <body>
 
+<nav style="background:#0f172a; padding:14px 0; border-bottom:3px solid #4f46e5; position:sticky; top:0; z-index:100;" class="shadow-sm">
+    <div class="container d-flex justify-content-between align-items-center">
+        <a class="d-flex align-items-center gap-2 text-white text-decoration-none" href="index.php">
+            <i class="bi bi-box-seam-fill text-primary fs-5"></i>
+            <span class="fw-bold">WMS <span style="font-weight:300;">Enterprise</span></span>
+        </a>
+        <div class="d-flex gap-2">
+            <a href="stock_master.php" class="btn btn-outline-light btn-sm rounded-pill px-3 fw-bold"><i class="bi bi-arrow-left me-1"></i>Inventory</a>
+            <a href="index.php" class="btn btn-outline-light btn-sm rounded-pill px-3 fw-bold"><i class="bi bi-house me-1"></i>Dashboard</a>
+        </div>
+    </div>
+</nav>
 <div class="container py-5" style="max-width: 1100px;">
     <div class="d-flex justify-content-between align-items-center mb-5">
         <div>

@@ -65,7 +65,7 @@ $kpi_today   = safeGetOne($pdo, "SELECT count(*) as c FROM wms_warehouse_tasks W
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Task Monitor | V14 Enterprise</title>
+    <title>Task Monitor | Smart WMS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -130,7 +130,7 @@ $kpi_today   = safeGetOne($pdo, "SELECT count(*) as c FROM wms_warehouse_tasks W
     <div class="navbar-glass">
         <div class="d-flex align-items-center gap-3">
             <h4 class="fw-bold m-0 text-primary"><i class="bi bi-list-check me-2"></i>Task Control</h4>
-            <span class="badge bg-light text-muted border desktop-only">V14 Unified</span>
+            
         </div>
         <div class="d-flex align-items-center gap-3">
             <div class="theme-toggle" onclick="toggleTheme()"><i class="bi bi-moon-stars-fill text-warning"></i></div>
