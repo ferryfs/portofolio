@@ -58,6 +58,11 @@ if(isset($_POST['post_count'])) {
         $stok = safeGetOne($pdo, "SELECT * FROM wms_quants WHERE quant_id=? FOR UPDATE", [$qid]);
         if(!$stok) throw new Exception("Stock record not found or already moved.");
 
+        // 🔥 GUARD: Jangan izinkan adjustment kalau stok sedang di-reserve untuk SO
+        if((float)$stok['reserved_qty'] > 0) {
+            throw new Exception("ADJUSTMENT BLOCKED: This stock is currently reserved for an active Sales Order (Reserved Qty: {$stok['reserved_qty']}). Cancel the reservation first before adjusting.");
+        }
+
         if($adj_type == 'MATCH') {
             $sys_desc = "PI VERIFIED: HU $hu ($sku) in Bin $bin is Match. Qty: $qty_sys.";
             safeQuery($pdo, "INSERT INTO wms_system_logs (user_id, module, action_type, description, ip_address, log_date) VALUES (?, 'OPNAME', 'VERIFY_MATCH', ?, ?, NOW())", [$user, $sys_desc, $_SERVER['REMOTE_ADDR']]);

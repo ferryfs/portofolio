@@ -38,7 +38,10 @@ if (isset($_POST['update_profile'])) {
 
 // 3. LOGIC GANTI PASSWORD
 if (isset($_POST['change_password'])) {
-    if (!verifyCSRFToken()) {
+    // GUARD: Akun demo tidak boleh ganti password
+    if ($uid === 't4mu' || $uid === 'guest') {
+        $swal_title = 'Tidak Diizinkan'; $swal_text = 'Akun demo tidak bisa mengganti password.'; $swal_icon = 'warning';
+    } elseif (!verifyCSRFToken()) {
         $swal_title = 'Error!'; $swal_text = 'Security Token Invalid.'; $swal_icon = 'error';
     } else {
         $pass_lama = $_POST['old_pass'];
@@ -194,25 +197,39 @@ $data = safeGetOne($pdo, "SELECT * FROM ess_users WHERE employee_id = ?", [$uid]
 
         <div class="section-title text-danger">Keamanan Akun</div>
         <div class="px-4">
+            <?php $is_demo = ($uid === 't4mu' || $uid === 'guest'); ?>
+            <?php if($is_demo): ?>
+            <div class="alert border-0 rounded-3 d-flex align-items-center gap-3 mb-3 py-3"
+                 style="background:#fffbeb; border-left:4px solid #f59e0b !important; border-radius:14px!important;">
+                <i class="fa fa-lock fa-lg" style="color:#d97706; flex-shrink:0;"></i>
+                <div>
+                    <div style="font-size:0.82rem; font-weight:700; color:#92400e;">Akun Demo — Password Terkunci</div>
+                    <div style="font-size:0.75rem; color:#b45309; margin-top:2px;">Akun <strong><?= htmlspecialchars($uid) ?></strong> tidak diizinkan mengganti password demi keamanan sistem.</div>
+                </div>
+            </div>
+            <?php endif; ?>
             <form method="POST" id="formPass">
                 <?php echo csrfTokenField(); ?>
                 
                 <div class="form-floating mb-3">
-                    <input type="password" name="old_pass" class="form-control" placeholder="***">
+                    <input type="password" name="old_pass" class="form-control" placeholder="***"
+                        <?= $is_demo ? 'disabled' : '' ?>>
                     <label>Password Lama</label>
                 </div>
 
                 <div class="input-group mb-3">
                     <div class="form-floating flex-grow-1">
-                        <input type="password" name="new_pass" id="newPass" class="form-control" placeholder="***" style="border-radius: 12px 0 0 12px;">
+                        <input type="password" name="new_pass" id="newPass" class="form-control" placeholder="***" style="border-radius: 12px 0 0 12px;"
+                            <?= $is_demo ? 'disabled' : '' ?>>
                         <label>Password Baru</label>
                     </div>
-                    <span class="input-group-text px-3" onclick="togglePass()">
+                    <span class="input-group-text px-3" onclick="<?= $is_demo ? '' : 'togglePass()' ?>">
                         <i class="fa fa-eye" id="eyeIcon"></i>
                     </span>
                 </div>
 
-                <button type="submit" name="change_password" class="btn btn-dark w-100 py-3 rounded-3 fw-bold shadow-sm">
+                <button type="submit" name="change_password" class="btn btn-dark w-100 py-3 rounded-3 fw-bold shadow-sm"
+                    <?= $is_demo ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : '' ?>>
                     <i class="fa fa-lock me-2"></i> Update Password
                 </button>
             </form>

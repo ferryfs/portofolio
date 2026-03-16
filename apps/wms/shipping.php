@@ -54,7 +54,7 @@ if(isset($_POST['post_gi'])) {
             }
         }
 
-        // 2. Potong Stok (Hard Delete dari GI-ZONE)
+        // 2. Potong Stok (Hard Delete dari GI-ZONE) + Catat Movement
         foreach($items as $item) {
             $prod = $item['product_uuid'];
             $qty_rem = $item['qty_ordered'];
@@ -64,6 +64,8 @@ if(isset($_POST['post_gi'])) {
             
             while($qty_rem > 0 && $d = $stmt_stok->fetch(PDO::FETCH_ASSOC)) {
                 $qty_bin = $d['qty'];
+                $qty_shipped = min($qty_bin, $qty_rem);
+
                 if($qty_bin <= $qty_rem) {
                     safeQuery($pdo, "DELETE FROM wms_quants WHERE quant_id=?", [$d['quant_id']]);
                     $qty_rem -= $qty_bin;
@@ -71,6 +73,12 @@ if(isset($_POST['post_gi'])) {
                     safeQuery($pdo, "UPDATE wms_quants SET qty=? WHERE quant_id=?", [($qty_bin - $qty_rem), $d['quant_id']]);
                     $qty_rem = 0;
                 }
+
+                // Catat audit trail per HU yang keluar
+                safeQuery($pdo, "INSERT INTO wms_stock_movements 
+                                  (trx_ref, product_uuid, hu_id, qty_change, move_type, user, from_bin, to_bin, created_at, reason_code)
+                                  VALUES (?, ?, ?, ?, 'GI_OUT', ?, 'GI-ZONE', 'SHIPPED', NOW(), ?)",
+                           [$so_number, $prod, $d['hu_id'], $qty_shipped, $user, "PGI - SO: $so_number"]);
             }
         }
 

@@ -33,9 +33,10 @@ class WMSPutawayService {
             $totalMove = $qtyGood + $qtyBad;
 
             // 🔥 1. REGEX BIN FORMAT VALIDATION (Anti Rak Sampah)
-            // Memaksa operator mematuhi format gudang, misal: Lorong-Rak-Tingkat (A-01-01 atau AA-99-99)
-            // Pengecualian hanya untuk pembuangan ke BLOCK-ZONE dan OVERFLOW-ZONE
-            if (!preg_match("/^[A-Z]{1,2}-[0-9]{1,2}-[0-9]{1,2}$/", $targetBin) && $targetBin !== 'BLOCK-ZONE' && $targetBin !== 'OVERFLOW-ZONE') {
+            if (!preg_match("/^[A-Z]{1,2}-[0-9]{1,2}-[0-9]{1,2}$/", $targetBin) 
+                && $targetBin !== 'BLOCK-ZONE' 
+                && $targetBin !== 'OVERFLOW-ZONE'
+                && $targetBin !== 'GI-ZONE') {
                 throw new Exception("INVALID BIN FORMAT: '$targetBin'. Must follow standard format (e.g., A-01-01).");
             }
 
@@ -138,37 +139,62 @@ class WMSPutawayService {
 
             // PICKING PROCESS: Move stock from source bin to GI-ZONE
             if ($task['process_type'] == 'PICKING') {
-                // Validasi bin tujuan untuk picking = GI-ZONE
+                // Pastikan GI-ZONE ada di master bin
                 $this->ensureBinExists('GI-ZONE');
-                
+
+                // Ambil data source quant lengkap untuk INSERT ke GI-ZONE
+                $sourceDetail = safeGetOne($this->pdo, 
+                    "SELECT * FROM wms_quants WHERE hu_id=? AND lgpla=?", 
+                    [$task['hu_id'], $task['source_bin']]);
+
                 if ($totalMove == $sourceQuant['qty']) {
-                    // Full pick: pindah HU ke GI-ZONE
-                    safeQuery($this->pdo, "UPDATE wms_quants SET lgpla='GI-ZONE' WHERE hu_id=? AND lgpla=?", 
+                    // FULL PICK: Pindah seluruh HU ke GI-ZONE
+                    safeQuery($this->pdo, "UPDATE wms_quants SET lgpla='GI-ZONE', stock_type='F1' WHERE hu_id=? AND lgpla=?",
                                [$task['hu_id'], $task['source_bin']]);
+                    $pickHu = $task['hu_id']; // HU ID tetap sama
                 } else {
-                    // Partial pick: kurangi source, buat HU baru di GI-ZONE
+                    // PARTIAL PICK: Kurangi source, INSERT HU baru ke GI-ZONE
                     $sisaQty = $sourceQuant['qty'] - $totalMove;
-                    safeQuery($this->pdo, "UPDATE wms_quants SET qty=? WHERE hu_id=? AND lgpla=?", 
+                    safeQuery($this->pdo, "UPDATE wms_quants SET qty=? WHERE hu_id=? AND lgpla=?",
                                [$sisaQty, $task['hu_id'], $task['source_bin']]);
+
                     $pickHu = "PCK-" . strtoupper(substr(md5(uniqid($task['hu_id'], true)), 0, 8));
+                    // INSERT langsung pakai data dari sourceDetail — tidak SELECT dari GI-ZONE
                     safeQuery($this->pdo, "INSERT INTO wms_quants (product_uuid, lgpla, batch, hu_id, qty, stock_type, gr_date, is_putaway, po_ref, gr_ref)
-                                           SELECT product_uuid, 'GI-ZONE', batch, ?, ?, stock_type, gr_date, 1, po_ref, gr_ref
-                                           FROM wms_quants WHERE hu_id=? AND lgpla='GI-ZONE' LIMIT 1",
-                               [$pickHu, $totalMove, $task['hu_id']]);
-                    // Fallback insert jika source sudah dipindah
-                    safeQuery($this->pdo, "INSERT IGNORE INTO wms_quants (product_uuid, lgpla, batch, hu_id, qty, stock_type, gr_date, is_putaway)
-                                           VALUES (?, 'GI-ZONE', ?, ?, ?, 'F1', NOW(), 1)",
-                               [$task['product_uuid'], $task['batch'], $pickHu, $totalMove]);
+                                           VALUES (?, 'GI-ZONE', ?, ?, ?, 'F1', ?, 1, ?, ?)",
+                               [$task['product_uuid'], $sourceDetail['batch'] ?? $task['batch'], $pickHu, $totalMove,
+                                $sourceDetail['gr_date'] ?? date('Y-m-d'), 
+                                $sourceDetail['po_ref'] ?? null, $sourceDetail['gr_ref'] ?? null]);
                 }
-                // Update bin status sumber
+
+                // Update status bin sumber jika sudah kosong
                 $cek_sisa = safeGetOne($this->pdo, "SELECT COUNT(*) as c FROM wms_quants WHERE lgpla=? AND qty>0", [$task['source_bin']]);
-                if((int)$cek_sisa['c'] === 0) {
+                if ((int)$cek_sisa['c'] === 0) {
                     safeQuery($this->pdo, "UPDATE wms_storage_bins SET status_bin='EMPTY' WHERE lgpla=?", [$task['source_bin']]);
                 }
-                // Log movement
+                // Update GI-ZONE jadi OCCUPIED
+                safeQuery($this->pdo, "UPDATE wms_storage_bins SET status_bin='OCCUPIED' WHERE lgpla='GI-ZONE'");
+
+                // Log movement PICKING (satu kali saja — tidak perlu log lagi di block F)
                 safeQuery($this->pdo, "INSERT INTO wms_stock_movements (trx_ref, product_uuid, hu_id, qty_change, move_type, user, from_bin, to_bin, created_at, reason_code)
-                                       VALUES (?, ?, ?, ?, 'RF_PICKING', ?, ?, 'GI-ZONE', NOW(), ?)",
-                           ["TASK-$taskId", $task['product_uuid'], $task['hu_id'], $totalMove, $this->user, $task['source_bin'], $remarks]);
+                                       VALUES (?, ?, ?, ?, ?, ?, ?, 'GI-ZONE', NOW(), ?)",
+                           ["TASK-$taskId", $task['product_uuid'], $pickHu, $totalMove, 
+                            "{$clientSource}_PICKING", $this->user, $task['source_bin'], $remarks]);
+
+                // Tutup task PICKING — langsung return, skip block F & G log PUTAWAY
+                safeQuery($this->pdo, "UPDATE wms_warehouse_tasks 
+                                       SET status='CONFIRMED', dest_bin='GI-ZONE', confirmed_at=NOW(), operator_id=? 
+                                       WHERE tanum=?", [$this->user, $taskId]);
+
+                $logDescPick = "Task #$taskId PICKING DONE via $clientSource. Qty:$totalMove | From:{$task['source_bin']} → GI-ZONE | Note: $remarks";
+                safeQuery($this->pdo, "INSERT INTO wms_system_logs (user_id, module, action_type, description, ip_address, log_date) 
+                                       VALUES (?, 'PUTAWAY_SVC', 'EXECUTE', ?, ?, NOW())", 
+                                       [$this->user, $logDescPick, $_SERVER['REMOTE_ADDR']]);
+                safeQuery($this->pdo, "INSERT INTO wms_inbound_notif (po_number, message, severity, created_at) VALUES (?, ?, '', NOW())", 
+                                       [$task['po_ref'], "✅ Task #$taskId PICKING confirmed by {$this->user} via $clientSource. Moved $totalMove to GI-ZONE."]);
+
+                $this->pdo->commit();
+                return ['status' => 'success', 'msg' => 'Picking Task Confirmed — Stock moved to GI-ZONE'];
             }
 
             // E. Tutup Task (Update dest_bin ke aktualnya)

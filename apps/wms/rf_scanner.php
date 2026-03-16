@@ -316,9 +316,14 @@ if(isset($_GET['msg'])) { $msg = $_GET['msg']; $msg_type = 'success'; }
                             <?php else: ?>
                                 <div class="text-center text-primary mb-2 small fw-bold">[ SCAN ANY EMPTY BIN ]</div>
                             <?php endif; ?>
+                            <input type="text" name="scan_bin" class="form-control-rf" placeholder="SCAN BIN LABEL" autofocus required>
+                        <?php elseif($t['process_type'] == 'PICKING'): ?>
+                            <div class="gps-alert" style="background: linear-gradient(135deg, #10b981, #059669);">
+                                <div class="small fw-bold text-uppercase mb-1"><i class="bi bi-box-arrow-right"></i> Destination</div>
+                                <div class="fs-4 fw-800 font-monospace text-white">GI-ZONE (Loading Area)</div>
+                            </div>
+                            <input type="hidden" name="scan_bin" value="GI-ZONE">
                         <?php endif; ?>
-                        
-                        <input type="text" name="scan_bin" class="form-control-rf" placeholder="SCAN BIN LABEL" autofocus required>
                     </div>
                     
                     <div class="mb-2">

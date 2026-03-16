@@ -64,13 +64,13 @@ if(isset($_POST['post_transfer'])) {
         
         // Log Keluar dari Rak Asal (Minus)
         safeQuery($pdo, "INSERT INTO wms_stock_movements (trx_ref, product_uuid, hu_id, qty_change, move_type, user, from_bin, to_bin, reason_code) 
-                         VALUES (?, ?, ?, ?, 'BIN_OUT', ?, ?, NULL, ?)", 
-                         [$trx_ref, $src['product_uuid'], $src['hu_id'], -$qty_move, $user, $src['lgpla'], $remarks]);
+                         VALUES (?, ?, ?, ?, 'BIN_OUT', ?, ?, ?, ?)", 
+                         [$trx_ref, $src['product_uuid'], $src['hu_id'], -$qty_move, $user, $src['lgpla'], $bin, $remarks]);
                          
         // Log Masuk ke Rak Tujuan (Plus)
         safeQuery($pdo, "INSERT INTO wms_stock_movements (trx_ref, product_uuid, hu_id, qty_change, move_type, user, from_bin, to_bin, reason_code) 
-                         VALUES (?, ?, ?, ?, 'BIN_IN', ?, NULL, ?, ?)", 
-                         [$trx_ref, $src['product_uuid'], $target_hu, $qty_move, $user, $bin, $remarks]);
+                         VALUES (?, ?, ?, ?, 'BIN_IN', ?, ?, ?, ?)", 
+                         [$trx_ref, $src['product_uuid'], $target_hu, $qty_move, $user, $src['lgpla'], $bin, $remarks]);
 
         // 🔥 6. AUDIT IT (SYSTEM LOG)
         $sys_desc = "BIN TRANSFER: Moved $qty_move of {$src['product_code']} from {$src['lgpla']} to $bin. Remarks: $remarks";

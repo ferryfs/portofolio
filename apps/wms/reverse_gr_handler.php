@@ -62,8 +62,8 @@ try {
                      WHERE hu_id IN (SELECT hu_id FROM wms_quants WHERE gr_ref = ?) 
                      AND status = 'OPEN'", [$gr_number]);
 
-    // B. Hapus Stock di Staging (GR-ZONE & BLOCK-ZONE)
-    safeQuery($pdo, "DELETE FROM wms_quants WHERE gr_ref = ?", [$gr_number]);
+    // B. Hapus Stock di Staging SAJA (GR-ZONE & BLOCK-ZONE) — jangan hapus yang sudah di rak!
+    safeQuery($pdo, "DELETE FROM wms_quants WHERE gr_ref = ? AND lgpla IN ('GR-ZONE', 'BLOCK-ZONE')", [$gr_number]);
 
     // C. Hapus Data GR (Header & Items)
     safeQuery($pdo, "DELETE FROM wms_gr_items WHERE gr_number = ?", [$gr_number]);

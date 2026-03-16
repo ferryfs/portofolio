@@ -190,7 +190,8 @@ class InventoryModel {
                 safeQuery($this->pdo, "INSERT INTO wms_stock_movements (trx_ref, product_uuid, batch, hu_id, from_bin, to_bin, qty_change, move_type, user, created_at, reason_code) VALUES (?, ?, ?, ?, ?, 'VOID', ?, 'REVERSAL', ?, NOW(), NULL)", [$grNum, $q['product_uuid'], $q['batch'], $q['hu_id'], $q['lgpla'], $q['qty'], $this->user]);
             }
 
-            safeQuery($this->pdo, "DELETE FROM wms_quants WHERE gr_ref = ?", [$grNum]);
+            // 🔥 FIX: Hanya hapus stok di staging zone — jangan hapus yang sudah putaway ke rak
+            safeQuery($this->pdo, "DELETE FROM wms_quants WHERE gr_ref = ? AND lgpla IN ('GR-ZONE', 'BLOCK-ZONE', 'OVERFLOW-ZONE')", [$grNum]);
             safeQuery($this->pdo, "DELETE FROM wms_gr_items WHERE gr_number = ?", [$grNum]);
             safeQuery($this->pdo, "DELETE FROM wms_gr_header WHERE gr_number = ?", [$grNum]);
             
