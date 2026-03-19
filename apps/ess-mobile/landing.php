@@ -29,16 +29,37 @@ require_once __DIR__ . '/../../config/security.php';
         </div>
         
         <div class="login-body d-flex flex-column justify-content-center">
+
+            <!-- INFO AKUN TAMU — prominent, kelihatan langsung -->
+            <div onclick="showModal('modalLogin'); setTimeout(fillTamu, 300)"
+                 style="background: linear-gradient(135deg, #eff6ff, #dbeafe); border: 1.5px solid #93c5fd; border-radius: 16px; padding: 14px 16px; margin-bottom: 20px; cursor: pointer; transition: 0.2s;"
+                 onmouseover="this.style.borderColor='#3b82f6'" onmouseout="this.style.borderColor='#93c5fd'">
+                <div style="font-size: 0.7rem; font-weight: 700; color: #1d4ed8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">
+                    <i class="fa fa-star me-1 text-warning"></i> Akun Demo — Klik untuk Langsung Masuk
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 4px;">
+                    <span style="color: #6b7280;">ID Karyawan</span>
+                    <code style="background: rgba(255,255,255,0.7); padding: 1px 7px; border-radius: 5px; font-weight: 700; color: #1e293b;">t4mu</code>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 8px;">
+                    <span style="color: #6b7280;">Password</span>
+                    <code style="background: rgba(255,255,255,0.7); padding: 1px 7px; border-radius: 5px; font-weight: 700; color: #1e293b;">Tamu123</code>
+                </div>
+                <div style="font-size: 0.72rem; color: #3b82f6; font-weight: 600; text-align: center; margin-top: 4px;">
+                    <i class="fa fa-bolt me-1"></i> Klik kotak ini untuk auto-login sebagai tamu
+                </div>
+            </div>
+
             <div class="d-grid gap-3">
                 <button class="btn btn-primary py-3 rounded-pill fw-bold shadow-sm" onclick="showModal('modalLogin')">
                     MASUK (LOGIN)
                 </button>
-                <button class="btn btn-outline-primary py-3 rounded-pill fw-bold" onclick="showModal('modalRegister')">
+                <button class="btn btn-outline-secondary py-2 rounded-pill fw-bold" style="font-size: 0.85rem;" onclick="showModal('modalRegister')">
                     DAFTAR AKUN BARU
                 </button>
             </div>
             
-            <div class="text-center mt-5">
+            <div class="text-center mt-4">
                 <a href="../../index.php" class="text-decoration-none text-muted small">
                     <i class="fa fa-arrow-left me-1"></i> Kembali ke Portofolio
                 </a>

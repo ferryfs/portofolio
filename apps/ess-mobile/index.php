@@ -19,6 +19,7 @@ $nama_user = $_SESSION['ess_name'];
 $role_user = $_SESSION['ess_role'];
 $nik_user  = $_SESSION['ess_user'];
 $div_user  = $_SESSION['ess_div'] ?? '-';
+$pos_user  = $_SESSION['ess_position'] ?? '';
 
 $today      = date('Y-m-d');
 $bulan_ini  = date('Y-m');
@@ -292,14 +293,19 @@ if ($role_user == 'Manager' || $role_user == 'Supervisor') {
             <div>
                 <div class="greeting">Selamat <?= (date('H')<12)?'Pagi':((date('H')<15)?'Siang':((date('H')<18)?'Sore':'Malam')) ?>,</div>
                 <div class="user-name"><?= htmlspecialchars($nama_user) ?></div>
-                <span class="role-chip"><i class="fa fa-id-badge"></i> <?= htmlspecialchars($role_user) ?> &bull; <?= htmlspecialchars($div_user) ?></span>
+                <span class="role-chip"><i class="fa fa-id-badge"></i> <?= htmlspecialchars($pos_user ?: $role_user) ?> &bull; <?= htmlspecialchars($div_user) ?></span>
             </div>
-            <a href="menu_notif.php" class="notif-btn">
-                <i class="fa fa-bell"></i>
-                <?php if($notif_unread > 0): ?>
-                <span class="notif-badge"><?= $notif_unread > 9 ? '9+' : $notif_unread ?></span>
-                <?php endif; ?>
-            </a>
+            <div class="d-flex gap-2">
+                <button onclick="openGuide()" class="notif-btn" title="User Guide">
+                    <i class="fa fa-question"></i>
+                </button>
+                <a href="menu_notif.php" class="notif-btn">
+                    <i class="fa fa-bell"></i>
+                    <?php if($notif_unread > 0): ?>
+                    <span class="notif-badge"><?= $notif_unread > 9 ? '9+' : $notif_unread ?></span>
+                    <?php endif; ?>
+                </a>
+            </div>
         </div>
         <div class="date-bar"><i class="fa fa-calendar-alt me-1"></i> <?= $nama_hari ?>, <?= $tgl_indo ?></div>
     </div>
@@ -460,8 +466,8 @@ if ($role_user == 'Manager' || $role_user == 'Supervisor') {
         <div class="nav-item active">
             <i class="fa fa-home"></i><span>Beranda</span>
         </div>
-        <a href="menu_history.php" class="nav-item">
-            <i class="fa fa-calendar-alt"></i><span>Riwayat</span>
+        <a href="menu_jadwal.php" class="nav-item">
+            <i class="fa fa-calendar-alt"></i><span>Jadwal</span>
         </a>
         <a href="menu_team.php" class="nav-item">
             <i class="fa fa-users"></i><span>Tim</span>
@@ -537,9 +543,230 @@ if ($role_user == 'Manager' || $role_user == 'Supervisor') {
     </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- USER GUIDE MODAL                                        -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<style>
+#guideModal .modal-dialog { max-width: 430px; margin: 0 auto; }
+#guideModal .modal-content { border-radius: 24px 24px 0 0; border: none; position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; max-height: 88vh; display: flex; flex-direction: column; }
+#guideModal .modal-body { overflow-y: auto; padding: 0; flex: 1; }
+
+.guide-tabs { display: flex; gap: 4px; padding: 8px 12px; overflow-x: auto; scrollbar-width: none; flex-shrink: 0; border-bottom: 1px solid #f1f5f9; }
+.guide-tabs::-webkit-scrollbar { display: none; }
+.gtab { white-space: nowrap; font-size: 0.72rem; font-weight: 600; padding: 6px 12px; border-radius: 20px; border: 1px solid #e2e8f0; background: #fff; color: #64748b; cursor: pointer; transition: 0.15s; flex-shrink: 0; }
+.gtab.active { background: var(--brand); color: #fff; border-color: var(--brand); }
+
+.guide-section { display: none; padding: 16px 20px 24px; }
+.guide-section.active { display: block; }
+
+.gs-title { font-size: 1rem; font-weight: 800; color: #0f172a; margin-bottom: 4px; }
+.gs-sub { font-size: 0.75rem; color: #64748b; margin-bottom: 16px; }
+
+.gs-step { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 12px; padding: 10px 12px; background: #f8fafc; border-radius: 12px; }
+.gs-step-num { min-width: 24px; height: 24px; background: var(--brand); color: #fff; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 800; flex-shrink: 0; }
+.gs-step strong { font-size: 0.82rem; color: #0f172a; display: block; margin-bottom: 2px; }
+.gs-step span { font-size: 0.75rem; color: #64748b; line-height: 1.5; }
+
+.gs-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; margin: 10px 0; }
+.gs-table th { background: #0f172a; color: #fff; padding: 7px 10px; text-align: left; font-weight: 700; font-size: 0.72rem; }
+.gs-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; color: #374151; vertical-align: top; }
+.gs-table tr:last-child td { border-bottom: none; }
+.gs-table tr:nth-child(even) td { background: #f8fafc; }
+.gs-table td:first-child { font-weight: 700; color: #0f172a; white-space: nowrap; }
+
+.gs-note { padding: 10px 14px; border-radius: 10px; font-size: 0.75rem; margin: 12px 0; line-height: 1.5; }
+.gs-note.info    { background: #eff6ff; color: #1e40af; border-left: 3px solid #3b82f6; }
+.gs-note.warning { background: #fffbeb; color: #78350f; border-left: 3px solid #f59e0b; }
+.gs-note.success { background: #f0fdf4; color: #065f46; border-left: 3px solid #10b981; }
+.gs-note.purple  { background: #eef2ff; color: #3730a3; border-left: 3px solid #4f46e5; }
+
+.guide-modal-handle { width: 36px; height: 4px; background: #e2e8f0; border-radius: 2px; margin: 12px auto 4px; }
+</style>
+
+<div class="modal fade" id="guideModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="guide-modal-handle"></div>
+            <!-- Header -->
+            <div style="padding: 4px 20px 12px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
+                <div>
+                    <div style="font-weight:800; font-size:1rem; color:#0f172a;">📖 User Guide</div>
+                    <div style="font-size:0.7rem; color:#94a3b8;">ESS Portal — Panduan Lengkap</div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" style="font-size:0.8rem;"></button>
+            </div>
+            <!-- Tabs -->
+            <div class="guide-tabs">
+                <button class="gtab active" onclick="switchGuideTab('intro',this)">🏠 Intro</button>
+                <button class="gtab" onclick="switchGuideTab('absen',this)">👆 Absensi</button>
+                <button class="gtab" onclick="switchGuideTab('cuti',this)">📅 Cuti</button>
+                <button class="gtab" onclick="switchGuideTab('lembur',this)">⏰ Lembur</button>
+                <button class="gtab" onclick="switchGuideTab('slip',this)">💰 Slip Gaji</button>
+                <button class="gtab" onclick="switchGuideTab('jadwal',this)">🗓️ Jadwal</button>
+                <button class="gtab" onclick="switchGuideTab('approval',this)">✅ Approval</button>
+            </div>
+            <!-- Body -->
+            <div class="modal-body">
+
+                <!-- INTRO -->
+                <div class="guide-section active" id="gs-intro">
+                    <div class="gs-title">Selamat Datang di ESS Portal</div>
+                    <div class="gs-sub">Employee Self Service — kelola kehadiran & administrasi HR secara mandiri</div>
+                    <div class="gs-note purple">
+                        <strong>ℹ️ Tentang Aplikasi Ini</strong><br>
+                        Aplikasi ini merupakan <strong>simulasi demonstrasi</strong> yang dikembangkan sebagai cerminan dari sistem ESS yang sesungguhnya. Seluruh fitur, alur kerja, dan logika bisnis merepresentasikan implementasi nyata di lingkungan enterprise. Data yang ditampilkan bersifat fiktif untuk keperluan demonstrasi teknis.
+                    </div>
+                    <div class="gs-note success">
+                        <strong>✅ Akun Demo</strong><br>
+                        ID: <code>t4mu</code> &nbsp;|&nbsp; Password: <code>Tamu123</code><br>
+                        Role: <strong>Manager</strong> — akses penuh semua fitur termasuk Approval
+                    </div>
+                    <table class="gs-table">
+                        <thead><tr><th>Menu</th><th>Fungsi</th></tr></thead>
+                        <tbody>
+                            <tr><td>Absensi</td><td>Check-in & check-out harian (WFO/WFH)</td></tr>
+                            <tr><td>Cuti/Izin</td><td>Ajukan dan pantau status cuti tahunan</td></tr>
+                            <tr><td>Lembur</td><td>Pengajuan overtime dengan kalkulasi jam</td></tr>
+                            <tr><td>Slip Gaji</td><td>Lihat rincian payroll per periode</td></tr>
+                            <tr><td>Jadwal</td><td>Kalender kerja bulanan & hari libur</td></tr>
+                            <tr><td>Riwayat</td><td>Rekap absensi, cuti, dan lembur</td></tr>
+                            <tr><td>Tim Saya</td><td>Direktori karyawan & status kehadiran</td></tr>
+                            <tr><td>Approval</td><td>Kelola pengajuan tim (Manager/SPV)</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- ABSENSI -->
+                <div class="guide-section" id="gs-absen">
+                    <div class="gs-title">👆 Absensi Harian</div>
+                    <div class="gs-sub">Check-in & check-out langsung dari dashboard</div>
+
+                    <strong style="font-size:0.82rem; color:#059669; display:block; margin-bottom:8px;">Absen Masuk (Check-in)</strong>
+                    <div class="gs-step"><span class="gs-step-num">1</span><div><strong>Klik tombol hijau "Absen Masuk"</strong><span>Hanya tersedia pada hari kerja — tidak aktif saat weekend atau hari libur nasional</span></div></div>
+                    <div class="gs-step"><span class="gs-step-num">2</span><div><strong>Pilih tipe: WFO atau WFH</strong><span>WFO = Work From Office &nbsp;|&nbsp; WFH = Work From Home</span></div></div>
+                    <div class="gs-step"><span class="gs-step-num">3</span><div><strong>Selesai — waktu tercatat otomatis</strong><span>Notifikasi check-in masuk ke menu Notifikasi</span></div></div>
+
+                    <strong style="font-size:0.82rem; color:#ef4444; display:block; margin: 14px 0 8px;">Absen Pulang (Check-out)</strong>
+                    <div class="gs-step"><span class="gs-step-num">1</span><div><strong>Klik tombol merah "Absen Pulang"</strong><span>Hanya muncul setelah check-in dilakukan</span></div></div>
+                    <div class="gs-step"><span class="gs-step-num">2</span><div><strong>Isi laporan kerja harian</strong><span>Tuliskan aktivitas dan pencapaian hari ini — wajib diisi</span></div></div>
+                    <div class="gs-step"><span class="gs-step-num">3</span><div><strong>Klik "Kirim & Pulang"</strong><span>Data tersimpan dan tampil di rekap HR</span></div></div>
+
+                    <div class="gs-note warning">⚠️ Masuk setelah pukul <strong>08:30 WIB</strong> otomatis ditandai sebagai <strong>Telat</strong> di laporan absensi.</div>
+                </div>
+
+                <!-- CUTI -->
+                <div class="guide-section" id="gs-cuti">
+                    <div class="gs-title">📅 Cuti & Izin</div>
+                    <div class="gs-sub">Pengajuan cuti dengan alur approval otomatis</div>
+
+                    <div class="gs-step"><span class="gs-step-num">1</span><div><strong>Buka menu Cuti/Izin</strong><span>Pilih jenis: Cuti Tahunan / Sakit / Izin Khusus</span></div></div>
+                    <div class="gs-step"><span class="gs-step-num">2</span><div><strong>Pilih tanggal & isi alasan</strong><span>Sistem menghitung durasi hari kerja otomatis (tidak termasuk weekend & libur nasional)</span></div></div>
+                    <div class="gs-step"><span class="gs-step-num">3</span><div><strong>Kirim pengajuan</strong><span>Status: Menunggu — atasan/HR akan mereview</span></div></div>
+                    <div class="gs-step"><span class="gs-step-num">4</span><div><strong>Terima notifikasi hasil</strong><span>Disetujui: kuota cuti berkurang &nbsp;|&nbsp; Ditolak: kuota tetap</span></div></div>
+
+                    <table class="gs-table">
+                        <thead><tr><th>Jenis</th><th>Potong Kuota?</th></tr></thead>
+                        <tbody>
+                            <tr><td>Cuti Tahunan</td><td>✅ Ya — sesuai hari kerja</td></tr>
+                            <tr><td>Sakit</td><td>❌ Tidak</td></tr>
+                            <tr><td>Izin Khusus</td><td>❌ Tidak</td></tr>
+                        </tbody>
+                    </table>
+                    <div class="gs-note info">ℹ️ Setiap karyawan mendapat kuota <strong>12 hari</strong> cuti tahunan. Sisa kuota tampil di header halaman Cuti dan di kartu statistik dashboard.</div>
+                </div>
+
+                <!-- LEMBUR -->
+                <div class="guide-section" id="gs-lembur">
+                    <div class="gs-title">⏰ Lembur (Overtime)</div>
+                    <div class="gs-sub">Ajukan lembur dan pantau jam yang disetujui</div>
+
+                    <div class="gs-step"><span class="gs-step-num">1</span><div><strong>Buka menu Lembur</strong><span>Isi tanggal, jam mulai, jam selesai, dan alasan lembur</span></div></div>
+                    <div class="gs-step"><span class="gs-step-num">2</span><div><strong>Durasi dihitung otomatis</strong><span>Sistem menghitung selisih jam mulai dan selesai</span></div></div>
+                    <div class="gs-step"><span class="gs-step-num">3</span><div><strong>Kirim & tunggu approval</strong><span>Atasan atau HR akan menyetujui/menolak pengajuan</span></div></div>
+                    <div class="gs-step"><span class="gs-step-num">4</span><div><strong>Jam lembur masuk payroll</strong><span>Setelah disetujui, otomatis terhitung saat HR generate slip gaji</span></div></div>
+
+                    <div class="gs-note success">💰 <strong>Tarif lembur:</strong> (Gaji Pokok ÷ 173) × 1,5 × Total Jam. Angka 173 adalah standar jam kerja bulanan sesuai regulasi ketenagakerjaan Indonesia.</div>
+                </div>
+
+                <!-- SLIP GAJI -->
+                <div class="guide-section" id="gs-slip">
+                    <div class="gs-title">💰 Slip Gaji</div>
+                    <div class="gs-sub">Lihat rincian komponen gaji per periode</div>
+
+                    <table class="gs-table">
+                        <thead><tr><th>Komponen</th><th>Keterangan</th></tr></thead>
+                        <tbody>
+                            <tr><td>Gaji Pokok</td><td>Sesuai data HR di sistem HRIS</td></tr>
+                            <tr><td>Transport</td><td>Maks Rp 500rb atau 3% gaji pokok</td></tr>
+                            <tr><td>Makan</td><td>Rp 25.000 × hari hadir bulan ini</td></tr>
+                            <tr><td>Upah Lembur</td><td>(Gaji÷173) × 1,5 × jam lembur approved</td></tr>
+                            <tr><td>BPJS</td><td>Potongan 1% gaji pokok</td></tr>
+                            <tr><td>PPh 21</td><td>5% dari penghasilan di atas Rp 5jt</td></tr>
+                        </tbody>
+                    </table>
+                    <div class="gs-note warning">⚠️ Jika HR belum menerbitkan slip resmi, sistem menampilkan <strong>Estimasi Otomatis</strong> berdasarkan data kehadiran & lembur yang tersedia. Label "Estimasi" akan tampil di slip.</div>
+                    <div class="gs-note info">ℹ️ Gunakan selector bulan/tahun di atas untuk melihat slip periode sebelumnya.</div>
+                </div>
+
+                <!-- JADWAL -->
+                <div class="guide-section" id="gs-jadwal">
+                    <div class="gs-title">🗓️ Jadwal & Kalender</div>
+                    <div class="gs-sub">Kalender kerja personal dengan data real-time</div>
+
+                    <table class="gs-table">
+                        <thead><tr><th>Warna</th><th>Arti</th></tr></thead>
+                        <tbody>
+                            <tr><td>🟣 Ungu</td><td>Hari ini</td></tr>
+                            <tr><td>🟢 Hijau muda</td><td>Hari hadir (sudah absen)</td></tr>
+                            <tr><td>🟡 Kuning muda</td><td>Hari cuti (approved)</td></tr>
+                            <tr><td>🔴 Merah muda</td><td>Hari libur nasional</td></tr>
+                            <tr><td>Angka merah</td><td>Akhir pekan (Sabtu/Minggu)</td></tr>
+                        </tbody>
+                    </table>
+                    <div class="gs-step"><span class="gs-step-num">💡</span><div><strong>Klik tanggal untuk melihat detail</strong><span>Tooltip muncul dengan info jam masuk/pulang, tipe absen, atau nama hari libur</span></div></div>
+                    <div class="gs-note info">ℹ️ Gunakan tombol ‹ › di atas kalender untuk berpindah bulan. Di bawah kalender tersedia ringkasan: hari libur nasional, rekap kehadiran, dan daftar cuti bulan ini.</div>
+                </div>
+
+                <!-- APPROVAL -->
+                <div class="guide-section" id="gs-approval">
+                    <div class="gs-title">✅ Approval</div>
+                    <div class="gs-sub">Khusus Manager & Supervisor — kelola pengajuan tim</div>
+
+                    <div class="gs-note purple">ℹ️ Akun demo (t4mu) adalah Manager, sehingga bisa mengakses dan mencoba semua fitur approval.</div>
+
+                    <strong style="font-size:0.82rem; display:block; margin: 12px 0 8px; color:#0f172a;">Approval Cuti/Izin</strong>
+                    <div class="gs-step"><span class="gs-step-num">1</span><div><strong>Buka Menu Atasan → Approval → Tab Cuti</strong><span>Semua pengajuan dengan status Menunggu ditampilkan</span></div></div>
+                    <div class="gs-step"><span class="gs-step-num">2</span><div><strong>Review detail pengajuan</strong><span>Nama, divisi, jenis cuti, periode, alasan, estimasi hari kerja</span></div></div>
+                    <div class="gs-step"><span class="gs-step-num">3</span><div><strong>Klik Setujui atau Tolak</strong><span>Jika disetujui, kuota cuti karyawan otomatis berkurang. Karyawan menerima notifikasi.</span></div></div>
+
+                    <strong style="font-size:0.82rem; display:block; margin: 14px 0 8px; color:#0f172a;">Approval Lembur</strong>
+                    <div class="gs-step"><span class="gs-step-num">1</span><div><strong>Buka Tab Lembur di halaman Approval</strong><span>Tampil tanggal, jam, durasi, dan alasan lembur</span></div></div>
+                    <div class="gs-step"><span class="gs-step-num">2</span><div><strong>Klik Setujui atau Tolak</strong><span>Jika disetujui, jam lembur masuk ke kalkulasi payroll karyawan</span></div></div>
+
+                    <div class="gs-note warning">⚠️ Badge merah di icon Approval menunjukkan jumlah pengajuan yang belum diproses.</div>
+                </div>
+
+            </div><!-- end modal-body -->
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 function openModal(id) { new bootstrap.Modal(document.getElementById(id)).show(); }
+
+function openGuide() {
+    new bootstrap.Modal(document.getElementById('guideModal')).show();
+}
+
+function switchGuideTab(tab, btn) {
+    document.querySelectorAll('.guide-section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.gtab').forEach(b => b.classList.remove('active'));
+    document.getElementById('gs-' + tab).classList.add('active');
+    btn.classList.add('active');
+    // Scroll tab ke posisi aktif
+    btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+}
 
 // Live clock
 function updateClock() {

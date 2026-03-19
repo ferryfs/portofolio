@@ -113,6 +113,7 @@ include '_head.php';
                         <button type="submit" class="btn-primary-custom">Tampilkan</button>
                     </form>
                     <?php if(!$is_guest): ?>
+                    <div class="d-flex gap-2 flex-wrap">
                     <form method="POST" onsubmit="return confirm('Generate slip gaji untuk semua karyawan periode ini?')">
                         <?= csrfTokenField() ?>
                         <input type="hidden" name="month_gen" value="<?= $sel_month ?>">
@@ -121,6 +122,10 @@ include '_head.php';
                             <i class="fa fa-magic me-1"></i> Generate Semua Slip
                         </button>
                     </form>
+                    <a href="export.php?type=payroll&month=<?= $sel_month ?>&year=<?= $sel_year ?>" class="btn-primary-custom" style="background:#7c3aed;">
+                        <i class="fa fa-download me-1"></i> Export CSV
+                    </a>
+                    </div>
                     <?php endif; ?>
                 </div>
                 <?php if(!$is_guest && $already < $total_emp): ?>

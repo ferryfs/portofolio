@@ -36,6 +36,7 @@ if (isset($_POST['process_cuti'])) {
     if (!verifyCSRFToken()) die("Security Error.");
     $id_cuti  = sanitizeInt($_POST['id_cuti']);
     $action   = sanitizeInput($_POST['action']);
+    if (!in_array($action, ['Approved', 'Rejected'])) { header("Location: menu_approval.php"); exit(); }
     $cuti = safeGetOne($pdo, "SELECT * FROM ess_leaves WHERE id=?", [$id_cuti]);
     if ($cuti) {
         if ($action == 'Approved' && $cuti['leave_type'] == 'Cuti Tahunan') {
@@ -67,6 +68,7 @@ if (isset($_POST['process_lembur'])) {
     if (!verifyCSRFToken()) die("Security Error.");
     $id_ot  = sanitizeInt($_POST['id_lembur']);
     $action = sanitizeInput($_POST['action']);
+    if (!in_array($action, ['Approved', 'Rejected'])) { header("Location: menu_approval.php"); exit(); }
     $ot = safeGetOne($pdo, "SELECT * FROM ess_overtime WHERE id=?", [$id_ot]);
     if ($ot) {
         safeQuery($pdo, "UPDATE ess_overtime SET status=?,approved_by=?,approved_at=NOW() WHERE id=?", [$action, $nama_approver, $id_ot]);

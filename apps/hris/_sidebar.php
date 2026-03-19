@@ -1,22 +1,16 @@
 <?php
-// Shared sidebar partial — include di semua halaman HRIS
-// Usage: $active_menu = 'dashboard'; include '_sidebar.php';
-$active = $active_menu ?? '';
-
-// Hitung badge
-$pending_cuti    = safeGetOne($pdo, "SELECT COUNT(*) as c FROM ess_leaves WHERE status='Pending'")['c'] ?? 0;
-$pending_lembur  = safeGetOne($pdo, "SELECT COUNT(*) as c FROM ess_overtime WHERE status='Pending'")['c'] ?? 0;
-$pending_total   = $pending_cuti + $pending_lembur;
-$hris_user       = $_SESSION['hris_name'] ?? 'Admin';
-$hris_username   = $_SESSION['hris_user'] ?? '';
-$is_guest        = ($hris_username === 'guest');
+$active   = $active_menu ?? '';
+$pending_cuti   = safeGetOne($pdo, "SELECT COUNT(*) as c FROM ess_leaves WHERE status='Pending'")['c'] ?? 0;
+$pending_lembur = safeGetOne($pdo, "SELECT COUNT(*) as c FROM ess_overtime WHERE status='Pending'")['c'] ?? 0;
+$pending_total  = $pending_cuti + $pending_lembur;
+$expiring_contract = safeGetOne($pdo, "SELECT COUNT(*) as c FROM ess_users WHERE tipe_kontrak='PKWT' AND kontrak_end BETWEEN CURDATE() AND DATE_ADD(CURDATE(),INTERVAL 30 DAY)")['c'] ?? 0;
+$hris_user  = $_SESSION['hris_name'] ?? 'Admin';
+$hris_uname = $_SESSION['hris_user'] ?? '';
+$is_guest   = ($hris_uname === 'guest');
 ?>
 <div class="sidebar" id="sidebar">
     <div class="sidebar-brand">
-        <div class="brand-logo">
-            <i class="fa fa-layer-group"></i>
-            <span>HRIS</span>
-        </div>
+        <div class="brand-logo"><i class="fa fa-layer-group"></i><span>HRIS</span></div>
         <div class="brand-sub">Human Resource System</div>
     </div>
 
@@ -29,27 +23,26 @@ $is_guest        = ($hris_username === 'guest');
     </div>
 
     <div class="sidebar-section">MAIN</div>
-    <a href="index.php" class="nav-link <?= $active=='dashboard'?'active':'' ?>">
-        <i class="fa fa-gauge-high"></i><span>Dashboard</span>
-    </a>
+    <a href="index.php" class="nav-link <?= $active=='dashboard'?'active':'' ?>"><i class="fa fa-gauge-high"></i><span>Dashboard</span></a>
 
     <div class="sidebar-section">EMPLOYEE</div>
     <a href="menu_employee.php" class="nav-link <?= $active=='employee'?'active':'' ?>">
         <i class="fa fa-users"></i><span>Data Karyawan</span>
+        <?php if($expiring_contract > 0): ?><span class="nav-badge"><?= $expiring_contract ?></span><?php endif; ?>
     </a>
+    <a href="menu_lifecycle.php" class="nav-link <?= $active=='lifecycle'?'active':'' ?>"><i class="fa fa-timeline"></i><span>Employee Lifecycle</span></a>
+    <a href="menu_shift.php" class="nav-link <?= $active=='shift'?'active':'' ?>"><i class="fa fa-clock"></i><span>Shift Management</span></a>
+
+    <div class="sidebar-section">ATTENDANCE & LEAVE</div>
     <a href="menu_attendance.php" class="nav-link <?= $active=='attendance'?'active':'' ?>">
-        <i class="fa fa-fingerprint"></i>
-        <span>Kehadiran & Cuti</span>
-        <?php if($pending_total > 0): ?>
-        <span class="nav-badge"><?= $pending_total ?></span>
-        <?php endif; ?>
+        <i class="fa fa-fingerprint"></i><span>Kehadiran & Cuti</span>
+        <?php if($pending_total > 0): ?><span class="nav-badge"><?= $pending_total ?></span><?php endif; ?>
     </a>
-    <a href="menu_payroll.php" class="nav-link <?= $active=='payroll'?'active':'' ?>">
-        <i class="fa fa-money-bill-wave"></i><span>Payroll</span>
-    </a>
+    <a href="menu_leave_policy.php" class="nav-link <?= $active=='leavepolicy'?'active':'' ?>"><i class="fa fa-clipboard-list"></i><span>Leave Policy</span></a>
+
+    <div class="sidebar-section">FINANCE</div>
+    <a href="menu_payroll.php" class="nav-link <?= $active=='payroll'?'active':'' ?>"><i class="fa fa-money-bill-wave"></i><span>Payroll</span></a>
 
     <div class="sidebar-section">SYSTEM</div>
-    <a href="auth.php?logout=true" class="nav-link nav-link-danger">
-        <i class="fa fa-sign-out-alt"></i><span>Logout</span>
-    </a>
+    <a href="auth.php?logout=true" class="nav-link nav-link-danger"><i class="fa fa-sign-out-alt"></i><span>Logout</span></a>
 </div>

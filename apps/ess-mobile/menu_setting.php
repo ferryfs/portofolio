@@ -72,10 +72,34 @@ if (isset($_POST['change_password'])) {
     }
 }
 
-// 4. AMBIL DATA USER
-$data = safeGetOne($pdo, "SELECT * FROM ess_users WHERE employee_id = ?", [$uid]);
-?>
+// 4. AMBIL DATA USER — lengkap dengan field baru dari HRIS
+$data = safeGetOne($pdo,
+    "SELECT u.*,
+            s.shift_name, s.start_time, s.end_time,
+            mgr.fullname as manager_name
+     FROM ess_users u
+     LEFT JOIN ess_employee_shifts es ON u.employee_id=es.employee_id
+         AND es.id=(SELECT MAX(id) FROM ess_employee_shifts WHERE employee_id=u.employee_id)
+     LEFT JOIN ess_shifts s ON es.shift_id=s.id
+     LEFT JOIN ess_users mgr ON u.manager_id=mgr.id
+     WHERE u.employee_id=?", [$uid]);
 
+// Hitung masa kerja
+$masa_kerja = '—';
+if(!empty($data['join_date'])) {
+    $join = new DateTime($data['join_date']);
+    $diff = $join->diff(new DateTime());
+    $parts = [];
+    if($diff->y > 0) $parts[] = $diff->y . ' tahun';
+    if($diff->m > 0) $parts[] = $diff->m . ' bulan';
+    $masa_kerja = $parts ? implode(' ', $parts) : $diff->d . ' hari';
+}
+
+// Event lifecycle terakhir
+$last_event = safeGetOne($pdo,
+    "SELECT event_type, event_date FROM ess_lifecycle WHERE employee_id=? ORDER BY id DESC LIMIT 1",
+    [$uid]);
+?>
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -162,8 +186,60 @@ $data = safeGetOne($pdo, "SELECT * FROM ess_users WHERE employee_id = ?", [$uid]
         <div class="profile-card">
             <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($data['fullname']); ?>&background=random&color=fff&size=128&bold=true" class="rounded-circle avatar-img mb-3" width="80">
             <h5 class="fw-bold mb-1"><?php echo htmlspecialchars($data['fullname']); ?></h5>
+            <div style="font-size:0.82rem; opacity:0.85; margin-bottom:6px;">
+                <?php echo htmlspecialchars($data['position'] ?: $data['role']); ?>
+            </div>
             <div class="d-inline-block bg-white/20 px-3 py-1 rounded-pill text-xs backdrop-blur-sm">
                 <?php echo htmlspecialchars($data['division']); ?> • <?php echo htmlspecialchars($data['employee_id']); ?>
+            </div>
+            <?php if(!empty($data['employee_status'])): ?>
+            <div class="mt-2">
+                <?php
+                $sc = ['Active'=>'#10b981','Probation'=>'#f59e0b','Inactive'=>'#94a3b8','Resigned'=>'#ef4444','Terminated'=>'#ef4444'][$data['employee_status']] ?? '#94a3b8';
+                ?>
+                <span style="background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); padding:3px 10px; border-radius:20px; font-size:0.72rem; font-weight:600;">
+                    <?php echo htmlspecialchars($data['employee_status']); ?>
+                </span>
+                <?php if(!empty($data['tipe_kontrak'])): ?>
+                <span style="background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); padding:3px 10px; border-radius:20px; font-size:0.72rem; font-weight:600; margin-left:4px;">
+                    <?php echo htmlspecialchars($data['tipe_kontrak']); ?>
+                </span>
+                <?php endif; ?>
+            </div>
+            <?php endif; ?>
+        </div>
+
+        <!-- INFO KEPEGAWAIAN (read-only, dari HRIS) -->
+        <div class="section-title">Info Kepegawaian</div>
+        <div class="px-4 mb-3">
+            <div style="background:#f8fafc; border-radius:16px; border:1px solid #e2e8f0; overflow:hidden;">
+                <?php
+                $info_rows = [
+                    ['fa-id-badge',      'NIK / Employee ID',    $data['employee_id']],
+                    ['fa-briefcase',     'Jabatan',              $data['position'] ?: '—'],
+                    ['fa-building',      'Divisi',               $data['division'] ?: '—'],
+                    ['fa-sitemap',       'Departemen',           $data['department'] ?? '—'],
+                    ['fa-file-contract', 'Tipe Kontrak',         $data['tipe_kontrak'] ?? '—'],
+                    ['fa-user-tie',      'Atasan Langsung',      $data['manager_name'] ?? '—'],
+                    ['fa-clock',         'Shift Kerja',          $data['shift_name'] ? $data['shift_name'] . ' (' . substr($data['start_time'],0,5) . '–' . substr($data['end_time'],0,5) . ')' : 'Regular (08:00–17:00)'],
+                    ['fa-calendar',      'Join Date',            !empty($data['join_date']) ? date('d M Y', strtotime($data['join_date'])) : '—'],
+                    ['fa-hourglass',     'Masa Kerja',           $masa_kerja],
+                ];
+                if(!empty($last_event)):
+                    $info_rows[] = ['fa-timeline', 'Event Terakhir', $last_event['event_type'] . ' — ' . date('d M Y', strtotime($last_event['event_date']))];
+                endif;
+                foreach($info_rows as $i => [$icon, $label, $val]):
+                    $border = $i > 0 ? 'border-top:1px solid #f1f5f9;' : '';
+                ?>
+                <div style="display:flex; align-items:center; gap:12px; padding:11px 16px; <?= $border ?>">
+                    <i class="fa <?= $icon ?>" style="width:16px; text-align:center; color:#94a3b8; font-size:0.82rem; flex-shrink:0;"></i>
+                    <span style="font-size:0.78rem; color:#64748b; flex:1;"><?= $label ?></span>
+                    <span style="font-size:0.78rem; font-weight:600; color:#0f172a; text-align:right; max-width:55%;"><?= htmlspecialchars($val) ?></span>
+                </div>
+                <?php endforeach; ?>
+            </div>
+            <div style="font-size:0.7rem; color:#94a3b8; text-align:center; margin-top:8px;">
+                <i class="fa fa-lock me-1"></i> Data kepegawaian dikelola oleh HR — hubungi HR untuk perubahan
             </div>
         </div>
 

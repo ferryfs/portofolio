@@ -97,6 +97,9 @@ include '_head.php';
         <?php if($total_pending > 0): ?>
         <span class="badge-soft badge-warning"><i class="fa fa-clock me-1"></i><?= $total_pending ?> menunggu approval</span>
         <?php endif; ?>
+        <a href="export.php?type=attendance&month=<?= date('n') ?>&year=<?= date('Y') ?>" class="btn-primary-custom" style="background:#059669; font-size:0.8rem; padding:7px 14px;">
+            <i class="fa fa-download me-1"></i> Export CSV
+        </a>
     </div>
     <div class="page-body">
 

@@ -62,11 +62,15 @@ if(isset($_POST['login'])) {
             
             // Login Sukses
             session_regenerate_id(true);
-            $_SESSION['ess_user'] = $user['employee_id'];
-            $_SESSION['ess_name'] = $user['fullname'];
-            $_SESSION['ess_role'] = $user['role'];
-            $_SESSION['ess_div']  = $user['division'];
-            $_SESSION['ess_id']   = $user['id'];
+            $_SESSION['ess_user']     = $user['employee_id'];
+            $_SESSION['ess_name']     = $user['fullname'];
+            $_SESSION['ess_role']     = $user['role'];
+            $_SESSION['ess_div']      = $user['division'];
+            $_SESSION['ess_id']       = $user['id'];
+            $_SESSION['ess_position'] = $user['position'] ?? '';
+            $_SESSION['ess_dept']     = $user['department'] ?? '';
+            $_SESSION['ess_status']   = $user['employee_status'] ?? 'Active';
+            $_SESSION['ess_kontrak']  = $user['tipe_kontrak'] ?? 'PKWTT';
             $_SESSION['LAST_ACTIVITY'] = time();
 
             // Update Log Login
