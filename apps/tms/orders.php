@@ -1,279 +1,255 @@
 <?php
-// apps/tms/orders.php (FINAL JSON MATCHED)
-
 session_name("TMS_APP_SESSION");
 session_start();
-
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../config/security.php';
-
 if (!isset($_SESSION['tms_status'])) { header("Location: index.php"); exit(); }
 
-// ============================================================
-// 1. LOGIC UTAMA
-// ============================================================
-if (isset($_POST['action_type'])) {
-    
-    if (!verifyCSRFToken()) die("Security Alert: Invalid Token.");
-    
-    $tenant_id = $_SESSION['tms_tenant_id'];
-    $action    = $_POST['action_type'];
-    
-    // --- INPUT ORDER ---
-    if ($action == 'create_order') {
-        $order_no   = sanitizeInput($_POST['order_no']);
-        $type       = sanitizeInput($_POST['order_type']);
-        $origin     = sanitizeInt($_POST['origin_id']);
-        $dest       = sanitizeInt($_POST['destination_id']);
-        $sla_date   = sanitizeInput($_POST['req_delivery_date']);
-        $nav_status = ($tenant_id == 1) ? 'synced' : 'pending'; 
+$tenant_id = $_SESSION['tms_tenant_id'] ?? 1;
+$msg = ''; $msg_type = '';
 
-        $sql = "INSERT INTO tms_orders (tenant_id, order_no, order_type, origin_id, destination_id, req_delivery_date, status, nav_sync_status)
-                VALUES (?, ?, ?, ?, ?, ?, 'new', ?)";
-        
-        if(safeQuery($pdo, $sql, [$tenant_id, $order_no, $type, $origin, $dest, $sla_date, $nav_status])) {
-            echo "<script>alert('Order Berhasil!'); window.location='orders.php';</script>";
-        }
+if (isset($_POST['action_type'])) {
+    if (!verifyCSRFToken()) die("Security Alert: Invalid Token.");
+    $action = sanitizeInput($_POST['action_type']);
+
+    // CREATE ORDER
+    if ($action == 'create_order') {
+        $order_no  = sanitizeInput($_POST['order_no']);
+        $type      = sanitizeInput($_POST['order_type']);
+        $origin    = sanitizeInt($_POST['origin_id']);
+        $dest      = sanitizeInt($_POST['destination_id']);
+        $sla_date  = sanitizeInput($_POST['req_delivery_date']);
+        $weight    = (float)($_POST['total_weight'] ?? 0);
+        $nav_status= 'pending';
+
+        safeQuery($pdo,
+            "INSERT INTO tms_orders (tenant_id,order_no,order_type,origin_id,destination_id,req_delivery_date,status,nav_sync_status,total_weight)
+             VALUES (?,?,?,?,?,?,'new',?,?)",
+            [$tenant_id,$order_no,$type,$origin,$dest,$sla_date,$nav_status,$weight]);
+        $msg = "Order $order_no berhasil dibuat."; $msg_type = 'success';
     }
 
-    // --- DISPATCH ORDER ---
+    // DISPATCH → buat shipment
     elseif ($action == 'dispatch_order') {
         $order_id   = sanitizeInt($_POST['order_id']);
         $vehicle_id = sanitizeInt($_POST['vehicle_id']);
         $driver_id  = sanitizeInt($_POST['driver_id']);
-
-        // FIX: Sesuaikan nama kolom dengan JSON ('plate_number')
-        $veh = safeGetOne($pdo, "SELECT plate_number FROM tms_vehicles WHERE id = ?", [$vehicle_id]);
-        $plate_no = $veh ? $veh['plate_number'] : 'Unknown';
-        
+        $veh = safeGetOne($pdo, "SELECT plate_number FROM tms_vehicles WHERE id=?", [$vehicle_id]);
         $shipment_no = "SHP-" . date('ymd') . rand(100,999);
-        
+
         try {
             $pdo->beginTransaction();
-            
-            // 1. Insert Shipment
-            safeQuery($pdo, "INSERT INTO tms_shipments (shipment_no, vehicle_id, driver_id, status) VALUES (?, ?, ?, 'planned')", 
-            [$shipment_no, $vehicle_id, $driver_id]);
-            $shipment_id = $pdo->lastInsertId();
-
-            // 2. Update Order Status
+            safeQuery($pdo, "INSERT INTO tms_shipments (shipment_no,vehicle_id,driver_id,status) VALUES (?,?,?,'planned')", [$shipment_no,$vehicle_id,$driver_id]);
+            $ship_id = $pdo->lastInsertId();
             safeQuery($pdo, "UPDATE tms_orders SET status='planned' WHERE id=?", [$order_id]);
-            
-            // 3. Insert Stops
-            safeQuery($pdo, "INSERT INTO tms_shipment_stops (shipment_id, order_id, stop_type, sequence_no) VALUES (?, ?, 'pickup', 1)", [$shipment_id, $order_id]);
-            safeQuery($pdo, "INSERT INTO tms_shipment_stops (shipment_id, order_id, stop_type, sequence_no) VALUES (?, ?, 'delivery', 2)", [$shipment_id, $order_id]);
-
-            // 4. Update Status Kendaraan
+            safeQuery($pdo, "INSERT INTO tms_shipment_stops (shipment_id,order_id,stop_type,sequence_no,status) VALUES (?,?,'pickup',1,'pending')", [$ship_id,$order_id]);
+            safeQuery($pdo, "INSERT INTO tms_shipment_stops (shipment_id,order_id,stop_type,sequence_no,status) VALUES (?,?,'delivery',2,'pending')", [$ship_id,$order_id]);
             safeQuery($pdo, "UPDATE tms_vehicles SET status='busy' WHERE id=?", [$vehicle_id]);
-
             $pdo->commit();
-            echo "<script>alert('Dispatch Berhasil ke ".$plate_no."'); window.location='orders.php';</script>";
+            $msg = "Dispatch berhasil ke {$veh['plate_number']}. Shipment: $shipment_no"; $msg_type = 'success';
         } catch(Exception $e) {
             $pdo->rollBack();
-            echo "<script>alert('Gagal Dispatch: " . $e->getMessage() . "');</script>";
+            $msg = "Gagal dispatch: " . $e->getMessage(); $msg_type = 'danger';
+        }
+    }
+
+    // UPDATE STATUS SHIPMENT
+    elseif ($action == 'update_status') {
+        $ship_id = sanitizeInt($_POST['shipment_id']);
+        $status  = sanitizeInput($_POST['new_status']);
+        $allowed = ['planned','in_transit','arrived','completed','failed','cancelled'];
+        if (in_array($status, $allowed)) {
+            safeQuery($pdo, "UPDATE tms_shipments SET status=? WHERE id=?", [$status, $ship_id]);
+            // Jika completed/failed, bebaskan kendaraan
+            if (in_array($status, ['completed','failed','cancelled'])) {
+                $ship = safeGetOne($pdo, "SELECT vehicle_id FROM tms_shipments WHERE id=?", [$ship_id]);
+                if ($ship) safeQuery($pdo, "UPDATE tms_vehicles SET status='available' WHERE id=?", [$ship['vehicle_id']]);
+            }
+            $msg = "Status shipment diperbarui ke: $status"; $msg_type = 'success';
         }
     }
 }
 
-// ============================================================
-// 2. DATA VIEW (MATCHING JSON)
-// ============================================================
+$locations = safeGetAll($pdo, "SELECT * FROM tms_locations WHERE tenant_id=?", [$tenant_id]);
+$drivers   = safeGetAll($pdo, "SELECT id, name FROM tms_drivers");
+$vehicles  = safeGetAll($pdo, "SELECT v.id, v.plate_number, v.vehicle_type, v.capacity_weight, vn.name as vendor_name FROM tms_vehicles v LEFT JOIN tms_vendors vn ON v.vendor_id=vn.id WHERE v.status='available'");
 
-// A. Locations
-$locations = safeGetAll($pdo, "SELECT * FROM tms_locations WHERE tenant_id = ?", [$_SESSION['tms_tenant_id']]);
+$orders = safeGetAll($pdo,
+    "SELECT o.*, l1.name as origin, l2.name as dest,
+     s.shipment_no, s.status as ship_status, s.id as ship_id,
+     d.name as driver_name, v.plate_number
+     FROM tms_orders o
+     LEFT JOIN tms_locations l1 ON o.origin_id=l1.id
+     LEFT JOIN tms_locations l2 ON o.destination_id=l2.id
+     LEFT JOIN tms_shipment_stops ss ON ss.order_id=o.id AND ss.stop_type='pickup'
+     LEFT JOIN tms_shipments s ON ss.shipment_id=s.id
+     LEFT JOIN tms_drivers d ON s.driver_id=d.id
+     LEFT JOIN tms_vehicles v ON s.vehicle_id=v.id
+     WHERE o.tenant_id=? ORDER BY o.id DESC", [$tenant_id]);
 
-// B. Drivers (FIXED)
-// Karena user_id di JSON null, kita ambil dari kolom 'name' yang baru kita buat di SQL Step 1
-$drivers = [];
-try {
-    $drivers = safeGetAll($pdo, "SELECT id, name FROM tms_drivers");
-} catch (Exception $e) { }
-
-// C. Vehicles (FIXED)
-// Sesuaikan dengan JSON: plate_number
-$vehicles = [];
-try {
-    $vehicles = safeGetAll($pdo, "SELECT v.id, v.plate_number, vn.name as vendor_name 
-                                  FROM tms_vehicles v 
-                                  LEFT JOIN tms_vendors vn ON v.vendor_id = vn.id 
-                                  WHERE v.status='available'");
-} catch (Exception $e) { }
-
-// D. Orders
-$orders = [];
-try {
-    $sql_order = "SELECT o.*, 
-                  COALESCE(l1.name, 'Unknown Origin') as origin, 
-                  COALESCE(l2.name, 'Unknown Dest') as dest 
-                  FROM tms_orders o 
-                  LEFT JOIN tms_locations l1 ON o.origin_id = l1.id 
-                  LEFT JOIN tms_locations l2 ON o.destination_id = l2.id 
-                  WHERE o.tenant_id = ? 
-                  ORDER BY o.id DESC";
-    $orders = safeGetAll($pdo, $sql_order, [$_SESSION['tms_tenant_id']]);
-} catch (Exception $e) { }
+$page_title  = 'Orders';
+$active_page = 'orders';
+include '_head.php';
 ?>
-
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <title>TMS Operation | LogiTrack</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root { --sidebar-bg: #0f172a; --accent: #f59e0b; --bg-body: #f1f5f9; }
-        body { font-family: 'Outfit', sans-serif; background: var(--bg-body); overflow-x: hidden; }
-        .sidebar { width: 250px; height: 100vh; position: fixed; top: 0; left: 0; background: var(--sidebar-bg); color: #94a3b8; z-index: 1000; transition: 0.3s; }
-        .sidebar-brand { padding: 20px; font-size: 1.5rem; font-weight: 800; color: white; border-bottom: 1px solid rgba(255,255,255,0.1); }
-        .nav-link { color: #94a3b8; padding: 12px 20px; font-weight: 500; display: flex; align-items: center; gap: 10px; transition: 0.2s; }
-        .nav-link:hover, .nav-link.active { color: white; background: rgba(255,255,255,0.05); border-right: 3px solid var(--accent); }
-        .main-content { margin-left: 250px; padding: 20px; }
-        .badge-sales { background-color: #dbeafe; color: #1e40af; border: 1px solid #1e40af; }
-        .badge-transfer { background-color: #fef3c7; color: #92400e; border: 1px solid #92400e; }
-        .badge-nav-synced { background-color: #dcfce7; color: #166534; font-size: 0.65rem; }
-    </style>
-</head>
 <body>
-
-    <div class="sidebar">
-        <div class="sidebar-brand"><i class="fa fa-map-location-dot text-warning me-2"></i>LogiTrack</div>
-        <nav class="nav flex-column mt-3">
-            <a href="dashboard.php" class="nav-link"><i class="fa fa-gauge-high"></i> Dashboard</a>
-            <a href="orders.php" class="nav-link active"><i class="fa fa-truck-ramp-box"></i> Orders (SO/DO)</a>
-            <a href="outbound.php" class="nav-link"><i class="fa fa-boxes-packing"></i> Outbound (POD)</a>
-            <div class="mt-4 px-3 text-uppercase small fw-bold text-muted" style="font-size: 0.7rem;">Data Master</div>
-            <a href="fleet.php" class="nav-link"><i class="fa fa-truck"></i> Fleet Management</a>
-            <a href="drivers.php" class="nav-link"><i class="fa fa-users-gear"></i> Drivers</a>
-            <div class="mt-4 px-3 text-uppercase small fw-bold text-muted" style="font-size: 0.7rem;">Settings</div>
-            <a href="billing.php" class="nav-link"><i class="fa fa-file-invoice-dollar"></i> Billing & Cost</a>
-            <a href="auth.php?logout=true" class="nav-link text-danger"><i class="fa fa-power-off"></i> Logout</a>
-        </nav>
+<?php include '_sidebar.php'; ?>
+<div class="main-content">
+    <div class="page-header">
+        <div>
+            <h3><i class="fa fa-truck-ramp-box text-warning me-2"></i>TMS Operation Panel</h3>
+            <p>Tenant: <?= htmlspecialchars($_SESSION['tms_tenant'] ?? 'TACO Group') ?></p>
+        </div>
+        <button class="btn btn-accent shadow-sm" data-bs-toggle="modal" data-bs-target="#modalOrder">
+            <i class="fa fa-plus me-2"></i>Create Order
+        </button>
     </div>
 
-    <div class="main-content">
-        <div class="d-flex justify-content-between mb-4">
-            <div>
-                <h3 class="fw-bold"><i class="fa fa-cubes text-primary"></i> TMS Operation Panel</h3>
-                <p class="text-muted mb-0">Tenant: <strong>TACO Group (Demo)</strong> | User: <?= htmlspecialchars($_SESSION['tms_fullname']) ?></p>
-            </div>
-            <div>
-                <button class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#modalOrder"><i class="fa fa-plus me-1"></i> Create Order</button>
-            </div>
-        </div>
-
-        <div class="card shadow border-0">
-            <div class="card-body">
-                <table class="table table-hover align-middle" id="tableTMS">
-                    <thead class="table-light">
-                        <tr><th>Order No</th><th>Type</th><th>Rute</th><th>SLA Date</th><th>NAV Status</th><th>Status Fisik</th><th>Action</th></tr>
-                    </thead>
-                    <tbody>
-                        <?php if (empty($orders)): ?>
-                            <tr><td colspan="7" class="text-center py-4 text-muted">Belum ada order. Silakan buat order baru.</td></tr>
-                        <?php else: ?>
-                            <?php foreach($orders as $r): ?>
-                            <tr>
-                                <td class="fw-bold"><?= htmlspecialchars($r['order_no']) ?></td>
-                                <td><?= ($r['order_type'] == 'sales') ? '<span class="badge badge-sales">SALES</span>' : '<span class="badge badge-transfer">TRANSFER</span>' ?></td>
-                                <td><small>From:</small> <b><?= htmlspecialchars($r['origin']) ?></b><br><small>To:</small> <b><?= htmlspecialchars($r['dest']) ?></b></td>
-                                <td><?= date('d M Y', strtotime($r['req_delivery_date'])) ?></td>
-                                <td><?= ($r['nav_sync_status'] == 'synced') ? '<span class="badge badge-nav-synced">SYNCED</span>' : '<span class="badge bg-secondary">PENDING</span>' ?></td>
-                                <td><span class="badge bg-info text-dark text-uppercase"><?= $r['status'] ?></span></td>
-                                <td>
-                                    <?php if($r['status'] == 'new'): ?>
-                                        <button class="btn btn-sm btn-warning fw-bold" onclick="openDispatch('<?=$r['id']?>', '<?=htmlspecialchars($r['order_no'])?>')"><i class="fa fa-truck"></i> Dispatch</button>
-                                    <?php else: ?>
-                                        <button class="btn btn-sm btn-outline-secondary"><i class="fa fa-eye"></i> Track</button>
-                                    <?php endif; ?>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
+    <?php if($msg): ?>
+    <div class="alert alert-<?= $msg_type ?> border-0 rounded-3 py-2 mb-3 small fw-bold">
+        <i class="fa fa-<?= $msg_type=='success'?'check-circle':'exclamation-circle' ?> me-2"></i><?= htmlspecialchars($msg) ?>
     </div>
+    <?php endif; ?>
 
-    <div class="modal fade" id="modalOrder">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header"><h5 class="modal-title">Input Order</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-                <form method="POST">
-                    <?php echo csrfTokenField(); ?>
-                    <input type="hidden" name="action_type" value="create_order">
-                    
-                    <div class="modal-body">
-                        <div class="mb-3"><label>No. SO / DO</label><input type="text" name="order_no" class="form-control" value="SO-<?=time()?>" required></div>
-                        <div class="mb-3"><label>Tipe Transaksi</label><select name="order_type" class="form-select"><option value="sales">Sales</option><option value="transfer">Stock Transfer</option></select></div>
-                        <div class="row">
-                            <div class="col-6 mb-3"><label>Asal</label><select name="origin_id" class="form-select"><?php foreach($locations as $l): ?><option value="<?=$l['id']?>"><?=$l['name']?></option><?php endforeach; ?></select></div>
-                            <div class="col-6 mb-3"><label>Tujuan</label><select name="destination_id" class="form-select"><?php foreach($locations as $l): ?><option value="<?=$l['id']?>"><?=$l['name']?></option><?php endforeach; ?></select></div>
-                        </div>
-                        <div class="mb-3"><label>SLA Date</label><input type="date" name="req_delivery_date" class="form-control" required></div>
-                    </div>
-                    <div class="modal-footer"><button type="submit" class="btn btn-primary">Create Order</button></div>
-                </form>
-            </div>
-        </div>
+    <div class="data-card">
+        <table class="table" id="tableTMS">
+            <thead><tr><th>Order No</th><th>Type</th><th>Rute</th><th>SLA Date</th><th>Berat</th><th>NAV</th><th>Status Order</th><th>Shipment</th><th>Action</th></tr></thead>
+            <tbody>
+            <?php if(empty($orders)): ?>
+            <tr><td colspan="9" class="text-center text-muted py-4">Belum ada order.</td></tr>
+            <?php else: foreach($orders as $r):
+                $status_map = ['new'=>['bs-muted','New'],'planned'=>['bs-primary','Planned'],'in_transit'=>['bs-warning','In Transit'],'arrived'=>['bs-info','Arrived'],'completed'=>['bs-success','Completed'],'failed'=>['bs-danger','Failed']];
+                $ss = $status_map[$r['ship_status'] ?? 'new'] ?? ['bs-muted', $r['ship_status']];
+                $os = $status_map[$r['status']] ?? ['bs-muted', $r['status']];
+            ?>
+            <tr>
+                <td class="fw-bold"><?= htmlspecialchars($r['order_no']) ?></td>
+                <td><span class="badge-soft <?= $r['order_type']=='sales'?'bs-primary':'bs-orange' ?>"><?= strtoupper($r['order_type']) ?></span></td>
+                <td style="font-size:0.8rem;">
+                    <div><i class="fa fa-circle-dot me-1 text-success" style="font-size:0.55rem;"></i><?= htmlspecialchars($r['origin']) ?></div>
+                    <div><i class="fa fa-location-dot me-1 text-danger" style="font-size:0.55rem;"></i><?= htmlspecialchars($r['dest']) ?></div>
+                </td>
+                <td style="font-size:0.82rem;"><?= date('d M Y', strtotime($r['req_delivery_date'])) ?></td>
+                <td style="font-size:0.82rem;"><?= number_format($r['total_weight'],0) ?> kg</td>
+                <td><span class="badge-soft <?= $r['nav_sync_status']=='synced'?'bs-success':'bs-muted' ?>"><?= $r['nav_sync_status']=='synced'?'SYNCED':'PENDING' ?></span></td>
+                <td><span class="badge-soft <?= $os[0] ?>"><?= $os[1] ?></span></td>
+                <td style="font-size:0.78rem;">
+                    <?php if($r['shipment_no']): ?>
+                    <div class="fw-bold"><?= htmlspecialchars($r['shipment_no']) ?></div>
+                    <div style="color:var(--muted);"><?= htmlspecialchars($r['driver_name']??'-') ?> | <?= htmlspecialchars($r['plate_number']??'-') ?></div>
+                    <?php else: ?><span class="text-muted">—</span><?php endif; ?>
+                </td>
+                <td>
+                    <?php if($r['status'] == 'new'): ?>
+                    <button class="btn btn-sm btn-accent fw-bold" onclick="openDispatch('<?=$r['id']?>','<?=htmlspecialchars($r['order_no'])?>')">
+                        <i class="fa fa-truck me-1"></i>Dispatch
+                    </button>
+                    <?php elseif($r['ship_id'] && !in_array($r['ship_status'],['completed','failed','cancelled'])): ?>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="openStatusModal('<?=$r['ship_id']?>','<?=$r['shipment_no']?>','<?=$r['ship_status']?>')">
+                        <i class="fa fa-arrows-rotate me-1"></i>Update Status
+                    </button>
+                    <?php else: ?>
+                    <span class="badge-soft bs-muted">Selesai</span>
+                    <?php endif; ?>
+                </td>
+            </tr>
+            <?php endforeach; endif; ?>
+            </tbody>
+        </table>
     </div>
+</div>
 
-    <div class="modal fade" id="modalDispatch">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header"><h5 class="modal-title">Dispatch Order: <span id="dispOrderNo"></span></h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-                <form method="POST">
-                    <?php echo csrfTokenField(); ?>
-                    <input type="hidden" name="action_type" value="dispatch_order">
-                    <input type="hidden" name="order_id" id="dispOrderId">
-                    
-                    <div class="modal-body">
-                        <?php if(empty($vehicles)): ?>
-                            <div class="alert alert-warning"><small>Tidak ada armada tersedia (Available).</small></div>
-                        <?php endif; ?>
-
-                        <div class="mb-3">
-                            <label>Pilih Kendaraan</label>
-                            <select name="vehicle_id" class="form-select" required>
-                                <option value="">-- Pilih Armada --</option>
-                                <?php foreach($vehicles as $v): ?>
-                                    <option value="<?=$v['id']?>">
-                                        <?=$v['plate_number']?> (<?= htmlspecialchars($v['vendor_name'] ?? 'Internal') ?>)
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label>Pilih Driver</label>
-                            <select name="driver_id" class="form-select" required>
-                                <option value="">-- Pilih Supir --</option>
-                                <?php foreach($drivers as $d): ?>
-                                    <option value="<?=$d['id']?>"><?= htmlspecialchars($d['name']) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="modal-footer"><button type="submit" class="btn btn-warning fw-bold w-100">Assign & Dispatch</button></div>
-                </form>
+<!-- MODAL CREATE ORDER -->
+<div class="modal fade" id="modalOrder" tabindex="-1">
+    <div class="modal-dialog"><div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title fw-bold">Buat Order Baru</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+        <form method="POST"><?= csrfTokenField() ?><input type="hidden" name="action_type" value="create_order">
+            <div class="modal-body">
+                <div class="mb-3"><label class="form-label">No. SO / DO</label><input type="text" name="order_no" class="form-control" value="SO-<?= time() ?>" required></div>
+                <div class="mb-3"><label class="form-label">Tipe Transaksi</label>
+                    <select name="order_type" class="form-select"><option value="sales">Sales</option><option value="transfer">Stock Transfer</option></select></div>
+                <div class="row g-2 mb-3">
+                    <div class="col-6"><label class="form-label">Asal</label>
+                        <select name="origin_id" class="form-select"><?php foreach($locations as $l): ?><option value="<?=$l['id']?>"><?=$l['name']?></option><?php endforeach; ?></select></div>
+                    <div class="col-6"><label class="form-label">Tujuan</label>
+                        <select name="destination_id" class="form-select"><?php foreach($locations as $l): ?><option value="<?=$l['id']?>"><?=$l['name']?></option><?php endforeach; ?></select></div>
+                </div>
+                <div class="row g-2">
+                    <div class="col-6"><label class="form-label">SLA Date</label><input type="date" name="req_delivery_date" class="form-control" required></div>
+                    <div class="col-6"><label class="form-label">Berat (kg)</label><input type="number" name="total_weight" class="form-control" placeholder="500"></div>
+                </div>
             </div>
-        </div>
-    </div>
+            <div class="modal-footer border-0"><button type="submit" class="btn btn-accent w-100 fw-bold">Create Order</button></div>
+        </form>
+    </div></div>
+</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
-    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
-    <script>
-        $(document).ready(function() { $('#tableTMS').DataTable(); });
-        function openDispatch(id, no) {
-            document.getElementById('dispOrderId').value = id;
-            document.getElementById('dispOrderNo').innerText = no;
-            new bootstrap.Modal(document.getElementById('modalDispatch')).show();
-        }
-    </script>
-</body>
-</html>
+<!-- MODAL DISPATCH -->
+<div class="modal fade" id="modalDispatch" tabindex="-1">
+    <div class="modal-dialog"><div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title fw-bold">Dispatch: <span id="dispOrderNo"></span></h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+        <form method="POST"><?= csrfTokenField() ?><input type="hidden" name="action_type" value="dispatch_order"><input type="hidden" name="order_id" id="dispOrderId">
+            <div class="modal-body">
+                <?php if(empty($vehicles)): ?>
+                <div class="alert alert-warning border-0 rounded-3 py-2 small">Tidak ada armada tersedia saat ini.</div>
+                <?php endif; ?>
+                <div class="mb-3"><label class="form-label">Pilih Kendaraan</label>
+                    <select name="vehicle_id" class="form-select" required>
+                        <option value="">— Pilih Armada —</option>
+                        <?php foreach($vehicles as $v): ?>
+                        <option value="<?=$v['id']?>"><?= htmlspecialchars($v['plate_number']) ?> (<?= $v['vehicle_type'] ?> — <?= number_format($v['capacity_weight'],0) ?>kg)</option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="mb-3"><label class="form-label">Pilih Driver</label>
+                    <select name="driver_id" class="form-select" required>
+                        <option value="">— Pilih Supir —</option>
+                        <?php foreach($drivers as $d): ?><option value="<?=$d['id']?>"><?= htmlspecialchars($d['name']) ?></option><?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer border-0"><button type="submit" class="btn btn-accent w-100 fw-bold">Assign & Dispatch</button></div>
+        </form>
+    </div></div>
+</div>
+
+<!-- MODAL UPDATE STATUS -->
+<div class="modal fade" id="modalStatus" tabindex="-1">
+    <div class="modal-dialog modal-sm"><div class="modal-content">
+        <div class="modal-header"><h6 class="modal-title fw-bold">Update Status Shipment</h6><button class="btn-close" data-bs-dismiss="modal"></button></div>
+        <form method="POST"><?= csrfTokenField() ?><input type="hidden" name="action_type" value="update_status"><input type="hidden" name="shipment_id" id="statusShipId">
+            <div class="modal-body">
+                <div class="mb-2 text-muted small fw-bold" id="statusShipNo"></div>
+                <label class="form-label">Status Baru</label>
+                <select name="new_status" class="form-select" id="statusSelect">
+                    <option value="planned">Planned</option>
+                    <option value="in_transit">In Transit</option>
+                    <option value="arrived">Arrived</option>
+                    <option value="completed">Completed</option>
+                    <option value="failed">Failed</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
+            </div>
+            <div class="modal-footer border-0"><button type="submit" class="btn btn-accent w-100 fw-bold">Update</button></div>
+        </form>
+    </div></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
+<script>
+$(document).ready(function() { $('#tableTMS').DataTable({ order: [[0,'desc']] }); });
+function openDispatch(id, no) {
+    document.getElementById('dispOrderId').value = id;
+    document.getElementById('dispOrderNo').innerText = no;
+    new bootstrap.Modal(document.getElementById('modalDispatch')).show();
+}
+function openStatusModal(shipId, shipNo, currentStatus) {
+    document.getElementById('statusShipId').value = shipId;
+    document.getElementById('statusShipNo').innerText = 'Shipment: ' + shipNo;
+    document.getElementById('statusSelect').value = currentStatus;
+    new bootstrap.Modal(document.getElementById('modalStatus')).show();
+}
+</script>
+</body></html>
