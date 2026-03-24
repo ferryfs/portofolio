@@ -26,7 +26,8 @@ if (isset($_POST['action_type'])) {
             "INSERT INTO tms_orders (tenant_id,order_no,order_type,origin_id,destination_id,req_delivery_date,status,nav_sync_status,total_weight)
              VALUES (?,?,?,?,?,?,'new',?,?)",
             [$tenant_id,$order_no,$type,$origin,$dest,$sla_date,$nav_status,$weight]);
-        $msg = "Order $order_no berhasil dibuat."; $msg_type = 'success';
+        header("Location: orders.php?msg=order_created&no=".urlencode($order_no));
+        exit();
     }
 
     // DISPATCH → buat shipment
@@ -46,33 +47,72 @@ if (isset($_POST['action_type'])) {
             safeQuery($pdo, "INSERT INTO tms_shipment_stops (shipment_id,order_id,stop_type,sequence_no,status) VALUES (?,?,'delivery',2,'pending')", [$ship_id,$order_id]);
             safeQuery($pdo, "UPDATE tms_vehicles SET status='busy' WHERE id=?", [$vehicle_id]);
             $pdo->commit();
-            $msg = "Dispatch berhasil ke {$veh['plate_number']}. Shipment: $shipment_no"; $msg_type = 'success';
+            header("Location: orders.php?msg=dispatched&shp=".urlencode($shipment_no));
+            exit();
         } catch(Exception $e) {
             $pdo->rollBack();
-            $msg = "Gagal dispatch: " . $e->getMessage(); $msg_type = 'danger';
+            header("Location: orders.php?msg=dispatch_failed");
+            exit();
         }
     }
 
     // UPDATE STATUS SHIPMENT
     elseif ($action == 'update_status') {
-        $ship_id = sanitizeInt($_POST['shipment_id']);
-        $status  = sanitizeInput($_POST['new_status']);
-        $allowed = ['planned','in_transit','arrived','completed','failed','cancelled'];
-        if (in_array($status, $allowed)) {
-            safeQuery($pdo, "UPDATE tms_shipments SET status=? WHERE id=?", [$status, $ship_id]);
-            // Jika completed/failed, bebaskan kendaraan
-            if (in_array($status, ['completed','failed','cancelled'])) {
-                $ship = safeGetOne($pdo, "SELECT vehicle_id FROM tms_shipments WHERE id=?", [$ship_id]);
-                if ($ship) safeQuery($pdo, "UPDATE tms_vehicles SET status='available' WHERE id=?", [$ship['vehicle_id']]);
-            }
-            $msg = "Status shipment diperbarui ke: $status"; $msg_type = 'success';
-        }
+    $ship_id = sanitizeInt($_POST['shipment_id']);
+    $status  = sanitizeInput($_POST['new_status']);
+
+    $allowed = ['planned','in_transit','arrived','completed','failed','cancelled'];
+
+    if ($ship_id <= 0) {
+        die("Invalid shipment ID");
+    }
+
+    if (!in_array($status, $allowed)) {
+        die("Invalid status value");
+    }
+
+    // AMBIL STATUS LAMA
+    $old = safeGetOne($pdo, "SELECT status, vehicle_id FROM tms_shipments WHERE id=?", [$ship_id]);
+
+    if (!$old) {
+        die("Shipment tidak ditemukan");
+    }
+
+    // CEK KALAU STATUS SAMA
+    if ($old['status'] === $status) {
+        header("Location: orders.php?msg=status_same");
+        exit();
+    }
+
+    // UPDATE STATUS
+    safeQuery($pdo, "UPDATE tms_shipments SET status=? WHERE id=?", [$status, $ship_id]);
+
+    // FREE VEHICLE
+    if (in_array($status, ['completed','failed','cancelled'])) {
+        safeQuery($pdo, "UPDATE tms_vehicles SET status='available' WHERE id=?", [$old['vehicle_id']]);
+    }
+
+    header("Location: orders.php?msg=status_updated&status=".urlencode($status));
+    exit();
     }
 }
 
 $locations = safeGetAll($pdo, "SELECT * FROM tms_locations WHERE tenant_id=?", [$tenant_id]);
 $drivers   = safeGetAll($pdo, "SELECT id, name FROM tms_drivers");
 $vehicles  = safeGetAll($pdo, "SELECT v.id, v.plate_number, v.vehicle_type, v.capacity_weight, vn.name as vendor_name FROM tms_vehicles v LEFT JOIN tms_vendors vn ON v.vendor_id=vn.id WHERE v.status='available'");
+
+// Flash message dari redirect
+$msg_map = [
+    'order_created'  => ['success', 'Order ' . htmlspecialchars($_GET['no'] ?? '') . ' berhasil dibuat.'],
+    'dispatched'     => ['success', 'Dispatch berhasil. Shipment: ' . htmlspecialchars($_GET['shp'] ?? '')],
+    'dispatch_failed'=> ['danger',  'Gagal dispatch — tidak ada armada tersedia atau terjadi error.'],
+    'status_same' => ['warning', 'Status tidak berubah (sama seperti sebelumnya).'],
+    'status_updated' => ['success', 'Status shipment diperbarui ke: ' . htmlspecialchars($_GET['status'] ?? '')],
+];
+$flash = $_GET['msg'] ?? '';
+if($flash && isset($msg_map[$flash])) {
+    [$msg_type, $msg] = $msg_map[$flash];
+}
 
 $orders = safeGetAll($pdo,
     "SELECT o.*, l1.name as origin, l2.name as dest,
@@ -82,6 +122,7 @@ $orders = safeGetAll($pdo,
      LEFT JOIN tms_locations l1 ON o.origin_id=l1.id
      LEFT JOIN tms_locations l2 ON o.destination_id=l2.id
      LEFT JOIN tms_shipment_stops ss ON ss.order_id=o.id AND ss.stop_type='pickup'
+         AND ss.shipment_id = (SELECT MAX(shipment_id) FROM tms_shipment_stops WHERE order_id=o.id AND stop_type='pickup')
      LEFT JOIN tms_shipments s ON ss.shipment_id=s.id
      LEFT JOIN tms_drivers d ON s.driver_id=d.id
      LEFT JOIN tms_vehicles v ON s.vehicle_id=v.id
@@ -117,8 +158,9 @@ include '_head.php';
             <?php if(empty($orders)): ?>
             <tr><td colspan="9" class="text-center text-muted py-4">Belum ada order.</td></tr>
             <?php else: foreach($orders as $r):
-                $status_map = ['new'=>['bs-muted','New'],'planned'=>['bs-primary','Planned'],'in_transit'=>['bs-warning','In Transit'],'arrived'=>['bs-info','Arrived'],'completed'=>['bs-success','Completed'],'failed'=>['bs-danger','Failed']];
-                $ss = $status_map[$r['ship_status'] ?? 'new'] ?? ['bs-muted', $r['ship_status']];
+                $status_map = ['new'=>['bs-muted','New'],'planned'=>['bs-primary','Planned'],'in_transit'=>['bs-warning','In Transit'],'arrived'=>['bs-info','Arrived'],'completed'=>['bs-success','Completed'],'failed'=>['bs-danger','Failed'],'cancelled'=>['bs-dark','Cancelled']];
+                $shipStatus = $r['ship_status'] ?: 'planned';
+                $ss = $status_map[$shipStatus] ?? ['bs-muted', $shipStatus];
                 $os = $status_map[$r['status']] ?? ['bs-muted', $r['status']];
             ?>
             <tr>
@@ -144,7 +186,7 @@ include '_head.php';
                         <i class="fa fa-truck me-1"></i>Dispatch
                     </button>
                     <?php elseif($r['ship_id'] && !in_array($r['ship_status'],['completed','failed','cancelled'])): ?>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="openStatusModal('<?=$r['ship_id']?>','<?=$r['shipment_no']?>','<?=$r['ship_status']?>')">
+                    <button class="btn btn-sm btn-outline-secondary" onclick="openStatusModal('<?=$r['ship_id']?>','<?=htmlspecialchars($r['shipment_no'])?>','<?=$r['ship_status']?? 'planned'?>')">
                         <i class="fa fa-arrows-rotate me-1"></i>Update Status
                     </button>
                     <?php else: ?>
@@ -246,9 +288,24 @@ function openDispatch(id, no) {
     new bootstrap.Modal(document.getElementById('modalDispatch')).show();
 }
 function openStatusModal(shipId, shipNo, currentStatus) {
+    console.log("OPEN MODAL:", shipId, shipNo, currentStatus);
+
+    // VALIDASI ID
+    if (!shipId || shipId == 0) {
+        alert("Shipment ID tidak valid!");
+        return;
+    }
+
     document.getElementById('statusShipId').value = shipId;
     document.getElementById('statusShipNo').innerText = 'Shipment: ' + shipNo;
+
+    // FIX NULL STATUS
+    if (!currentStatus || currentStatus === 'null' || currentStatus === '') {
+        currentStatus = 'planned';
+    }
+
     document.getElementById('statusSelect').value = currentStatus;
+
     new bootstrap.Modal(document.getElementById('modalStatus')).show();
 }
 </script>

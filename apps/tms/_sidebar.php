@@ -5,7 +5,7 @@ $active_page = $active_page ?? '';
 
 // Badge pending (shipment yang belum selesai)
 try {
-    $pending_ship = safeGetOne($pdo, "SELECT COUNT(*) as c FROM tms_shipments WHERE status NOT IN ('completed','cancelled')")['c'] ?? 0;
+    $pending_ship = safeGetOne($pdo, "SELECT COUNT(*) as c FROM tms_shipments WHERE status IN ('planned','in_transit','arrived')")['c'] ?? 0;
     $pending_pod  = safeGetOne($pdo, "SELECT COUNT(*) as c FROM tms_delivery_notes WHERE status='draft'")['c'] ?? 0;
     $shortage_cnt = safeGetOne($pdo,
         "SELECT COUNT(DISTINCT l.dn_id) as c

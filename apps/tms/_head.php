@@ -142,3 +142,4 @@ $page_title = $page_title ?? 'LogiTrack TMS';
         .empty-state i { font-size: 2.5rem; margin-bottom: 10px; display: block; opacity: 0.2; }
         .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 5px; }
     </style>
+</head>

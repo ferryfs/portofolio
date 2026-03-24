@@ -62,6 +62,10 @@ if (isset($_POST['btn_login'])) {
             $_SESSION['tms_fullname']  = $row['fullname'];
             $_SESSION['tms_tenant_id'] = $row['tenant_id'];
 
+            // Ambil nama tenant untuk ditampilkan di sidebar
+            $tenant = safeGetOne($pdo, "SELECT name FROM tms_tenants WHERE id=?", [$row['tenant_id']]);
+            $_SESSION['tms_tenant'] = $tenant['name'] ?? 'TACO Group';
+
             logSecurityEvent('TMS Login Success: ' . $user);
             header("Location: dashboard.php");
             exit();

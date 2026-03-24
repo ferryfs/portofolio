@@ -4,11 +4,21 @@ session_start();
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../config/security.php';
 if (!isset($_SESSION['tms_status'])) { header("Location: index.php"); exit(); }
+
 $page_title  = 'User Guide';
 $active_page = 'help';
+
+// Ambil CSS guide dulu via output buffering
+ob_start();
+include '_guide_content.php';
+$guide_css = ob_get_clean();
+
+// Include head (output HTML head tag)
 include '_head.php';
+
+// Inject guide CSS (masuk setelah </style> dari _head, sebelum </head>)
+echo $guide_css;
 ?>
-<?php include '_guide_content.php'; ?>
 <body>
 <?php include '_sidebar.php'; ?>
 <div class="main-content">

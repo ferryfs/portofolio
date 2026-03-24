@@ -67,7 +67,14 @@ $active_shipments = safeGetAll($pdo,
 
 $page_title  = 'Dashboard';
 $active_page = 'dashboard';
+ob_start();
 include '_head.php';
+$head_html = ob_get_clean();
+ob_start();
+include '_guide_content.php';
+$guide_css = ob_get_clean();
+// Inject guide CSS sebelum </head>
+echo str_replace('</head>', $guide_css . '</head>', $head_html);
 ?>
 <body>
 <?php include '_sidebar.php'; ?>
@@ -218,7 +225,6 @@ include '_head.php';
 </div>
 
 <!-- ═══ USER GUIDE MODAL (full — sama dengan help.php) ═══ -->
-<?php include '_guide_content.php'; ?>
 <style>
 #guideModal .modal-dialog { max-width: 860px; }
 #guideModal .modal-content { border-radius: 20px; max-height: 90vh; display: flex; flex-direction: column; }

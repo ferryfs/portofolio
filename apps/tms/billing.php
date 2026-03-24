@@ -188,6 +188,16 @@ include '_head.php';
 <script>
 $(document).ready(function(){ $('#tableBilling').DataTable({ order:[[0,'desc']] }); });
 const RATE_INT = <?= $RATE_INTERNAL ?>, RATE_3PL = <?= $RATE_3PL ?>, MIN_CHG = <?= $MIN_CHARGE ?>;
+
+document.addEventListener('DOMContentLoaded', function() {
+    var weightEl = document.getElementById('autoWeight');
+    if(weightEl) {
+        weightEl.addEventListener('input', function() {
+            updateEstimate(this.value, document.getElementById('autoVendorType').value);
+        });
+    }
+});
+
 function openBilling(shipId, shipNo, weight, vendorType, estimated) {
     document.getElementById('billShipId').value = shipId;
     document.getElementById('autoShipId').value = shipId;

@@ -17,13 +17,15 @@ if (isset($_POST['add_fleet'])) {
     $kir      = sanitizeInput($_POST['kir_expired'] ?? '');
 
     $cek = safeGetOne($pdo, "SELECT id FROM tms_vehicles WHERE plate_number=?", [$plate]);
-    if ($cek) { $msg = "Plat $plate sudah terdaftar!"; $msg_type = 'danger'; }
-    else {
+    if ($cek) {
+        header("Location: fleet.php?msg=duplicate&plate=".urlencode($plate));
+    } else {
         safeQuery($pdo,
             "INSERT INTO tms_vehicles (vendor_id,plate_number,vehicle_type,capacity_weight,stnk_expired,kir_expired,status) VALUES (?,?,?,?,?,?,'available')",
             [$vendor,$plate,$type,$capacity,$stnk?:null,$kir?:null]);
-        $msg = "Armada $plate berhasil ditambahkan."; $msg_type = 'success';
+        header("Location: fleet.php?msg=added&plate=".urlencode($plate));
     }
+    exit();
 }
 
 if (isset($_POST['update_status_vehicle'])) {
@@ -32,9 +34,10 @@ if (isset($_POST['update_status_vehicle'])) {
     $status = sanitizeInput($_POST['vehicle_status']);
     if(in_array($status, ['available','busy','maintenance'])) {
         safeQuery($pdo, "UPDATE tms_vehicles SET status=? WHERE id=?", [$status,$vid]);
-        $msg = "Status armada diperbarui."; $msg_type = 'success';
     }
-}
+    header("Location: fleet.php?msg=status_updated");
+    exit();
+    }
 
 $fleets  = safeGetAll($pdo, "SELECT v.*, ven.name as vendor_name, ven.type as v_type FROM tms_vehicles v LEFT JOIN tms_vendors ven ON v.vendor_id=ven.id ORDER BY v.status, v.id");
 $vendors = safeGetAll($pdo, "SELECT * FROM tms_vendors");

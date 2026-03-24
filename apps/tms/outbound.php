@@ -24,7 +24,8 @@ if (isset($_POST['act']) && $_POST['act'] == 'simulate_nav') {
         safeQuery($pdo, "INSERT INTO tms_items (lpn_id,item_code,item_name,qty_ordered,qty_received) VALUES (?,'HPL-001','HPL White Gloss',5,0)", [$lpn_id]);
         safeQuery($pdo, "INSERT INTO tms_items (lpn_id,item_code,item_name,qty_ordered,qty_received) VALUES (?,'EDG-002','Edging PVC 22mm',5,0)", [$lpn_id]);
     }
-    $msg = "Data NAV berhasil di-pull. DN: $dn_no"; $msg_type = 'success';
+    header("Location: outbound.php?msg=nav_pulled&dn=".urlencode($dn_no));
+    exit();
 }
 
 // DISPATCH (Sender sign)
@@ -33,7 +34,8 @@ if (isset($_POST['act']) && $_POST['act'] == 'dispatch_confirm') {
     $dn_id = sanitizeInt($_POST['dn_id']);
     $sign  = $_POST['signature_data'];
     safeQuery($pdo, "UPDATE tms_delivery_notes SET sign_sender=?,sign_sender_name='Admin Gudang',status='in_transit' WHERE id=?", [$sign,$dn_id]);
-    $msg = "Surat jalan berhasil dikeluarkan — status In Transit."; $msg_type = 'success';
+    header("Location: outbound.php?msg=released");
+    exit();
 }
 
 // RECEIVE (Receiver sign + qty + exception check)
@@ -46,7 +48,6 @@ if (isset($_POST['act']) && $_POST['act'] == 'receive_confirm') {
     try {
         $pdo->beginTransaction();
 
-        // Update qty received per item
         if(isset($_POST['qty_received'])) {
             foreach($_POST['qty_received'] as $item_id => $qty) {
                 $item_id = (int)$item_id;
@@ -57,31 +58,30 @@ if (isset($_POST['act']) && $_POST['act'] == 'receive_confirm') {
             }
         }
 
-        // Update qty damaged per item
         if(isset($_POST['qty_damaged'])) {
             foreach($_POST['qty_damaged'] as $item_id => $qty) {
                 $item_id = (int)$item_id;
                 $qty     = (int)$qty;
-                if($qty > 0) { $has_damage = true; safeQuery($pdo,"UPDATE tms_items SET remarks=CONCAT(IFNULL(remarks,''),' [DAMAGED: $qty]') WHERE id=?",[$item_id]); }
+                if($qty > 0) {
+                    $has_damage = true;
+                    safeQuery($pdo, "UPDATE tms_items SET remarks=CONCAT(IFNULL(remarks,''),' [DAMAGED: ?]') WHERE id=?", [$qty, $item_id]);
+                }
             }
         }
 
-        // Tentukan status DN
-        $dn_status = 'delivered';
-        if($has_shortage || $has_damage) $dn_status = 'delivered'; // tetap delivered tapi ada flag exception
-
-        safeQuery($pdo, "UPDATE tms_delivery_notes SET sign_receiver=?,sign_receiver_name='Store Manager',status=? WHERE id=?", [$sign,$dn_status,$dn_id]);
+        safeQuery($pdo, "UPDATE tms_delivery_notes SET sign_receiver=?,sign_receiver_name='Store Manager',status='delivered' WHERE id=?", [$sign,$dn_id]);
         $pdo->commit();
 
         if($has_shortage || $has_damage) {
-            $msg = "Barang diterima dengan EXCEPTION — " . ($has_shortage?'shortage ':''). ($has_damage?'damage':'') . ". Segera laporkan ke admin.";
-            $msg_type = 'warning';
+            header("Location: outbound.php?msg=received_exception");
         } else {
-            $msg = "Barang diterima lengkap. Status: Delivered."; $msg_type = 'success';
+            header("Location: outbound.php?msg=received_ok");
         }
+        exit();
     } catch(Exception $e) {
         $pdo->rollBack();
-        $msg = "Gagal konfirmasi penerimaan."; $msg_type = 'danger';
+        header("Location: outbound.php?msg=receive_failed");
+        exit();
     }
 }
 
@@ -105,7 +105,6 @@ if (isset($_POST['act']) && $_POST['act'] == 'resolve_exception') {
         // Atau update remarks di semua item terkait
         $dn = safeGetOne($pdo, "SELECT * FROM tms_delivery_notes WHERE id=?", [$dn_id]);
         if($dn) {
-            // Update remarks items terkait — pakai parameterized query (bukan string embed)
             $resolve_tag = ' [RESOLVED: ' . $action_label . ($notes ? ' — ' . $notes : '') . ']';
             $lpns = safeGetAll($pdo, "SELECT id FROM tms_lpns WHERE dn_id=?", [$dn_id]);
             foreach($lpns as $lpn) {
@@ -113,12 +112,28 @@ if (isset($_POST['act']) && $_POST['act'] == 'resolve_exception') {
                     "UPDATE tms_items SET remarks = CONCAT(IFNULL(remarks,''), ?) WHERE lpn_id=? AND (qty_received < qty_ordered OR remarks LIKE '%DAMAGED%')",
                     [$resolve_tag, $lpn['id']]);
             }
-            // Update DN status ke 'resolved' untuk menyembunyikan dari exception panel
             safeQuery($pdo, "UPDATE tms_delivery_notes SET status='resolved' WHERE id=?", [$dn_id]);
-            $msg = "Exception DN {$dn['dn_number']} berhasil di-resolve: $action_label"; $msg_type = 'success';
+            header("Location: outbound.php?msg=resolved&dn=".urlencode($dn['dn_number']));
+            exit();
         }
     }
 }
+
+// Flash message dari redirect
+$msg = ''; $msg_type = '';
+$flash_map = [
+    'nav_pulled'        => ['success', 'Data NAV berhasil di-pull. DN: ' . htmlspecialchars($_GET['dn'] ?? '')],
+    'released'          => ['success', 'Surat jalan berhasil dikeluarkan — status In Transit.'],
+    'received_ok'       => ['success', 'Barang diterima lengkap. Status: Delivered.'],
+    'received_exception'=> ['warning', '⚠️ Barang diterima dengan exception (shortage/damage). Lihat panel Exception Report di bawah.'],
+    'receive_failed'    => ['danger',  'Gagal konfirmasi penerimaan. Coba lagi.'],
+    'resolved'          => ['success', 'Exception DN ' . htmlspecialchars($_GET['dn'] ?? '') . ' berhasil di-resolve.'],
+];
+$flash = $_GET['msg'] ?? '';
+if($flash && isset($flash_map[$flash])) {
+    [$msg_type, $msg] = $flash_map[$flash];
+}
+
 $data_dn = safeGetAll($pdo,
     "SELECT dn.*, so.so_number, so.customer_name FROM tms_delivery_notes dn
      JOIN tms_sales_orders so ON dn.so_id=so.id ORDER BY dn.id DESC");
@@ -232,10 +247,16 @@ include '_head.php';
                     <button class="btn btn-sm btn-success text-white fw-bold" onclick="openReceive(<?=$row['id']?>,'<?=$row['dn_number']?>')">
                         <i class="fa fa-box-open me-1"></i>Receive
                     </button>
-                    <?php else: ?>
+                    <?php elseif($row['status']=='delivered'): ?>
                     <a href="print_dn.php?id=<?=$row['id']?>" target="_blank" class="btn btn-sm btn-outline-dark">
                         <i class="fa fa-print me-1"></i>Cetak SJ
                     </a>
+                    <?php elseif($row['status']=='resolved'): ?>
+                    <div class="d-flex gap-1">
+                        <a href="print_dn.php?id=<?=$row['id']?>" target="_blank" class="btn btn-sm btn-outline-dark">
+                            <i class="fa fa-print me-1"></i>Cetak SJ
+                        </a>
+                    </div>
                     <?php endif; ?>
                 </td>
             </tr>

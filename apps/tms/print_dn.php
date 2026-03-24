@@ -7,6 +7,10 @@ session_start();
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../config/security.php';
 
+if (!isset($_SESSION['tms_status']) || $_SESSION['tms_status'] != 'login') {
+    header("Location: index.php"); exit();
+}
+
 if(!isset($_GET['id'])) { die("Error: ID Tidak ditemukan"); }
 $dn_id = sanitizeInt($_GET['id']);
 
